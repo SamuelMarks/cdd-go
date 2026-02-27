@@ -1,0 +1,9 @@
+# Binaries
+bin/
+cdd-go
+cdd_go
+
+# Coverage
+*coverage.html
+coverage.out
+*.tmp
