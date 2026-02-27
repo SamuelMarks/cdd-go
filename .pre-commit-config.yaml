@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: go-test
+        name: Run go tests
+        entry: go test -v ./...
+        language: system
+        pass_filenames: false
+        files: \.go$
+
+      - id: update-shields
+        name: Update README shields
+        entry: bash scripts/update-shields.sh
+        language: system
+        pass_filenames: false
+        files: \.go$|^README\.md$
