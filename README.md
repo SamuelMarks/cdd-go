@@ -97,7 +97,7 @@ func main() {
 | OpenAPI (JSON/YAML) | [✅] | [✅] |
 | `Go` Models / Structs / Types | [✅] | [✅] |
 | `Go` Server Routes / Endpoints | [✅] | [✅] |
-| `Go` API Clients / SDKs | [ ] | [ ] |
+| `Go` API Clients / SDKs | [✅] | [✅] |
 | `Go` ORM / DB Schemas | [ ] | [ ] |
 | `Go` CLI Argument Parsers | [ ] | [ ] |
 | `Go` Docstrings / Comments | [✅] | [✅] |

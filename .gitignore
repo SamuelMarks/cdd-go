@@ -1,7 +1,7 @@
 # Binaries
 bin/
-cdd-go
-cdd_go
+/cdd-go
+/cdd_go
 
 # Coverage
 *coverage.html
