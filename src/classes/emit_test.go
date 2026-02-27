@@ -45,7 +45,7 @@ func TestEmitType(t *testing.T) {
 	}
 
 	decl := &dst.GenDecl{
-		Tok: token.TYPE,
+		Tok:   token.TYPE,
 		Specs: []dst.Spec{ts},
 	}
 
