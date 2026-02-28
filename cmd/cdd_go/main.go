@@ -31,13 +31,28 @@ func main() {
 
 func run(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("expected 'from_openapi' or 'to_openapi' subcommands")
+		return fmt.Errorf("expected 'from_openapi', 'to_openapi' or 'to_docs_json' subcommands")
 	}
 
 	subcommand := args[0]
 	var in, out string
 
 	switch subcommand {
+	case "-h", "--help", "help":
+		fmt.Println("cdd-go is a Code-Driven Development tool for Go.")
+		fmt.Println("\nUsage:")
+		fmt.Println("  cdd-go [subcommand] [flags]")
+		fmt.Println("\nSubcommands:")
+		fmt.Println("  from_openapi   Generate code from OpenAPI spec")
+		fmt.Println("  to_openapi     Generate OpenAPI spec from code")
+		fmt.Println("  to_docs_json   Generate documentation JSON from OpenAPI spec")
+		fmt.Println("\nFlags:")
+		fmt.Println("  -h, --help     Show this help message")
+		fmt.Println("  -v, --version  Show version information")
+		return nil
+	case "-v", "--version", "version":
+		fmt.Println("cdd-go version 1.0.0")
+		return nil
 	case "from_openapi":
 		fs := flag.NewFlagSet("from_openapi", flag.ContinueOnError)
 		fs.SetOutput(stderr)
@@ -54,6 +69,7 @@ func run(args []string) error {
 		fs.SetOutput(stderr)
 		fs.StringVar(&in, "i", "", "Input file or directory path")
 		fs.StringVar(&in, "in", "", "Input file or directory path")
+		fs.StringVar(&in, "f", "", "Input file or directory path")
 		fs.StringVar(&out, "o", "openapi.json", "Output file path")
 		fs.StringVar(&out, "out", "openapi.json", "Output file path")
 		if err := fs.Parse(args[1:]); err != nil {
