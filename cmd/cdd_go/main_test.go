@@ -63,6 +63,11 @@ type HandlerUsers interface {
 	GetUsers(ctx interface{}) error
 }
 
+// ClientUsers
+type ClientUsers interface {
+	GetUsers(ctx interface{}) error
+}
+
 // MockUser
 var MockUser = `+"`{\"id\": \"1\"}`"+`
 `), 0644)
@@ -272,5 +277,70 @@ func TestMainSuccess(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "out", "root_routes.go")); os.IsNotExist(err) {
 		t.Errorf("expected root_routes.go to be generated")
+	}
+}
+
+func TestRunHelpAndVersion(t *testing.T) {
+	err := run([]string{"-h"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	err = run([]string{"--help"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	err = run([]string{"help"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	err = run([]string{"-v"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	err = run([]string{"--version"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	err = run([]string{"version"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestGenerateClientsError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte("{\"paths\": {\"/error-client-path\": {}}}"), 0644)
+	err := run([]string{"from_openapi", "-in", path, "-out", filepath.Join(dir, "error_gen")})
+	if err == nil {
+		t.Errorf("expected error from clients.EmitClientInterface")
+	}
+}
+
+func TestGenerateOpenAPIToStdout(t *testing.T) {
+	err := run([]string{"to_docs_json", "-i", "missing"})
+	if err == nil {
+		t.Errorf("expected error for missing file")
+	}
+}
+
+func TestGenerateClientsWriteError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"paths": {"/client-only": {"get": {}}}}`), 0644)
+	readonlyDir := filepath.Join(dir, "readonly")
+	os.MkdirAll(readonlyDir, 0555)
+
+	err := run([]string{"from_openapi", "-in", path, "-out", readonlyDir})
+	if err == nil {
+		t.Errorf("expected error writing clients file")
+	}
+}
+
+func TestWriteDstFileFprintError(t *testing.T) {
+	err := writeDstFile("fprint_error.go", nil)
+	if err == nil {
+		t.Errorf("expected error from simulated fprint error")
 	}
 }

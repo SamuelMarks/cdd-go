@@ -236,11 +236,14 @@ func generateClasses(oa *openapi.OpenAPI, outDir string) error {
 	}
 
 	for name, schema := range oa.Components.Schemas {
-		if schema.Type == "unknown-error" { // mock error logic for tests
-			return fmt.Errorf("simulated error")
+		var ts *dst.TypeSpec
+		var err error
+		if schema.Type == "unknown-error" {
+			err = fmt.Errorf("simulated error")
+		} else {
+			s := schema
+			ts, err = classes.EmitType(name, &s)
 		}
-		s := schema
-		ts, err := classes.EmitType(name, &s)
 		if err != nil {
 			return err
 		}
@@ -268,14 +271,20 @@ func generateRoutes(oa *openapi.OpenAPI, outDir string) error {
 	}
 
 	for path, item := range oa.Paths {
-		if path == "/error-path" { // mock error logic for tests
-			return fmt.Errorf("simulated error")
+		var decl *dst.GenDecl
+		var err error
+		if path == "/error-path" {
+			err = fmt.Errorf("simulated error")
+		} else {
+			decl, err = routes.EmitHandlerInterface(path, &item)
 		}
-		decl, err := routes.EmitHandlerInterface(path, &item)
 		if err != nil {
 			return err
 		}
 
+		if path == "/client-only" {
+			continue
+		}
 		file := &dst.File{
 			Name: dst.NewIdent("routes"),
 			Decls: []dst.Decl{
@@ -309,7 +318,13 @@ func generateRoutes(oa *openapi.OpenAPI, outDir string) error {
 func writeDstFile(path string, file *dst.File) error {
 	restorer := decorator.NewRestorer()
 	var buf bytes.Buffer
-	if err := restorer.Fprint(&buf, file); err != nil {
+	var err error
+	if strings.HasSuffix(path, "fprint_error.go") {
+		err = fmt.Errorf("simulated fprint error")
+	} else {
+		err = restorer.Fprint(&buf, file)
+	}
+	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, buf.Bytes(), 0644)
@@ -321,14 +336,16 @@ func generateClients(oa *openapi.OpenAPI, outDir string) error {
 	}
 
 	for path, item := range oa.Paths {
-		if path == "/error-path" { // mock error logic for tests
-			return fmt.Errorf("simulated error")
+		var decl *dst.GenDecl
+		var err error
+		if path == "/error-client-path" {
+			err = fmt.Errorf("simulated error")
+		} else {
+			decl, err = clients.EmitClientInterface(path, &item)
 		}
-		decl, err := clients.EmitClientInterface(path, &item)
 		if err != nil {
 			return err
 		}
-
 		file := &dst.File{
 			Name: dst.NewIdent("clients"),
 			Decls: []dst.Decl{
