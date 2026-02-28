@@ -139,3 +139,78 @@ func TestRunToDocsJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestRunToDocsJSONErrors(t *testing.T) {
+	err := runToDocsJSON([]string{"-invalid-flag"})
+	if err == nil {
+		t.Errorf("expected error for invalid flag")
+	}
+
+	err = runToDocsJSON([]string{})
+	if err == nil {
+		t.Errorf("expected error for missing input")
+	}
+
+	err = runToDocsJSON([]string{"-i", "missing-file.json"})
+	if err == nil {
+		t.Errorf("expected error for missing file")
+	}
+
+	dir := t.TempDir()
+	invalidFile := filepath.Join(dir, "invalid.json")
+	os.WriteFile(invalidFile, []byte("{invalid json"), 0644)
+	err = runToDocsJSON([]string{"-i", invalidFile})
+	if err == nil {
+		t.Errorf("expected error for invalid json")
+	}
+}
+
+func TestRunToDocsJSONEmpty(t *testing.T) {
+	dir := t.TempDir()
+	openAPIPath := filepath.Join(dir, "openapi.json")
+	os.WriteFile(openAPIPath, []byte(`{
+  "openapi": "3.0.0",
+  "info": { "title": "Test API", "version": "1.0.0" },
+  "paths": {}
+}`), 0644)
+
+	oldStdout := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runToDocsJSON([]string{"-i", openAPIPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Test encode error by passing a bad stdout? No, json.NewEncoder(os.Stdout).Encode(result)
+	// We can just close os.Stdout BEFORE running it, then Encode will fail!
+
+}
+
+func TestRunToDocsJSONEncodeError(t *testing.T) {
+	dir := t.TempDir()
+	openAPIPath := filepath.Join(dir, "openapi.json")
+	os.WriteFile(openAPIPath, []byte(`{
+  "openapi": "3.0.0",
+  "info": { "title": "Test API", "version": "1.0.0" },
+  "paths": {}
+}`), 0644)
+
+	oldStdout := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+	w.Close() // Close immediately so Encode fails!
+
+	err := runToDocsJSON([]string{"-i", openAPIPath})
+
+	os.Stdout = oldStdout
+
+	if err == nil {
+		t.Errorf("expected error from json Encode")
+	}
+}

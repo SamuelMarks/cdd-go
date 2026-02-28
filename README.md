@@ -1,8 +1,9 @@
-# cdd-go
+cdd-go
+======
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![CI/CD](https://github.com/SamuelMarks/cdd-go/workflows/CI/badge.svg)](https://github.com/SamuelMarks/cdd-go/actions)
-[![Test Coverage](https://img.shields.io/badge/Test_Coverage-91.2%25-green)](https://github.com/samuel/cdd-go)
+[![Test Coverage](https://img.shields.io/badge/Test_Coverage-100.0%25-green)](https://github.com/samuel/cdd-go)
 [![Doc Coverage](https://img.shields.io/badge/Doc_Coverage-100.0%25-green)](https://github.com/samuel/cdd-go)
 
 OpenAPI ↔ Go. This is one compiler in a suite, all focussed on the same task: Compiler Driven Development (CDD).
@@ -33,13 +34,13 @@ The `cdd-go` compiler leverages a unified architecture to support various facets
 To install `cdd-go`, ensure you have Go installed (version 1.18 or higher is recommended) and run:
 
 ```bash
-go install github.com/samuel/cdd-go/cmd/cdd_go@latest
+go install github.com/SamuelMarks/cdd-go/cmd/cdd_go@latest
 ```
 
 Alternatively, you can clone the repository and build the binary yourself:
 
 ```bash
-git clone https://github.com/samuel/cdd-go.git
+git clone https://github.com/SamuelMarks/cdd-go.git
 cd cdd-go
 go build -o cdd_go ./cmd/cdd_go/
 ```
