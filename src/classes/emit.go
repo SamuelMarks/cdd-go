@@ -20,7 +20,13 @@ func EmitType(name string, schema *openapi.Schema) (*dst.TypeSpec, error) {
 		Name: dst.NewIdent(name),
 	}
 
-	if schema.Type == "object" || len(schema.Properties) > 0 {
+	if schema.Type == "object" && schema.AdditionalProperties != nil && len(schema.Properties) == 0 {
+		mt := &dst.MapType{
+			Key:   dst.NewIdent("string"),
+			Value: EmitTypeExpr(schema.AdditionalProperties),
+		}
+		ts.Type = mt
+	} else if schema.Type == "object" || len(schema.Properties) > 0 {
 		st := &dst.StructType{
 			Fields: &dst.FieldList{},
 		}
@@ -74,6 +80,14 @@ func EmitTypeExpr(schema *openapi.Schema) dst.Expr {
 		return &dst.ArrayType{
 			Elt: EmitTypeExpr(schema.Items),
 		}
+	case "object":
+		if schema.AdditionalProperties != nil {
+			return &dst.MapType{
+				Key:   dst.NewIdent("string"),
+				Value: EmitTypeExpr(schema.AdditionalProperties),
+			}
+		}
+		fallthrough
 	default:
 		if schema.Ref != "" {
 			parts := strings.Split(schema.Ref, "/")

@@ -26,3 +26,6 @@ jobs:
 
     - name: Run Tests
       run: go test -v -coverprofile=coverage.out ./...
+
+    - name: Build WASM
+      run: make build_wasm

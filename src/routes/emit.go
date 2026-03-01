@@ -32,6 +32,18 @@ func EmitHandlerInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl
 	if pathItem.Delete != nil {
 		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Delete", pathItem.Delete))
 	}
+	if pathItem.Patch != nil {
+		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Patch", pathItem.Patch))
+	}
+	if pathItem.Options != nil {
+		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Options", pathItem.Options))
+	}
+	if pathItem.Head != nil {
+		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Head", pathItem.Head))
+	}
+	if pathItem.Trace != nil {
+		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Trace", pathItem.Trace))
+	}
 
 	ts := &dst.TypeSpec{
 		Name: dst.NewIdent(interfaceName),

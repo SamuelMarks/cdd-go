@@ -6,7 +6,7 @@ The `cdd-go` project provides a central binary capable of parsing OpenAPI format
 
 ```bash
 # Install the CLI binary globally
-go install github.com/samuel/cdd-go/cmd/cdd_go@latest
+go install github.com/samuel/cdd-go/cmd/cdd-go@latest
 ```
 
 ## OpenAPI to Language (Go Code Generation)
@@ -15,7 +15,7 @@ Given an existing `openapi.json` file, you can instruct `cdd-go` to read the str
 
 ```bash
 # Generate Go structures from a local openapi.json file
-cdd_go from_openapi -i ./openapi.json -o ./generated
+cdd-go from_openapi -i ./openapi.json -o ./generated
 ```
 
 ### What happens?
@@ -28,7 +28,7 @@ If developers have written Go code directly or modified the generated output, yo
 
 ```bash
 # Generate an openapi.json from an entire Go module directory
-cdd_go to_openapi -i ./my_project_pkg -o ./docs/openapi.json
+cdd-go to_openapi -i ./my_project_pkg -o ./docs/openapi.json
 ```
 
 ### What happens?

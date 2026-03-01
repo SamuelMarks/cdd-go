@@ -58,6 +58,12 @@ func ParseHandlerInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 			pathItem.Delete = op
 		} else if strings.HasPrefix(nameLower, "patch") {
 			pathItem.Patch = op
+		} else if strings.HasPrefix(nameLower, "options") {
+			pathItem.Options = op
+		} else if strings.HasPrefix(nameLower, "head") {
+			pathItem.Head = op
+		} else if strings.HasPrefix(nameLower, "trace") {
+			pathItem.Trace = op
 		}
 	}
 

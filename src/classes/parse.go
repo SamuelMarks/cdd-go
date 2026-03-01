@@ -68,6 +68,16 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 			return nil, err
 		}
 		schema.Items = itemsSchema
+	case *dst.MapType:
+		schema.Type = "object"
+		if keyIdent, ok := t.Key.(*dst.Ident); !ok || keyIdent.Name != "string" {
+			return nil, fmt.Errorf("map keys must be strings")
+		}
+		valSchema, err := ParseExpr(t.Value)
+		if err != nil {
+			return nil, err
+		}
+		schema.AdditionalProperties = valSchema
 	default:
 		s, err := ParseExpr(t)
 		if err != nil {
@@ -112,6 +122,15 @@ func ParseExpr(expr dst.Expr) (*openapi.Schema, error) {
 		return ParseExpr(e.X)
 	case *dst.StructType:
 		return &openapi.Schema{Type: "object"}, nil
+	case *dst.MapType:
+		if keyIdent, ok := e.Key.(*dst.Ident); !ok || keyIdent.Name != "string" {
+			return nil, fmt.Errorf("map keys must be strings")
+		}
+		valSchema, err := ParseExpr(e.Value)
+		if err != nil {
+			return nil, err
+		}
+		return &openapi.Schema{Type: "object", AdditionalProperties: valSchema}, nil
 	default:
 		return nil, fmt.Errorf("unsupported expr type: %T", expr)
 	}
