@@ -91,3 +91,17 @@ SET GOOS=
 SET GOARCH=
 ECHO Built WASM to %BIN_DIR%\cdd-go.wasm
 GOTO :EOF
+
+:build_docker
+docker build -t cdd-go-alpine -f alpine.Dockerfile .
+docker build -t cdd-go-debian -f debian.Dockerfile .
+GOTO :EOF
+
+:run_docker
+docker run -d -p 8085:8085 --name cdd-go-test cdd-go-alpine --port 8085 --listen 0.0.0.0
+timeout /t 2
+curl -X POST -H "Content-Type: application/json" -d "{\"method\":\"version\",\"id\":1}" http://127.0.0.1:8085
+docker stop cdd-go-test
+docker rm cdd-go-test
+docker rmi cdd-go-alpine cdd-go-debian
+GOTO :EOF

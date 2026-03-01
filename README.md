@@ -3,8 +3,8 @@ cdd-go
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![CI/CD](https://github.com/offscale/cdd-go/workflows/CI/badge.svg)](https://github.com/offscale/cdd-go/actions)
+[![Test Coverage](https://img.shields.io/badge/test_coverage-97.9%25-brightgreen.svg)](#)
 [![Doc Coverage](https://img.shields.io/badge/doc_coverage-100.0%25-brightgreen.svg)](#)
-[![Test Coverage](https://img.shields.io/badge/test_coverage-100.0%25-brightgreen.svg)](#)
 
 OpenAPI ↔ Go. This is one compiler in a suite, all focussed on the same task: Compiler Driven Development (CDD).
 
@@ -13,9 +13,12 @@ Each compiler is written in its target language, is whitespace and comment sensi
 The CLI—at a minimum—has:
 - `cdd-go --help`
 - `cdd-go --version`
-- `cdd-go from_openapi -i spec.json`
-- `cdd-go to_openapi -f path/to/code`
-- `cdd-go to_docs_json --no-imports --no-wrapping -i spec.json`
+- `cdd-go to_openapi -f path/to/code -o spec.json`
+- `cdd-go serve_json_rpc --port 8082 --listen 0.0.0.0`
+- `cdd-go to_docs_json --no-imports --no-wrapping -i spec.json -o docs.json`
+- `cdd-go from_openapi to_sdk_cli -i spec.json -o target_directory`
+- `cdd-go from_openapi to_sdk -i spec.json -o target_directory`
+- `cdd-go from_openapi to_server -i spec.json -o target_directory`
 
 The goal of this project is to enable rapid application development without tradeoffs. Tradeoffs of Protocol Buffers / Thrift etc. are an untouchable "generated" directory and package, compile-time and/or runtime overhead. Tradeoffs of Java or JavaScript for everything are: overhead in hardware access, offline mode, ML inefficiency, and more. And neither of these alterantive approaches are truly integrated into your target system, test frameworks, and bigger abstractions you build in your app. Tradeoffs in CDD are code duplication (but CDD handles the synchronisation for you).
 
@@ -31,34 +34,28 @@ The `cdd-go` compiler leverages a unified architecture to support various facets
 
 ## 📦 Installation
 
-Requires Go 1.21+.
-
-Run the following command to install the CLI tool:
+To install `cdd-go` as a standalone binary:
 
 ```bash
-go install github.com/offscale/cdd-go/cmd/cdd-go@latest
+go install github.com/samuel/cdd-go/cmd/cdd-go@latest
 ```
 
-Or to use as a library in your project:
-
-```bash
-go get github.com/offscale/cdd-go
-```
+Ensure `$(go env GOPATH)/bin` is in your `$PATH`.
 
 ## 🛠 Usage
 
 ### Command Line Interface
 
-Generate Go models and routes from an OpenAPI specification:
+Generate an OpenAPI spec from your Go code:
 
 ```bash
-cdd-go from_openapi -i api_spec.yaml -o generated_code
+cdd-go to_openapi -f ./src/ -o openapi.json
 ```
 
-Generate an OpenAPI specification from existing Go source files:
+Generate a Go server framework from an OpenAPI spec:
 
 ```bash
-cdd-go to_openapi -f src/routes -o generated_openapi.json
+cdd-go from_openapi to_server -i openapi.json -o ./generated-server/
 ```
 
 ### Programmatic SDK / Library
@@ -67,31 +64,24 @@ cdd-go to_openapi -f src/routes -o generated_openapi.json
 package main
 
 import (
-	"fmt"
 	"os"
-
 	"github.com/samuel/cdd-go/src/openapi"
 )
 
 func main() {
-	file, err := os.Open("openapi.json")
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
+	f, _ := os.Open("openapi.json")
+	defer f.Close()
 
-	spec, err := openapi.Parse(file)
-	if err != nil {
-		panic(err)
-	}
+	oa, _ := openapi.Parse(f)
 
-	fmt.Printf("Parsed OpenAPI API: %s\n", spec.Info.Title)
+	// Print the version or process
+	println(oa.OpenAPI)
 }
 ```
 
 ## Design choices
 
-The parser and emitter in `cdd-go` use `github.com/dave/dst` (Decorated Syntax Tree), a fork/wrapper over Go's native `go/ast`. This allows `cdd-go` to be strictly whitespace and comment sensitive. By mutating a DST and emitting it, we prevent clobbering existing comments, imports, or idiosyncratic line spacing. This is a critical feature to enable bidirectional code generation, avoiding the "untouchable generated code directory" problem found in many other tools.
+`cdd-go` leverages `github.com/dave/dst` to read and edit the AST without destroying source code formatting and comments. This is a massive improvement over standard `go/ast` which loses comment alignment and whitespace information, allowing for true bidirectional synchronization.
 
 ## 🏗 Supported Conversions for Go
 
@@ -104,9 +94,12 @@ The parser and emitter in `cdd-go` use `github.com/dave/dst` (Decorated Syntax T
 | `Go` Server Routes / Endpoints | [✅] | [✅] |
 | `Go` API Clients / SDKs | [✅] | [✅] |
 | `Go` ORM / DB Schemas | [ ] | [ ] |
-| `Go` CLI Argument Parsers | [ ] | [ ] |
+| `Go` CLI Argument Parsers | [ ] | [✅] |
 | `Go` Docstrings / Comments | [✅] | [✅] |
-| WebAssembly (WASM) | [✅] | [✅] |
+
+| WASM Support | Implemented |
+|---------|--------------|
+| Yes | Yes |
 
 ---
 

@@ -1,11 +1,7 @@
 # cdd-go Architecture
 
-<!-- BADGES_START -->
-<!-- Replace these placeholders with your repository-specific badges -->
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![CI/CD](https://github.com/offscale/cdd-go/workflows/CI/badge.svg)](https://github.com/offscale/cdd-go/actions)
-[![Coverage](https://codecov.io/gh/offscale/cdd-go/branch/master/graph/badge.svg)](https://codecov.io/gh/offscale/cdd-go)
-<!-- BADGES_END -->
 
 The **cdd-go** tool acts as a dedicated compiler and transpiler. Its fundamental architecture follows standard compiler design principles, divided into three distinct phases: **Frontend (Parsing)**, **Intermediate Representation (IR)**, and **Backend (Emitting)**.
 
@@ -58,7 +54,7 @@ graph TD
 
 The Frontend's responsibility is to read an input source and translate it into the universal CDD Intermediate Representation (IR).
 
-* **Static Analysis (AST-Driven)**: For `Go` source code, the tool **does not** use dynamic reflection or execute the code. Instead, it reads the source files, generates a Decorated Syntax Tree (DST/AST), and navigates the tree to extract structs, interfaces, functions, type signatures, API client definitions, server routes, and docstrings.
+* **Static Analysis (AST-Driven)**: For `Go` source code, the tool **does not** use dynamic reflection or execute the code. Instead, it reads the source files, generates an Abstract Syntax Tree (AST), and navigates the tree to extract classes, structs, functions, type signatures, API client definitions, server routes, and docstrings.
 * **OpenAPI Parsing**: For OpenAPI and JSON Schema inputs, the parser normalizes the structure, resolving internal `$ref`s and extracting properties, endpoints (client or server perspectives), and metadata into the IR.
 
 ### 2. Intermediate Representation (IR)
@@ -74,11 +70,11 @@ By standardizing on a single IR (heavily inspired by OpenAPI / JSON Schema primi
 
 The Backend's responsibility is to take the universal IR and generate valid target output. Emitters can be written to support various environments (e.g., Client vs Server, Web vs CLI).
 
-* **Code Generation**: Emitters iterate over the IR and generate idiomatic `Go` source code preserving whitespaces and comments.
+* **Code Generation**: Emitters iterate over the IR and generate idiomatic `Go` source code.
   * A **Server Emitter** creates routing controllers and request-validation logic.
   * A **Client Emitter** creates API wrappers, fetch functions, and response-parsing logic.
 * **Database & CLI Generation**: Emitters can also target ORM models or command-line parsers by mapping IR properties to database columns or CLI arguments.
-* **Specification Generation**: Emitters translating back to OpenAPI serialize the IR into standard OpenAPI 3.2.0 JSON, rigorously formatting descriptions, type constraints, and endpoint schemas based on what was parsed from the source code.
+* **Specification Generation**: Emitters translating back to OpenAPI serialize the IR into standard OpenAPI 3.x JSON or YAML, rigorously formatting descriptions, type constraints, and endpoint schemas based on what was parsed from the source code.
 
 ## 🔄 Extensibility
 

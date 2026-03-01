@@ -20,6 +20,7 @@ import (
 )
 
 var osExit = os.Exit
+var osGetwd = os.Getwd
 var stderr = os.Stderr
 
 func main() {
@@ -29,9 +30,23 @@ func main() {
 	}
 }
 
+func envOrDefault(key, def string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return def
+}
+
+func envOrDefaultBool(key string, def bool) bool {
+	if val := os.Getenv(key); val != "" {
+		return val == "true" || val == "1"
+	}
+	return def
+}
+
 func run(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("expected 'from_openapi', 'to_openapi' or 'to_docs_json' subcommands")
+		return fmt.Errorf("expected 'from_openapi', 'to_openapi', 'to_docs_json', or 'server_json_rpc' subcommands")
 	}
 
 	subcommand := args[0]
@@ -43,38 +58,76 @@ func run(args []string) error {
 		fmt.Println("\nUsage:")
 		fmt.Println("  cdd-go [subcommand] [flags]")
 		fmt.Println("\nSubcommands:")
-		fmt.Println("  from_openapi   Generate code from OpenAPI spec")
-		fmt.Println("  to_openapi     Generate OpenAPI spec from code")
-		fmt.Println("  to_docs_json   Generate documentation JSON from OpenAPI spec")
+		fmt.Println("  from_openapi     Generate code from OpenAPI spec")
+		fmt.Println("  to_openapi       Generate OpenAPI spec from code")
+		fmt.Println("  to_docs_json     Generate documentation JSON from OpenAPI spec")
+		fmt.Println("  server_json_rpc  Run a JSON-RPC server exposing the CLI")
 		fmt.Println("\nFlags:")
-		fmt.Println("  -h, --help     Show this help message")
-		fmt.Println("  -v, --version  Show version information")
+		fmt.Println("  -h, --help       Show this help message")
+		fmt.Println("  -v, --version    Show version information")
 		return nil
 	case "-v", "--version", "version":
-		fmt.Println("cdd-go version 1.0.0")
+		fmt.Println("cdd-go version 0.0.1")
 		return nil
+	case "server_json_rpc":
+		return runServerJSONRPC(args[1:])
 	case "from_openapi":
-		fs := flag.NewFlagSet("from_openapi", flag.ContinueOnError)
+		if len(args) < 2 {
+			return fmt.Errorf("expected 'to_sdk', 'to_sdk_cli', or 'to_server' subcommands for from_openapi")
+		}
+		subsubcommand := args[1]
+		fs := flag.NewFlagSet("from_openapi "+subsubcommand, flag.ContinueOnError)
 		fs.SetOutput(stderr)
-		fs.StringVar(&in, "i", "", "Input file path")
-		fs.StringVar(&in, "in", "", "Input file path")
-		fs.StringVar(&out, "o", "generated", "Output directory path")
-		fs.StringVar(&out, "out", "generated", "Output directory path")
-		if err := fs.Parse(args[1:]); err != nil {
+
+		fs.StringVar(&in, "i", envOrDefault("CDD_GO_INPUT", ""), "Input file path")
+		var inputDir string
+		fs.StringVar(&inputDir, "input-dir", envOrDefault("CDD_GO_INPUT_DIR", ""), "Input directory path")
+		fs.StringVar(&out, "o", envOrDefault("CDD_GO_OUTPUT", ""), "Output directory path")
+
+		var noGithubActions, noInstallablePackage bool
+		fs.BoolVar(&noGithubActions, "no-github-actions", envOrDefaultBool("CDD_GO_NO_GITHUB_ACTIONS", false), "Do not generate GitHub Actions")
+		fs.BoolVar(&noInstallablePackage, "no-installable-package", envOrDefaultBool("CDD_GO_NO_INSTALLABLE_PACKAGE", false), "Do not generate installable package scaffolding")
+
+		if err := fs.Parse(args[2:]); err != nil {
 			return err
 		}
-		return runFromOpenAPI(in, out)
+		if out == "" {
+			pwd, err := osGetwd()
+			if err != nil {
+				return err
+			}
+			out = pwd
+		}
+		inputTarget := in
+		if inputTarget == "" {
+			inputTarget = inputDir
+		}
+		return runFromOpenAPI(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage)
 	case "to_openapi":
 		fs := flag.NewFlagSet("to_openapi", flag.ContinueOnError)
 		fs.SetOutput(stderr)
-		fs.StringVar(&in, "i", "", "Input file or directory path")
-		fs.StringVar(&in, "in", "", "Input file or directory path")
-		fs.StringVar(&in, "f", "", "Input file or directory path")
-		fs.StringVar(&out, "o", "openapi.json", "Output file path")
-		fs.StringVar(&out, "out", "openapi.json", "Output file path")
+		fs.StringVar(&in, "f", envOrDefault("CDD_GO_INPUT", ""), "Input file or directory path")
+		fs.StringVar(&out, "o", envOrDefault("CDD_GO_OUTPUT", "openapi.json"), "Output file path")
+		// Also allow -i and -in for compatibility
+		var inAlt1, inAlt2, outAlt1 string
+		fs.StringVar(&inAlt1, "i", "", "")
+		fs.StringVar(&inAlt2, "in", "", "")
+		fs.StringVar(&outAlt1, "out", "", "")
+
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
+		if in == "" {
+			if inAlt1 != "" {
+				in = inAlt1
+			} else {
+				in = inAlt2
+			}
+		}
+		if out == "openapi.json" && outAlt1 != "" {
+			out = outAlt1
+		}
+
 		return runToOpenAPI(in, out)
 	case "to_docs_json":
 		return runToDocsJSON(args[1:])
@@ -83,10 +136,11 @@ func run(args []string) error {
 	}
 }
 
-func runFromOpenAPI(in, outDir string) error {
+func runFromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage bool) error {
 	if in == "" {
-		return fmt.Errorf("input file is required")
+		return fmt.Errorf("input file or directory is required")
 	}
+
 	f, err := os.Open(in)
 	if err != nil {
 		return err
@@ -104,20 +158,81 @@ func runFromOpenAPI(in, outDir string) error {
 		return err
 	}
 
-	if err := generateClasses(oa, outDir); err != nil {
-		return err
+	if !noInstallablePackage {
+		generateGoMod(outDir)
 	}
 
-	if err := generateRoutes(oa, outDir); err != nil {
-		return err
+	if !noGithubActions {
+		generateGithubActions(outDir)
 	}
 
-	if err := generateClients(oa, outDir); err != nil {
-		return err
+	switch subsubcommand {
+	case "to_sdk":
+		if err := generateClasses(oa, outDir); err != nil {
+			return err
+		}
+		if err := generateClients(oa, outDir); err != nil {
+			return err
+		}
+	case "to_server":
+		if err := generateClasses(oa, outDir); err != nil {
+			return err
+		}
+		if err := generateRoutes(oa, outDir); err != nil {
+			return err
+		}
+	case "to_sdk_cli":
+		if err := generateClasses(oa, outDir); err != nil {
+			return err
+		}
+		if err := generateClients(oa, outDir); err != nil {
+			return err
+		}
+		if err := generateCLI(oa, outDir); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown subsubcommand: %s", subsubcommand)
 	}
-
 	return nil
 }
+
+func generateGoMod(outDir string) {
+	goModPath := filepath.Join(outDir, "go.mod")
+	if _, err := os.Stat(goModPath); os.IsNotExist(err) {
+		content := "module generated_sdk\n\ngo 1.25.7\n"
+		os.WriteFile(goModPath, []byte(content), 0644)
+	}
+}
+
+func generateGithubActions(outDir string) {
+	ciPath := filepath.Join(outDir, ".github", "workflows", "ci.yml")
+	os.MkdirAll(filepath.Dir(ciPath), 0755)
+	if _, err := os.Stat(ciPath); os.IsNotExist(err) {
+		content := "name: CI\n\non:\n  push:\n    branches: [ main ]\n  pull_request:\n    branches: [ main ]\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n    - uses: actions/checkout@v4\n    - name: Set up Go\n      uses: actions/setup-go@v5\n      with:\n        go-version: '1.25'\n    - name: Build\n      run: go build -v ./...\n    - name: Test\n      run: go test -v ./...\n"
+		os.WriteFile(ciPath, []byte(content), 0644)
+	}
+}
+
+func generateCLI(oa *openapi.OpenAPI, outDir string) error {
+	var buf bytes.Buffer
+	buf.WriteString("package main\n\nimport (\n\t\"flag\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {\n")
+	buf.WriteString("\tif len(os.Args) < 2 {\n\t\tfmt.Println(\"Usage: sdk_cli <command> [flags]\")\n\t\tos.Exit(1)\n\t}\n")
+	buf.WriteString("\tcommand := os.Args[1]\n\tswitch command {\n")
+	for path, item := range oa.Paths {
+		if item.Get != nil {
+			opID := item.Get.OperationID
+			if opID == "" {
+				opID = "get" + strings.ReplaceAll(path, "/", "_")
+			}
+			buf.WriteString(fmt.Sprintf("\tcase \"%s\":\n\t\tfs := flag.NewFlagSet(\"%s\", flag.ExitOnError)\n\t\tfs.Parse(os.Args[2:])\n\t\tfmt.Println(\"Calling %s on %s\")\n", opID, opID, opID, path))
+		}
+	}
+	buf.WriteString("\tdefault:\n\t\tfmt.Printf(\"Unknown command: %s\\n\", command)\n\t\tos.Exit(1)\n\t}\n}\n")
+	path := filepath.Join(outDir, "sdk_cli.go")
+	return os.WriteFile(path, buf.Bytes(), 0644)
+}
+
 func runToOpenAPI(in, outPath string) error {
 	if in == "" {
 		return fmt.Errorf("input path is required")
@@ -139,7 +254,7 @@ func generateOpenAPI(inputPath string, outPath string) error {
 		OpenAPI: "3.2.0",
 		Info: openapi.Info{
 			Title:   "Generated API",
-			Version: "1.0.0",
+			Version: "0.0.1",
 		},
 		Paths: make(openapi.Paths),
 		Components: &openapi.Components{

@@ -1,38 +1,43 @@
-# Using `cdd-go`
+# Usage
 
-The `cdd-go` project provides a central binary capable of parsing OpenAPI formats or scanning existing Go packages to extract OpenAPI configurations.
+## CLI Reference
 
-## Installation
+`cdd-go` serves as the core utility for Code-Driven Development in Go environments.
 
-```bash
-# Install the CLI binary globally
-go install github.com/samuel/cdd-go/cmd/cdd-go@latest
-```
-
-## OpenAPI to Language (Go Code Generation)
-
-Given an existing `openapi.json` file, you can instruct `cdd-go` to read the structural definitions and emit standard Go components (like `net/http` route handler interfaces and struct maps).
+### Help & Version
 
 ```bash
-# Generate Go structures from a local openapi.json file
-cdd-go from_openapi -i ./openapi.json -o ./generated
+cdd-go --help
+cdd-go --version
 ```
 
-### What happens?
-- Components defined under `components.schemas` are evaluated. File names are matched to snake-cased struct models and exported safely (e.g. `User` -> `user.go`).
-- Endpoints under `paths` are aggregated and evaluated into RESTful interfaces implementing `(w http.ResponseWriter, r *http.Request)`.
-
-## Language to OpenAPI (Reverse Generation)
-
-If developers have written Go code directly or modified the generated output, you can safely extract an entirely new `openapi.json` spec. `cdd-go` crawls the target directory matching standard interfaces, structs, tags, and inline comments.
+### Parsing Go to OpenAPI
 
 ```bash
-# Generate an openapi.json from an entire Go module directory
-cdd-go to_openapi -i ./my_project_pkg -o ./docs/openapi.json
+cdd-go to_openapi -f ./src -o openapi.json
 ```
 
-### What happens?
-- Crawls the `my_project_pkg` root directory looking for Go types.
-- Evaluates `type XYZ struct` declarations, picking up exact `json:"xyz"` tags to emit standard JSON components back to `components.schemas`.
-- Scans Interface signatures, mapping `Get` / `Post` method names directly to REST `Paths`.
-- Parses any docstrings mapping directly back to `summary` and `description` objects.
+### Emitting OpenAPI to Go SDKs & Server Stubs
+
+```bash
+# Emit a Server Framework (Routes & Handlers)
+cdd-go from_openapi to_server -i openapi.json -o ./generated/
+
+# Emit a Client SDK
+cdd-go from_openapi to_sdk -i openapi.json -o ./generated/
+
+# Emit a Client SDK along with a CLI
+cdd-go from_openapi to_sdk_cli -i openapi.json -o ./generated/
+```
+
+### Generate documentation JSON
+
+```bash
+cdd-go to_docs_json --no-imports --no-wrapping -i openapi.json -o docs.json
+```
+
+### Server JSON RPC
+
+```bash
+cdd-go serve_json_rpc --port 8082 --listen 0.0.0.0
+```
