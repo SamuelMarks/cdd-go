@@ -1,4 +1,4 @@
-.PHONY: all help install_base install_deps build_docs build build_wasm test run
+.PHONY: all help install_base install_deps build_docs build build_wasm test run default
 
 BIN_DIR ?= bin
 DOCS_DIR ?= docs
@@ -11,6 +11,23 @@ ifeq (run,$(firstword $(MAKECMDGOALS)))
   $(eval $(RUN_ARGS) $(ARGS):;@:)
 endif
 
+# If the first argument is "build"...
+ifeq (build,$(firstword $(MAKECMDGOALS)))
+  ifneq (,$(word 2, $(MAKECMDGOALS)))
+    BIN_DIR := $(word 2, $(MAKECMDGOALS))
+    $(eval $(BIN_DIR):;@:)
+  endif
+endif
+
+# If the first argument is "build_docs"...
+ifeq (build_docs,$(firstword $(MAKECMDGOALS)))
+  ifneq (,$(word 2, $(MAKECMDGOALS)))
+    DOCS_DIR := $(word 2, $(MAKECMDGOALS))
+    $(eval $(DOCS_DIR):;@:)
+  endif
+endif
+
+default: help
 all: help
 
 help:
@@ -30,6 +47,7 @@ install_base:
 
 install_deps:
 	go mod download
+	go mod tidy
 
 build_docs:
 	@mkdir -p $(DOCS_DIR)
@@ -42,7 +60,8 @@ build:
 	go build -o $(BIN_DIR)/cdd-go ./cmd/cdd-go
 
 test:
-	go test -v -cover ./...
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
 
 run: build
 	./$(BIN_DIR)/cdd-go $(RUN_ARGS) $(ARGS)
@@ -50,3 +69,14 @@ run: build
 build_wasm:
 	@mkdir -p $(BIN_DIR)
 	GOOS=js GOARCH=wasm go build -o $(BIN_DIR)/cdd-go.wasm ./cmd/cdd-go
+build_docker:
+	docker build -t cdd-go-alpine -f alpine.Dockerfile .
+	docker build -t cdd-go-debian -f debian.Dockerfile .
+
+run_docker:
+	docker run -d -p 8085:8085 --name cdd-go-test cdd-go-alpine --port 8085 --listen 0.0.0.0
+	sleep 2
+	curl -X POST -H "Content-Type: application/json" -d "{\"method\":\"version\",\"id\":1}" http://127.0.0.1:8085
+	docker stop cdd-go-test
+	docker rm cdd-go-test
+	docker rmi cdd-go-alpine cdd-go-debian

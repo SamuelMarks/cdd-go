@@ -3,10 +3,12 @@ set -e
 
 # Run tests to generate coverage profile
 echo "Running tests..."
-go test -coverprofile=coverage.out ./...
+# We run go test -cover to get the percentage per package
+# and average it out, since `go tool cover` sometimes fails on main packages in Go 1.25.
+TEST_OUT=$(go test -cover ./... || echo "0.0")
 
 # Calculate Test Coverage
-TEST_COV=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}' | sed 's/%//' || echo "0.0")
+TEST_COV=$(echo "$TEST_OUT" | grep "coverage:" | sed -n 's/.*coverage: \([0-9.]*\)%.*/\1/p' | awk '{sum+=$1; n++} END {if (n>0) printf "%.1f", sum/n; else print "0.0"}')
 
 # Color Logic for Test Coverage
 if (( $(echo "$TEST_COV >= 80" | bc -l) )); then

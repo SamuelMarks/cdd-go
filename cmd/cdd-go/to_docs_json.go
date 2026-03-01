@@ -33,16 +33,18 @@ type DocsJSONOutput struct {
 
 func runToDocsJSON(args []string) error {
 	fs := flag.NewFlagSet("to_docs_json", flag.ContinueOnError)
-	fs.SetOutput(stderr)
+	fs.SetOutput(os.Stderr)
 
 	var in string
+	var out string
 	var noImports bool
 	var noWrapping bool
 
-	fs.StringVar(&in, "i", "", "Input file path")
-	fs.StringVar(&in, "input", "", "Input file path")
-	fs.BoolVar(&noImports, "no-imports", false, "Omit imports")
-	fs.BoolVar(&noWrapping, "no-wrapping", false, "Omit wrapping")
+	fs.StringVar(&in, "i", envOrDefault("CDD_GO_INPUT", ""), "Input file path")
+	fs.StringVar(&in, "input", envOrDefault("CDD_GO_INPUT", ""), "Input file path")
+	fs.StringVar(&out, "o", envOrDefault("CDD_GO_OUTPUT", ""), "Output file path")
+	fs.BoolVar(&noImports, "no-imports", envOrDefaultBool("CDD_GO_NO_IMPORTS", false), "Omit imports")
+	fs.BoolVar(&noWrapping, "no-wrapping", envOrDefaultBool("CDD_GO_NO_WRAPPING", false), "Omit wrapping")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -83,13 +85,13 @@ func runToDocsJSON(args []string) error {
 
 			opID := op.OperationID
 
-			snippet := fmt.Sprintf(`	client := client.NewAPIClient(client.NewConfiguration())
-	resp, r, err := client.DefaultApi.%s(context.Background()).Execute()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %%v\n", err)
-		os.Exit(1)
-	}
-	fmt.Fprintf(os.Stdout, "Response: %%v\n", resp)`, opID)
+			snippet := fmt.Sprintf(`        client := client.NewAPIClient(client.NewConfiguration())
+        resp, r, err := client.DefaultApi.%s(context.Background()).Execute()
+        if err != nil {
+                fmt.Fprintf(os.Stderr, "Error: %%v\n", err)
+                os.Exit(1)
+        }
+        fmt.Fprintf(os.Stdout, "Response: %%v\n", resp)`, opID)
 
 			code := Code{
 				Snippet: snippet,
@@ -97,11 +99,11 @@ func runToDocsJSON(args []string) error {
 
 			if !noImports {
 				imports := `import (
-	"context"
-	"fmt"
-	"os"
+        "context"
+        "fmt"
+        "os"
 
-	"github.com/your/client"
+        "github.com/your/client"
 )`
 				code.Imports = &imports
 			}
@@ -132,7 +134,17 @@ func runToDocsJSON(args []string) error {
 		},
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
+	outTarget := os.Stdout
+	if out != "" {
+		fileTarget, err := os.Create(out)
+		if err != nil {
+			return err
+		}
+		defer fileTarget.Close()
+		outTarget = fileTarget
+	}
+
+	encoder := json.NewEncoder(outTarget)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(result); err != nil {
 		return err

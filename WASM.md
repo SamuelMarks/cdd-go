@@ -1,29 +1,29 @@
-# WebAssembly (WASM) Support
+# WASM Integration
 
-`cdd-go` natively supports compilation to WebAssembly (WASM). This allows you to run `cdd-go` entirely within a modern web browser or in WASM environments (like unified CLI interfaces across multiple languages).
+The `cdd-go` compiler can be compiled to WebAssembly (WASM), allowing it to run natively within modern web browsers or WASM runtimes without requiring a full Go environment.
 
 ## Building WASM
 
-You can build the WASM binary using the provided Makefiles:
+To build the WASM binary, run:
 
-**POSIX (Linux, macOS, etc.):**
 ```bash
 make build_wasm
 ```
 
-**Windows:**
-```cmd
-make.bat build_wasm
+This will output `bin/cdd-go.wasm`.
+
+## Usage in the Browser
+
+You can execute the WASM binary within a JavaScript environment using the standard Go WASM executor script:
+
+```html
+<script src="wasm_exec.js"></script>
+<script>
+  const go = new Go();
+  WebAssembly.instantiateStreaming(fetch("cdd-go.wasm"), go.importObject).then((result) => {
+    go.run(result.instance);
+  });
+</script>
 ```
 
-This will produce a `cdd-go.wasm` file in the `bin/` directory.
-
-## Integrating
-
-To run this WASM file in a browser or a Node.js environment, you need Go's `wasm_exec.js` which bridges the Go runtime with JavaScript.
-
-```bash
-cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" ./bin/
-```
-
-You can then load and execute it using a standard WebAssembly pipeline.
+Currently, this allows seamless CLI generation and API transformation completely within a user's browser for an intuitive playground experience.

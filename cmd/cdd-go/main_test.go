@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/samuel/cdd-go/src/openapi"
 )
 
 func TestRun(t *testing.T) {
@@ -43,7 +46,7 @@ func TestRun(t *testing.T) {
 	path := filepath.Join(dir, "openapi.json")
 	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "info": {"title": "Test"}}`), 0644)
 
-	err = run([]string{"from_openapi", "-in", path, "-out", filepath.Join(dir, "generated")})
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", filepath.Join(dir, "generated")})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -89,7 +92,7 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	os.WriteFile(filepath.Join(goDir, "a.go"), []byte(`package a; type A struct{}`), 0644)
 	os.WriteFile(filepath.Join(goDir, "a_test.go"), []byte(`package a; type B struct{}`), 0644) // should be ignored
 
-	err = run([]string{"to_openapi", "-in", goDir, "-out", filepath.Join(dir, "output_dir.json")})
+	err = run([]string{"to_openapi", "-in", goDir, "-o", filepath.Join(dir, "output_dir.json")})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -109,11 +112,11 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	}
 
 	// Output dir mapping test
-	err = run([]string{"to_openapi", "-in", goDir, "-out", "generated"})
+	err = run([]string{"to_openapi", "-in", goDir, "-o", "generated"})
 	// this will write to openapi.json in current dir. Let's ignore err, just want coverage.
 
 	// Force WriteDstFile error by providing a path that is a directory
-	err = run([]string{"from_openapi", "-in", path, "-out", path})
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", path})
 	if err == nil {
 		// It might fail on MkdirAll if it is a file
 		t.Logf("expected error creating directory over a file, got nil")
@@ -125,40 +128,43 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 
 	// Test writeDstFile errors
 	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "string"}}}}`), 0644)
-	err = run([]string{"from_openapi", "-in", path, "-out", readonlyDir})
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", readonlyDir})
 	if err == nil {
 		t.Errorf("expected error writing file")
 	}
 
 	os.WriteFile(path, []byte(`{"paths": {"/test": {"get": {}}}}`), 0644)
-	err = run([]string{"from_openapi", "-in", path, "-out", readonlyDir})
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", readonlyDir})
 	if err == nil {
 		t.Errorf("expected error writing file")
 	}
 
 	// Test emit error inside generateClasses
 	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "unknown-error"}}}}`), 0644)
-	err = run([]string{"from_openapi", "-in", path, "-out", filepath.Join(dir, "error_gen")})
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", filepath.Join(dir, "error_gen")})
 	if err == nil {
 		t.Errorf("expected error from classes.EmitType")
 	}
 
 	// Test emit error inside generateRoutes
 	os.WriteFile(path, []byte(`{"paths": {"/error-path": {}}}`), 0644)
-	err = run([]string{"from_openapi", "-in", path, "-out", filepath.Join(dir, "error_gen")})
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", filepath.Join(dir, "error_gen")})
 	if err == nil {
 		t.Errorf("expected error from routes.EmitHandlerInterface")
 	}
 
 	// invalid openapi file
 	os.WriteFile(path, []byte(`{invalid`), 0644)
-	err = run([]string{"from_openapi", "-in", path})
+	orig2 := osGetwd
+	osGetwd = func() (string, error) { return t.TempDir(), nil }
+	defer func() { osGetwd = orig2 }()
+	err = run([]string{"from_openapi", "to_server", "-i", path})
 	if err == nil {
 		t.Errorf("expected error parsing invalid json")
 	}
 
 	// missing file
-	err = run([]string{"from_openapi", "-in", filepath.Join(dir, "missing.json")})
+	err = run([]string{"from_openapi", "to_server", "-i", filepath.Join(dir, "missing.json")})
 	if err == nil {
 		t.Errorf("expected error for missing file")
 	}
@@ -173,7 +179,7 @@ func TestGenerateOpenAPIWriteError(t *testing.T) {
 	os.MkdirAll(outDir, 0755)
 	os.MkdirAll(filepath.Join(outDir, "openapi.json"), 0755) // The file we want to create is already a dir
 
-	err := run([]string{"to_openapi", "-in", goFile, "-out", outDir})
+	err := run([]string{"to_openapi", "-in", goFile, "-o", outDir})
 	if err == nil {
 		t.Errorf("expected error opening file that is a dir")
 	}
@@ -190,7 +196,7 @@ func TestGenerateOpenAPIMkdirError(t *testing.T) {
 
 	outPath := filepath.Join(blockerFile, "openapi.json")
 
-	err := run([]string{"to_openapi", "-in", goFile, "-out", outPath})
+	err := run([]string{"to_openapi", "-in", goFile, "-o", outPath})
 	if err == nil {
 		t.Errorf("expected error when mkdir fails")
 	}
@@ -203,7 +209,7 @@ func TestGenerateOpenAPIReadDirError(t *testing.T) {
 	os.Chmod(dir, 0000)
 	defer os.Chmod(dir, 0755)
 
-	err := run([]string{"to_openapi", "-in", dir, "-out", "test.json"})
+	err := run([]string{"to_openapi", "-in", dir, "-o", "test.json"})
 	if err == nil {
 		t.Errorf("expected error when reading dir fails")
 	}
@@ -259,7 +265,7 @@ func TestMainSuccess(t *testing.T) {
 }`), 0644)
 
 	oldArgs := os.Args
-	os.Args = []string{"cdd-go", "from_openapi", "-in", path, "-out", filepath.Join(dir, "out")}
+	os.Args = []string{"cdd-go", "from_openapi", "to_server", "-i", path, "-o", filepath.Join(dir, "out")}
 	defer func() { os.Args = oldArgs }()
 
 	main()
@@ -312,7 +318,7 @@ func TestGenerateClientsError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
 	os.WriteFile(path, []byte("{\"paths\": {\"/error-client-path\": {}}}"), 0644)
-	err := run([]string{"from_openapi", "-in", path, "-out", filepath.Join(dir, "error_gen")})
+	err := run([]string{"from_openapi", "to_sdk", "-i", path, "-o", filepath.Join(dir, "error_gen")})
 	if err == nil {
 		t.Errorf("expected error from clients.EmitClientInterface")
 	}
@@ -332,7 +338,7 @@ func TestGenerateClientsWriteError(t *testing.T) {
 	readonlyDir := filepath.Join(dir, "readonly")
 	os.MkdirAll(readonlyDir, 0555)
 
-	err := run([]string{"from_openapi", "-in", path, "-out", readonlyDir})
+	err := run([]string{"from_openapi", "to_sdk", "-i", path, "-o", readonlyDir})
 	if err == nil {
 		t.Errorf("expected error writing clients file")
 	}
@@ -342,5 +348,197 @@ func TestWriteDstFileFprintError(t *testing.T) {
 	err := writeDstFile("fprint_error.go", nil)
 	if err == nil {
 		t.Errorf("expected error from simulated fprint error")
+	}
+}
+
+func TestGenerateCLI(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "info": {"title": "Test CLI API"}, "paths": {"/ping": {"get": {"operationId": "ping"}}}}`), 0644)
+	err := run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sdk_cli.go")); os.IsNotExist(err) {
+		t.Errorf("expected sdk_cli.go to be generated")
+	}
+}
+
+func TestGenerateCLIError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
+	readonlyDir := filepath.Join(dir, "readonly")
+	os.MkdirAll(readonlyDir, 0555)
+
+	err := run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", readonlyDir})
+	if err == nil {
+		t.Errorf("expected error writing CLI file")
+	}
+}
+
+func TestCoverageExtras(t *testing.T) {
+	// from_openapi with --input-dir
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "info": {"title": "Test"}}`), 0644)
+	err := run([]string{"from_openapi", "to_sdk", "--input-dir", path, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// generateRoutes/generateClients with nil Paths
+	emptyOA := filepath.Join(dir, "empty_paths.json")
+	os.WriteFile(emptyOA, []byte(`{"openapi": "3.2.0"}`), 0644)
+	err = run([]string{"from_openapi", "to_server", "-i", emptyOA, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// generateCLI failing
+	errCLI := filepath.Join(dir, "cli_err.json")
+	os.WriteFile(errCLI, []byte(`{"openapi": "3.2.0"}`), 0644)
+	readonlyDir := filepath.Join(dir, "readonly2")
+	os.MkdirAll(readonlyDir, 0555)
+	err = run([]string{"from_openapi", "to_sdk_cli", "-i", errCLI, "-o", readonlyDir})
+	if err == nil {
+		t.Errorf("expected error writing CLI file")
+	}
+
+	// from_openapi unknown subsubcommand
+	err = run([]string{"from_openapi", "unknown", "-i", path, "-no-installable-package", "-no-github-actions"})
+	if err == nil {
+		t.Errorf("expected error for unknown subsubcommand")
+	}
+}
+
+func TestFromOpenAPIErrorsSubsubcommands(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+
+	// to_sdk: generateClasses err
+	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "unknown-error"}}}}`), 0644)
+	err := run([]string{"from_openapi", "to_sdk", "-i", path, "-o", dir})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+
+	// to_sdk_cli: generateClasses err
+	err = run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", dir})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+
+	// to_server: generateClasses err
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", dir})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+
+	// to_sdk: generateClients err
+	os.WriteFile(path, []byte(`{"paths": {"/error-client-path": {}}}`), 0644)
+	err = run([]string{"from_openapi", "to_sdk", "-i", path, "-o", dir})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+
+	// to_sdk_cli: generateClients err
+	err = run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", dir})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+}
+
+func TestCoverageExtras2(t *testing.T) {
+	// from_openapi empty inputTarget logic
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Here out will be pwd
+	err := run([]string{"from_openapi", "to_sdk", "-i", "openapi.json"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// generateRoutes/generateClients with nil Paths is already tested but maybe it needs an empty schema.
+	// Oh wait, generateRoutes nil is when paths == nil. If we have openapi.json without paths, they are nil.
+	// Let's create an openapi where paths is not nil but empty map. Wait no, if we don't declare paths, json unmarshals to nil map.
+	// But `openapi.Parse` creates a non-nil paths. Wait, does openapi.Parse allocate `Paths` map?
+	// Let's force an error on Chdir to test out == "" and pwd err, though Getwd rarely fails.
+}
+
+func TestGenerateNil(t *testing.T) {
+	err := generateRoutes(&openapi.OpenAPI{}, "dir")
+	if err != nil {
+		t.Errorf("expected no err")
+	}
+	err = generateClients(&openapi.OpenAPI{}, "dir")
+	if err != nil {
+		t.Errorf("expected no err")
+	}
+	err = generateClasses(&openapi.OpenAPI{}, "dir")
+	if err != nil {
+		t.Errorf("expected no err")
+	}
+}
+
+func TestCoverageLeftovers(t *testing.T) {
+	// hit flag.Parse error in from_openapi
+	err := run([]string{"from_openapi", "to_sdk", "-invalid"})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+
+	// hit continue in generateRoutes for /client-only
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"paths": {"/client-only": {"get": {}}}}`), 0644)
+	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected err: %v", err)
+	}
+
+	// hit fileName == "" in generateRoutes and generateClients
+	path2 := filepath.Join(dir, "openapi2.json")
+	os.WriteFile(path2, []byte(`{"paths": {"/": {"get": {}}}}`), 0644)
+	err = run([]string{"from_openapi", "to_sdk", "-i", path2, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected err: %v", err)
+	}
+	err = run([]string{"from_openapi", "to_server", "-i", path2, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected err: %v", err)
+	}
+}
+
+func TestGetwdErr(t *testing.T) {
+	orig := osGetwd
+	osGetwd = func() (string, error) { return "", fmt.Errorf("simulated getwd err") }
+	defer func() { osGetwd = orig }()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
+	err := run([]string{"from_openapi", "to_sdk", "-i", path})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+}
+
+func TestGenerateCLIErr2(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
+
+	outDir := filepath.Join(dir, "readonly")
+	os.MkdirAll(outDir, 0555)
+
+	err := run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", outDir})
+	if err == nil {
+		t.Errorf("expected err")
 	}
 }
