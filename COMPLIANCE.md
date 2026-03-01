@@ -12,9 +12,9 @@ The `cdd-go` parser and schema definitions adhere to **OpenAPI Specification Ver
 - **Security**: Basic array mappings for `SecurityRequirement` and extensive OAuth flow definitions (`OAuthFlows`, `OAuthFlow`).
 
 ### Structural Translation Support (`openapi-to-language` / `language-to-openapi`)
-- **Types**: Deep struct translation. Supports scalar types (`string`, `integer`, `number`, `boolean`) and lists/slices (`array`).
+- **Types**: Deep struct translation. Supports scalar types (`string`, `integer`, `number`, `boolean`) and lists/slices (`array`), and dynamic hash maps (`additionalProperties`).
 - **References**: Evaluates `$ref` identifiers locally as struct dependencies.
-- **REST Paths**: Detects and scaffolds HTTP method structs matching Go's HTTP verb expectations.
+- **REST Paths**: Detects and scaffolds HTTP method structs matching Go's HTTP verb expectations (supports GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD, TRACE).
 - **Comments**: Native support for OpenAPI `summary` and `description` string keys transforming bidirectionally into standard multi-line Go docstrings.
 - **Examples**: Captures raw JSON arrays/objects natively into explicit raw string instances avoiding unmarshalling complexity.
 

@@ -219,7 +219,7 @@ func TestMainError(t *testing.T) {
 
 	// Temporarily hijack os.Args to cause error
 	oldArgs := os.Args
-	os.Args = []string{"cdd_go"} // missing subcommand
+	os.Args = []string{"cdd-go"} // missing subcommand
 	defer func() { os.Args = oldArgs }()
 
 	main()
@@ -259,7 +259,7 @@ func TestMainSuccess(t *testing.T) {
 }`), 0644)
 
 	oldArgs := os.Args
-	os.Args = []string{"cdd_go", "from_openapi", "-in", path, "-out", filepath.Join(dir, "out")}
+	os.Args = []string{"cdd-go", "from_openapi", "-in", path, "-out", filepath.Join(dir, "out")}
 	defer func() { os.Args = oldArgs }()
 
 	main()

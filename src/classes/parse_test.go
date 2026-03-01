@@ -223,3 +223,80 @@ func TestParseExprArrayErr(t *testing.T) {
 		t.Errorf("expected error")
 	}
 }
+
+func TestParseTypeMap(t *testing.T) {
+	ts := &dst.TypeSpec{
+		Name: dst.NewIdent("MapType"),
+		Type: &dst.MapType{
+			Key:   dst.NewIdent("string"),
+			Value: dst.NewIdent("string"),
+		},
+	}
+	schema, err := ParseType(ts)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if schema.Type != "object" || schema.AdditionalProperties == nil || schema.AdditionalProperties.Type != "string" {
+		t.Errorf("expected object with additionalProperties string")
+	}
+
+	// Test map key not string
+	tsErrKey := &dst.TypeSpec{
+		Name: dst.NewIdent("MapErrKey"),
+		Type: &dst.MapType{
+			Key:   dst.NewIdent("int"),
+			Value: dst.NewIdent("string"),
+		},
+	}
+	_, err = ParseType(tsErrKey)
+	if err == nil {
+		t.Errorf("expected error for non-string map key")
+	}
+
+	// Test map value err
+	tsErrVal := &dst.TypeSpec{
+		Name: dst.NewIdent("MapErrVal"),
+		Type: &dst.MapType{
+			Key:   dst.NewIdent("string"),
+			Value: &dst.ChanType{},
+		},
+	}
+	_, err = ParseType(tsErrVal)
+	if err == nil {
+		t.Errorf("expected error for invalid map value")
+	}
+}
+
+func TestParseExprMap(t *testing.T) {
+	expr := &dst.MapType{
+		Key:   dst.NewIdent("string"),
+		Value: dst.NewIdent("int"),
+	}
+	schema, err := ParseExpr(expr)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if schema.Type != "object" || schema.AdditionalProperties == nil || schema.AdditionalProperties.Type != "integer" {
+		t.Errorf("expected object with additionalProperties integer")
+	}
+
+	// Test map key not string
+	exprErrKey := &dst.MapType{
+		Key:   dst.NewIdent("int"),
+		Value: dst.NewIdent("string"),
+	}
+	_, err = ParseExpr(exprErrKey)
+	if err == nil {
+		t.Errorf("expected error for non-string map key")
+	}
+
+	// Test map value err
+	exprErrVal := &dst.MapType{
+		Key:   dst.NewIdent("string"),
+		Value: &dst.ChanType{},
+	}
+	_, err = ParseExpr(exprErrVal)
+	if err == nil {
+		t.Errorf("expected error for invalid map value")
+	}
+}

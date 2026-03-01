@@ -382,6 +382,77 @@ type Schema struct {
 	Format string `json:"format,omitempty"`
 	// Required specifies which object properties must be present.
 	Required []string `json:"required,omitempty"`
+	// Discriminator adds support for polymorphism.
+	Discriminator *Discriminator `json:"discriminator,omitempty"`
+	// XML adds XML specific properties.
+	XML *XML `json:"xml,omitempty"`
+	// Default specifies the default value.
+	Default json.RawMessage `json:"default,omitempty"`
+	// Example provides an example of the schema.
+	Example json.RawMessage `json:"example,omitempty"`
+	// Examples provides multiple examples.
+	Examples []json.RawMessage `json:"examples,omitempty"`
+	// Title is a short summary of the schema.
+	Title string `json:"title,omitempty"`
+	// MultipleOf specifies a multiple of which the value must be.
+	MultipleOf *float64 `json:"multipleOf,omitempty"`
+	// Maximum specifies the maximum value.
+	Maximum *float64 `json:"maximum,omitempty"`
+	// ExclusiveMaximum specifies if the maximum is exclusive.
+	ExclusiveMaximum *bool `json:"exclusiveMaximum,omitempty"`
+	// Minimum specifies the minimum value.
+	Minimum *float64 `json:"minimum,omitempty"`
+	// ExclusiveMinimum specifies if the minimum is exclusive.
+	ExclusiveMinimum *bool `json:"exclusiveMinimum,omitempty"`
+	// MaxLength specifies the maximum length of a string.
+	MaxLength *int `json:"maxLength,omitempty"`
+	// MinLength specifies the minimum length of a string.
+	MinLength *int `json:"minLength,omitempty"`
+	// Pattern specifies a regular expression pattern the string must match.
+	Pattern string `json:"pattern,omitempty"`
+	// MaxItems specifies the maximum number of items in an array.
+	MaxItems *int `json:"maxItems,omitempty"`
+	// MinItems specifies the minimum number of items in an array.
+	MinItems *int `json:"minItems,omitempty"`
+	// UniqueItems specifies if items in an array must be unique.
+	UniqueItems *bool `json:"uniqueItems,omitempty"`
+	// MaxProperties specifies the maximum number of properties in an object.
+	MaxProperties *int `json:"maxProperties,omitempty"`
+	// MinProperties specifies the minimum number of properties in an object.
+	MinProperties *int `json:"minProperties,omitempty"`
+	// Enum specifies the possible values.
+	Enum []json.RawMessage `json:"enum,omitempty"`
+	// AllOf requires all subschemas to be valid.
+	AllOf []Schema `json:"allOf,omitempty"`
+	// OneOf requires exactly one subschema to be valid.
+	OneOf []Schema `json:"oneOf,omitempty"`
+	// AnyOf requires at least one subschema to be valid.
+	AnyOf []Schema `json:"anyOf,omitempty"`
+	// Not requires the subschema to be invalid.
+	Not *Schema `json:"not,omitempty"`
+	// Nullable specifies if the value can be null.
+	Nullable *bool `json:"nullable,omitempty"`
+	// ReadOnly specifies if the property is read-only.
+	ReadOnly *bool `json:"readOnly,omitempty"`
+	// WriteOnly specifies if the property is write-only.
+	WriteOnly *bool `json:"writeOnly,omitempty"`
+	// Deprecated specifies if the schema is deprecated.
+	Deprecated *bool `json:"deprecated,omitempty"`
+}
+
+// Discriminator Object for polymorphism support
+type Discriminator struct {
+	PropertyName string            `json:"propertyName"`
+	Mapping      map[string]string `json:"mapping,omitempty"`
+}
+
+// XML Object for XML representations
+type XML struct {
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Prefix    string `json:"prefix,omitempty"`
+	Attribute bool   `json:"attribute,omitempty"`
+	Wrapped   bool   `json:"wrapped,omitempty"`
 }
 
 // Response represents a single response from an API Operation.

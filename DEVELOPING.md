@@ -3,6 +3,7 @@
 Welcome to `cdd-go`! This guide covers the workflows and requirements needed to extend or maintain this package safely.
 
 ## Environment Setup
+3. **Pre-commit Hooks**: We use `pre-commit` to ensure code quality and coverage shields are up to date. Install it using `pip install pre-commit` (or your package manager) and run `pre-commit install`.
 
 1. **Prerequisites**: Ensure you have Go 1.21 or higher installed.
 2. **Download modules**:
@@ -18,7 +19,7 @@ When adding code to this project, adhere strictly to the following requirements:
 - **AST Fidelity:** Do not use `go/ast` or text-based regex replacements. Use the `dst` package to manipulate trees. This ensures that when a user edits a generated `openapi.json` file back to `.go` code, we do not destroy their manual inline comments.
 - **Modularity:** Maintain the split of files (`parse.go`, `emit.go`, `parse_test.go`, `emit_test.go`). When adding new mapping mechanisms, define whether you are targeting a docstring, a mock, a class, or a route and place it accordingly.
 
-## Testing & Coverage 
+## Testing & Coverage
 
 The project enforces **100% test coverage** on all components within the `src/` modules.
 

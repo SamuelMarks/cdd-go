@@ -4,7 +4,7 @@ This guide explains how to publish the `cdd-go` Go module to the global Go ecosy
 
 ## 1. Publishing to the Go Ecosystem
 
-Unlike Node.js (npm) or Rust (crates.io), Go does not use a centralized upload registry. Instead, the Go ecosystem relies on Version Control Systems (VCS) and the public Go Module Mirror (`proxy.golang.org`). 
+Unlike Node.js (npm) or Rust (crates.io), Go does not use a centralized upload registry. Instead, the Go ecosystem relies on Version Control Systems (VCS) and the public Go Module Mirror (`proxy.golang.org`).
 
 To publish or update your Go module:
 

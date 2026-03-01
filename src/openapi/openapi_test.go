@@ -53,3 +53,71 @@ func TestParseError(t *testing.T) {
 		t.Error("expected error parsing invalid json, got nil")
 	}
 }
+
+func TestFullSchemaCoverage(t *testing.T) {
+	input := `{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Full Schema API",
+    "version": "1.0.0"
+  },
+  "components": {
+    "schemas": {
+      "Pet": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "discriminator": {
+          "propertyName": "petType",
+          "mapping": {
+            "dog": "#/components/schemas/Dog"
+          }
+        },
+        "xml": {
+          "name": "pet",
+          "wrapped": true
+        },
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "petType": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
+`
+	r := strings.NewReader(input)
+	oa, err := Parse(r)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	petSchema := oa.Components.Schemas["Pet"]
+	if petSchema.Discriminator == nil || petSchema.Discriminator.PropertyName != "petType" {
+		t.Errorf("expected discriminator with propertyName petType")
+	}
+
+	if petSchema.XML == nil || petSchema.XML.Name != "pet" || petSchema.XML.Wrapped != true {
+		t.Errorf("expected xml with name pet and wrapped true")
+	}
+
+	var buf bytes.Buffer
+	err = Emit(&buf, oa)
+	if err != nil {
+		t.Fatalf("expected no error emitting full schema")
+	}
+
+	if !strings.Contains(buf.String(), "discriminator") {
+		t.Errorf("expected output to contain discriminator")
+	}
+}

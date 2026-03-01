@@ -2,20 +2,20 @@ cdd-go
 ======
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI/CD](https://github.com/SamuelMarks/cdd-go/workflows/CI/badge.svg)](https://github.com/SamuelMarks/cdd-go/actions)
-[![Test Coverage](https://img.shields.io/badge/Test_Coverage-100.0%25-green)](https://github.com/samuel/cdd-go)
-[![Doc Coverage](https://img.shields.io/badge/Doc_Coverage-100.0%25-green)](https://github.com/samuel/cdd-go)
+[![CI/CD](https://github.com/offscale/cdd-go/workflows/CI/badge.svg)](https://github.com/offscale/cdd-go/actions)
+[![Doc Coverage](https://img.shields.io/badge/doc_coverage-100.0%25-brightgreen.svg)](#)
+[![Test Coverage](https://img.shields.io/badge/test_coverage-100.0%25-brightgreen.svg)](#)
 
 OpenAPI ↔ Go. This is one compiler in a suite, all focussed on the same task: Compiler Driven Development (CDD).
 
 Each compiler is written in its target language, is whitespace and comment sensitive, and has both an SDK and CLI.
 
 The CLI—at a minimum—has:
-- `cdd_go --help`
-- `cdd_go --version`
-- `cdd_go from_openapi -i spec.json`
-- `cdd_go to_openapi -f path/to/code`
-- `cdd_go to_docs_json --no-imports --no-wrapping -i spec.json`
+- `cdd-go --help`
+- `cdd-go --version`
+- `cdd-go from_openapi -i spec.json`
+- `cdd-go to_openapi -f path/to/code`
+- `cdd-go to_docs_json --no-imports --no-wrapping -i spec.json`
 
 The goal of this project is to enable rapid application development without tradeoffs. Tradeoffs of Protocol Buffers / Thrift etc. are an untouchable "generated" directory and package, compile-time and/or runtime overhead. Tradeoffs of Java or JavaScript for everything are: overhead in hardware access, offline mode, ML inefficiency, and more. And neither of these alterantive approaches are truly integrated into your target system, test frameworks, and bigger abstractions you build in your app. Tradeoffs in CDD are code duplication (but CDD handles the synchronisation for you).
 
@@ -31,76 +31,67 @@ The `cdd-go` compiler leverages a unified architecture to support various facets
 
 ## 📦 Installation
 
-To install `cdd-go`, ensure you have Go installed (version 1.18 or higher is recommended) and run:
+Requires Go 1.21+.
+
+Run the following command to install the CLI tool:
 
 ```bash
-go install github.com/SamuelMarks/cdd-go/cmd/cdd_go@latest
+go install github.com/offscale/cdd-go/cmd/cdd-go@latest
 ```
 
-Alternatively, you can clone the repository and build the binary yourself:
+Or to use as a library in your project:
 
 ```bash
-git clone https://github.com/SamuelMarks/cdd-go.git
-cd cdd-go
-go build -o cdd_go ./cmd/cdd_go/
+go get github.com/offscale/cdd-go
 ```
 
 ## 🛠 Usage
 
 ### Command Line Interface
 
-Generate Go code (structs and routes) from an OpenAPI specification:
+Generate Go models and routes from an OpenAPI specification:
 
 ```bash
-cdd_go from_openapi -i openapi.json -o ./generated
+cdd-go from_openapi -i api_spec.yaml -o generated_code
 ```
 
-Generate an OpenAPI specification from existing Go source code:
+Generate an OpenAPI specification from existing Go source files:
 
 ```bash
-cdd_go to_openapi -i ./src -o openapi.json
-```
-
-Generate structured JSON documentation examples for your API:
-
-```bash
-cdd_go to_docs_json --no-imports --no-wrapping -i openapi.json
+cdd-go to_openapi -f src/routes -o generated_openapi.json
 ```
 
 ### Programmatic SDK / Library
-
-You can also use the `cdd-go` packages programmatically within your own Go applications:
 
 ```go
 package main
 
 import (
-        "fmt"
-        "os"
+	"fmt"
+	"os"
 
-        "github.com/samuel/cdd-go/src/openapi"
+	"github.com/samuel/cdd-go/src/openapi"
 )
 
 func main() {
-        f, err := os.Open("openapi.json")
-        if err != nil {
-                panic(err)
-        }
-        defer f.Close()
+	file, err := os.Open("openapi.json")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
 
-        // Parse the OpenAPI specification
-        doc, err := openapi.Parse(f)
-        if err != nil {
-                panic(err)
-        }
+	spec, err := openapi.Parse(file)
+	if err != nil {
+		panic(err)
+	}
 
-        fmt.Printf("Parsed API: %s\n", doc.Info.Title)
+	fmt.Printf("Parsed OpenAPI API: %s\n", spec.Info.Title)
 }
 ```
 
 ## Design choices
 
-The `cdd-go` compiler uses the `github.com/dave/dst` (Decorated Syntax Tree) library rather than just the standard `go/ast`. This is a crucial design choice: it allows the compiler to be completely whitespace and comment sensitive. When `cdd-go` parses a file, modifies a struct based on an OpenAPI update, and writes it back, it preserves all of your original formatting, inline comments, and docstrings perfectly. This fulfills the CDD promise of avoiding "untouchable generated directories"—you can freely edit the generated code, and the compiler respects your additions.
+The parser and emitter in `cdd-go` use `github.com/dave/dst` (Decorated Syntax Tree), a fork/wrapper over Go's native `go/ast`. This allows `cdd-go` to be strictly whitespace and comment sensitive. By mutating a DST and emitting it, we prevent clobbering existing comments, imports, or idiosyncratic line spacing. This is a critical feature to enable bidirectional code generation, avoiding the "untouchable generated code directory" problem found in many other tools.
 
 ## 🏗 Supported Conversions for Go
 
@@ -115,6 +106,7 @@ The `cdd-go` compiler uses the `github.com/dave/dst` (Decorated Syntax Tree) lib
 | `Go` ORM / DB Schemas | [ ] | [ ] |
 | `Go` CLI Argument Parsers | [ ] | [ ] |
 | `Go` Docstrings / Comments | [✅] | [✅] |
+| WebAssembly (WASM) | [✅] | [✅] |
 
 ---
 

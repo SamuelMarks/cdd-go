@@ -23,7 +23,7 @@ func main() {
 		if !strings.HasSuffix(path, ".go") || strings.Contains(path, "vendor") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		
+
 		f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
 			return nil
@@ -73,7 +73,7 @@ func main() {
 		fmt.Printf("100.0\n")
 		return
 	}
-	
+
 	percentage := float64(doced) / float64(total) * 100
 	fmt.Printf("%.1f\n", percentage)
 }

@@ -172,3 +172,58 @@ func TestEmitTypeNil(t *testing.T) {
 		t.Errorf("expected error for nil schema")
 	}
 }
+
+func TestEmitTypeMap(t *testing.T) {
+	schema := &openapi.Schema{
+		Type: "object",
+		AdditionalProperties: &openapi.Schema{
+			Type: "string",
+		},
+	}
+	ts, err := EmitType("MapType", schema)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	mt, ok := ts.Type.(*dst.MapType)
+	if !ok {
+		t.Errorf("expected map type, got %T", ts.Type)
+	}
+	if mt.Key.(*dst.Ident).Name != "string" {
+		t.Errorf("expected string key")
+	}
+	if mt.Value.(*dst.Ident).Name != "string" {
+		t.Errorf("expected string value")
+	}
+}
+
+func TestEmitTypeExprMap(t *testing.T) {
+	schema := &openapi.Schema{
+		Type: "object",
+		AdditionalProperties: &openapi.Schema{
+			Type: "integer",
+		},
+	}
+	expr := EmitTypeExpr(schema)
+	mt, ok := expr.(*dst.MapType)
+	if !ok {
+		t.Errorf("expected map type, got %T", expr)
+	}
+	if mt.Key.(*dst.Ident).Name != "string" {
+		t.Errorf("expected string key")
+	}
+	if mt.Value.(*dst.Ident).Name != "int" {
+		t.Errorf("expected int value")
+	}
+}
+
+func TestEmitTypeExprObjectFallthrough(t *testing.T) {
+	schema := &openapi.Schema{
+		Type: "object",
+	}
+	expr := EmitTypeExpr(schema)
+	id, ok := expr.(*dst.Ident)
+	if !ok || id.Name != "interface{}" {
+		t.Errorf("expected interface{}")
+	}
+}

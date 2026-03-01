@@ -98,3 +98,24 @@ func TestEmitMethodSignatureEmptyOp(t *testing.T) {
 		t.Errorf("expected Put")
 	}
 }
+
+func TestEmitHandlerInterfaceExtraVerbs(t *testing.T) {
+	pathItem := &openapi.PathItem{
+		Patch: &openapi.Operation{
+			OperationID: "patchUser",
+		},
+		Options: &openapi.Operation{},
+		Head:    &openapi.Operation{},
+		Trace:   &openapi.Operation{},
+	}
+	decl, err := EmitHandlerInterface("/extra", pathItem)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	ts := decl.Specs[0].(*dst.TypeSpec)
+	iface := ts.Type.(*dst.InterfaceType)
+	if len(iface.Methods.List) != 4 {
+		t.Errorf("expected 4 methods, got %d", len(iface.Methods.List))
+	}
+}

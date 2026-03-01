@@ -117,3 +117,49 @@ func TestParseHandlerInterfaceNotInterface(t *testing.T) {
 		t.Errorf("expected error")
 	}
 }
+
+func TestParseHandlerInterfaceExtraVerbs(t *testing.T) {
+	ts := &dst.TypeSpec{
+		Name: dst.NewIdent("HandlerExtra"),
+		Type: &dst.InterfaceType{
+			Methods: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("OptionsUser")},
+						Type: &dst.FuncType{
+							Params:  &dst.FieldList{},
+							Results: &dst.FieldList{},
+						},
+					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("HeadUser")},
+						Type: &dst.FuncType{
+							Params:  &dst.FieldList{},
+							Results: &dst.FieldList{},
+						},
+					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("TraceUser")},
+						Type: &dst.FuncType{
+							Params:  &dst.FieldList{},
+							Results: &dst.FieldList{},
+						},
+					},
+				},
+			},
+		},
+	}
+	pathItem, err := ParseHandlerInterface(ts)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if pathItem.Options == nil {
+		t.Errorf("expected Options")
+	}
+	if pathItem.Head == nil {
+		t.Errorf("expected Head")
+	}
+	if pathItem.Trace == nil {
+		t.Errorf("expected Trace")
+	}
+}
