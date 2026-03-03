@@ -1,107 +1,81 @@
-@ECHO OFF
-SETLOCAL ENABLEDELAYEDEXPANSION
+@echo off
+setlocal enabledelayedexpansion
 
-IF "%1" == "" GOTO help
-IF "%1" == "help" GOTO help
-IF "%1" == "all" GOTO help
-IF "%1" == "install_base" GOTO install_base
-IF "%1" == "install_deps" GOTO install_deps
-IF "%1" == "build_docs" GOTO build_docs
-IF "%1" == "build" GOTO build
-IF "%1" == "build_wasm" GOTO build_wasm
-IF "%1" == "test" GOTO test
-IF "%1" == "run" GOTO run
-
-ECHO Unknown target: %1
-GOTO help
+if "%1" == "" goto help
+if "%1" == "help" goto help
+if "%1" == "all" goto help
+if "%1" == "install_base" goto install_base
+if "%1" == "install_deps" goto install_deps
+if "%1" == "build_docs" goto build_docs
+if "%1" == "build" goto build
+if "%1" == "test" goto test
+if "%1" == "run" goto run
+if "%1" == "build_wasm" goto build_wasm
+if "%1" == "build_docker" goto build_docker
+if "%1" == "run_docker" goto run_docker
 
 :help
-ECHO Available targets:
-ECHO   install_base : install Go runtime (assumes 'go' is already in PATH)
-ECHO   install_deps : install local dependencies (go mod download)
-ECHO   build_docs   : build the API docs and put them in the docs directory. Usage: make.bat build_docs [DOCS_DIR]
-ECHO   build        : build the CLI binary. Usage: make.bat build [BIN_DIR]
-ECHO   build_wasm   : build the WASM binary. Usage: make.bat build_wasm [BIN_DIR]
-ECHO   test         : run tests locally
-ECHO   run          : run the CLI. Usage: make.bat run [ARGS]
-ECHO   help         : show this help text
-ECHO   all          : show this help text
-GOTO :EOF
+echo Available tasks:
+echo   install_base   Install language runtime & tools
+echo   install_deps   Install dependencies
+echo   build_docs     Build the API docs
+echo   build          Build the CLI binary
+echo   test           Run tests locally
+echo   run            Run the CLI
+echo   build_wasm     Build WASM binary
+echo   build_docker   Build Alpine and Debian Docker images
+echo   run_docker     Run the Docker images
+goto end
 
 :install_base
-go version >nul 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-    ECHO Go is not installed. Please install Go 1.21+.
-    EXIT /B 1
+echo Installing base tools...
+go version
+if %errorlevel% neq 0 (
+    echo Please install Go 1.25+
+    exit /b 1
 )
-ECHO Go is installed.
-GOTO :EOF
+goto end
 
 :install_deps
+go mod tidy
 go mod download
-GOTO :EOF
+goto end
 
 :build_docs
-SET DOCS_DIR=%2
-IF "%DOCS_DIR%"=="" SET DOCS_DIR=docs
-IF NOT EXIST "%DOCS_DIR%" MKDIR "%DOCS_DIR%"
-ECHO Building docs to %DOCS_DIR%...
-go run scripts\doc_cover.go > "%DOCS_DIR%\doc_coverage.txt" 2>nul
-ECHO Docs built.
-GOTO :EOF
+if not exist "docs" mkdir "docs"
+call :build
+bin\cdd-go.exe to_docs_json -i spec.json -o docs\docs.json
+goto end
 
 :build
-SET BIN_DIR=%2
-IF "%BIN_DIR%"=="" SET BIN_DIR=bin
-IF NOT EXIST "%BIN_DIR%" MKDIR "%BIN_DIR%"
-go build -o "%BIN_DIR%\cdd-go.exe" .\cmd\cdd-go
-GOTO :EOF
+call :install_deps
+if not exist "bin" mkdir "bin"
+go build -o bin\cdd-go.exe .\cmd\cdd-go
+goto end
 
 :test
-go test -v -cover .\...
-GOTO :EOF
+go test -v -coverprofile=coverage.out .\...
+go tool cover -func=coverage.out
+goto end
 
 :run
-SET BIN_DIR=%2
-IF "%BIN_DIR%"=="" SET BIN_DIR=bin
-IF NOT EXIST "%BIN_DIR%\cdd-go.exe" (
-    CALL :build %BIN_DIR%
-)
-REM Shift args to pass the rest to the command
-SHIFT
-SHIFT
-SET CMD_ARGS=
-:loop
-IF "%1"=="" GOTO end_loop
-SET CMD_ARGS=!CMD_ARGS! %1
-SHIFT
-GOTO loop
-:end_loop
-"%BIN_DIR%\cdd-go.exe" %CMD_ARGS%
-GOTO :EOF
+call :build
+bin\cdd-go.exe %2 %3 %4 %5 %6 %7 %8 %9
+goto end
 
 :build_wasm
-SET BIN_DIR=%2
-IF "%BIN_DIR%"=="" SET BIN_DIR=bin
-IF NOT EXIST "%BIN_DIR%" MKDIR "%BIN_DIR%"
-SET GOOS=js
-SET GOARCH=wasm
-go build -o "%BIN_DIR%\cdd-go.wasm" .\cmd\cdd-go
-SET GOOS=
-SET GOARCH=
-ECHO Built WASM to %BIN_DIR%\cdd-go.wasm
-GOTO :EOF
+set GOOS=js
+set GOARCH=wasm
+go build -o bin\cdd-go.wasm .\cmd\cdd-go
+goto end
 
 :build_docker
-docker build -t cdd-go-alpine -f alpine.Dockerfile .
-docker build -t cdd-go-debian -f debian.Dockerfile .
-GOTO :EOF
+docker build -t cdd-go:alpine -f alpine.Dockerfile .
+docker build -t cdd-go:debian -f debian.Dockerfile .
+goto end
 
 :run_docker
-docker run -d -p 8085:8085 --name cdd-go-test cdd-go-alpine --port 8085 --listen 0.0.0.0
-timeout /t 2
-curl -X POST -H "Content-Type: application/json" -d "{\"method\":\"version\",\"id\":1}" http://127.0.0.1:8085
-docker stop cdd-go-test
-docker rm cdd-go-test
-docker rmi cdd-go-alpine cdd-go-debian
-GOTO :EOF
+docker run --rm -p 8082:8082 cdd-go:alpine
+goto end
+
+:end

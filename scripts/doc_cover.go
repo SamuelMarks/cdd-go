@@ -1,5 +1,3 @@
-//go:build ignore
-
 package main
 
 import (
@@ -14,49 +12,49 @@ import (
 
 func main() {
 	fset := token.NewFileSet()
-	var total, doced int
+	var total, docs int
 
-	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !strings.HasSuffix(path, ".go") || strings.Contains(path, "vendor") || strings.HasSuffix(path, "_test.go") {
+	err := filepath.Walk("src", func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".go") || strings.HasSuffix(info.Name(), "_test.go") {
 			return nil
 		}
 
 		f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
+			case *ast.GenDecl:
+				if d.Tok == token.TYPE || d.Tok == token.VAR || d.Tok == token.CONST {
+					for _, spec := range d.Specs {
+						switch s := spec.(type) {
+						case *ast.TypeSpec:
+							if s.Name.IsExported() {
+								total++
+								if d.Doc != nil {
+									docs++
+								}
+							}
+						case *ast.ValueSpec:
+							for _, name := range s.Names {
+								if name.IsExported() {
+									total++
+									if d.Doc != nil {
+										docs++
+									}
+									break
+								}
+							}
+						}
+					}
+				}
 			case *ast.FuncDecl:
 				if d.Name.IsExported() {
 					total++
 					if d.Doc != nil {
-						doced++
-					}
-				}
-			case *ast.GenDecl:
-				for _, spec := range d.Specs {
-					if ts, ok := spec.(*ast.TypeSpec); ok {
-						if ts.Name.IsExported() {
-							total++
-							if d.Doc != nil || ts.Doc != nil {
-								doced++
-							}
-						}
-					}
-					if vs, ok := spec.(*ast.ValueSpec); ok {
-						for _, name := range vs.Names {
-							if name.IsExported() {
-								total++
-								if d.Doc != nil || vs.Doc != nil {
-									doced++
-								}
-							}
-						}
+						docs++
 					}
 				}
 			}
@@ -65,15 +63,14 @@ func main() {
 	})
 
 	if err != nil {
-		fmt.Println("Error:", err)
+		fmt.Println("0.0%")
 		os.Exit(1)
 	}
 
 	if total == 0 {
-		fmt.Printf("100.0\n")
+		fmt.Println("100.0%")
 		return
 	}
 
-	percentage := float64(doced) / float64(total) * 100
-	fmt.Printf("%.1f\n", percentage)
+	fmt.Printf("%.1f%%\n", float64(docs)/float64(total)*100.0)
 }

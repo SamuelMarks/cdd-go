@@ -1,26 +1,24 @@
-# Publishing
+# Publishing `cdd-go`
 
-To publish the `cdd-go` compiler itself:
+## Uploading to pkg.go.dev
 
-## Source Code / Library
-For Go, publishing is as simple as tagging a Git release and pushing it to a public repository (e.g., GitHub). `go get` fetches it directly.
+Go modules are distributed via source code repositories (like GitHub). To publish a new version of `cdd-go`, tag the repository with a semantic version and push it. `pkg.go.dev` will automatically index it.
 
 ```bash
 git tag v0.0.1
 git push origin v0.0.1
+# Trigger indexing
+GOPROXY=https://proxy.golang.org GO111MODULE=on go list -m github.com/samuel/cdd-go@v0.0.1
 ```
 
-Users can install via:
+## Publishing Docs
+
+Run `make build_docs` to build a local folder of docs into `./docs/`.
+You can upload this `./docs/` folder to GitHub Pages, an S3 bucket, or your own static server.
+
+For example, to upload to S3:
 ```bash
-go get -u github.com/samuel/cdd-go
-go install github.com/samuel/cdd-go/cmd/cdd-go@latest
+aws s3 sync ./docs s3://my-cdd-docs-bucket --acl public-read
 ```
 
-## Documentation
-
-To generate and serve static documentation:
-```bash
-make build_docs
-```
-
-To publish documentation to a popular Go ecosystem location, ensure the project is public on GitHub and visit `pkg.go.dev/github.com/samuel/cdd-go`. `pkg.go.dev` automatically indexes standard Go comments and structures.
+Go automatically generates library documentation for `pkg.go.dev` via code comments, so `pkg.go.dev/github.com/samuel/cdd-go` will serve as the most popular location for standard API reference.
