@@ -70,18 +70,11 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 		Params: &dst.FieldList{
 			List: []*dst.Field{
 				{
-					Names: []*dst.Ident{dst.NewIdent("w")},
-					Type: &dst.SelectorExpr{
-						X:   dst.NewIdent("http"),
-						Sel: dst.NewIdent("ResponseWriter"),
-					},
-				},
-				{
-					Names: []*dst.Ident{dst.NewIdent("r")},
+					Names: []*dst.Ident{dst.NewIdent("c")},
 					Type: &dst.StarExpr{
 						X: &dst.SelectorExpr{
-							X:   dst.NewIdent("http"),
-							Sel: dst.NewIdent("Request"),
+							X:   dst.NewIdent("gin"),
+							Sel: dst.NewIdent("Context"),
 						},
 					},
 				},
@@ -89,7 +82,6 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 		},
 		Results: &dst.FieldList{},
 	}
-
 	f := &dst.Field{
 		Names: []*dst.Ident{dst.NewIdent(name)},
 		Type:  fType,

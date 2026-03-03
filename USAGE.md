@@ -1,43 +1,20 @@
 # Usage
 
-## CLI Reference
-
-`cdd-go` serves as the core utility for Code-Driven Development in Go environments.
-
-### Help & Version
+Use the `cdd-go` binary to generate Code from OpenAPI, or OpenAPI from Code.
 
 ```bash
+# Display help
 cdd-go --help
-cdd-go --version
-```
 
-### Parsing Go to OpenAPI
+# Generate a Client SDK from an OpenAPI spec
+cdd-go from_openapi to_sdk -i spec.json -o ./client
 
-```bash
-cdd-go to_openapi -f ./src -o openapi.json
-```
+# Generate a CLI Tool from an OpenAPI spec
+cdd-go from_openapi to_sdk_cli -i spec.json -o ./cli
 
-### Emitting OpenAPI to Go SDKs & Server Stubs
+# Generate a Gin-Gonic Web Server from an OpenAPI spec
+cdd-go from_openapi to_server -i spec.json -o ./server
 
-```bash
-# Emit a Server Framework (Routes & Handlers)
-cdd-go from_openapi to_server -i openapi.json -o ./generated/
-
-# Emit a Client SDK
-cdd-go from_openapi to_sdk -i openapi.json -o ./generated/
-
-# Emit a Client SDK along with a CLI
-cdd-go from_openapi to_sdk_cli -i openapi.json -o ./generated/
-```
-
-### Generate documentation JSON
-
-```bash
-cdd-go to_docs_json --no-imports --no-wrapping -i openapi.json -o docs.json
-```
-
-### Server JSON RPC
-
-```bash
-cdd-go serve_json_rpc --port 8082 --listen 0.0.0.0
+# Generate OpenAPI Spec from a Go Package
+cdd-go to_openapi -f ./my-package -o ./openapi.json
 ```

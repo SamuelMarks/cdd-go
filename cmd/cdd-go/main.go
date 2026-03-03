@@ -216,23 +216,27 @@ func generateGithubActions(outDir string) {
 
 func generateCLI(oa *openapi.OpenAPI, outDir string) error {
 	var buf bytes.Buffer
-	buf.WriteString("package main\n\nimport (\n\t\"flag\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {\n")
-	buf.WriteString("\tif len(os.Args) < 2 {\n\t\tfmt.Println(\"Usage: sdk_cli <command> [flags]\")\n\t\tos.Exit(1)\n\t}\n")
-	buf.WriteString("\tcommand := os.Args[1]\n\tswitch command {\n")
+	buf.WriteString("package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"github.com/spf13/cobra\"\n)\n\nfunc main() {\n")
+	buf.WriteString("\trootCmd := &cobra.Command{Use: \"sdk_cli\"}\n")
+
 	for path, item := range oa.Paths {
 		if item.Get != nil {
 			opID := item.Get.OperationID
 			if opID == "" {
 				opID = "get" + strings.ReplaceAll(path, "/", "_")
 			}
-			buf.WriteString(fmt.Sprintf("\tcase \"%s\":\n\t\tfs := flag.NewFlagSet(\"%s\", flag.ExitOnError)\n\t\tfs.Parse(os.Args[2:])\n\t\tfmt.Println(\"Calling %s on %s\")\n", opID, opID, opID, path))
+			buf.WriteString(fmt.Sprintf("\n\tcmd%s := &cobra.Command{\n", opID))
+			buf.WriteString(fmt.Sprintf("\t\tUse: \"%s\",\n", opID))
+			buf.WriteString(fmt.Sprintf("\t\tShort: \"Call %s on %s\",\n", opID, path))
+			buf.WriteString(fmt.Sprintf("\t\tRun: func(cmd *cobra.Command, args []string) {\n\t\t\tfmt.Println(\"Calling %s on %s\")\n\t\t},\n", opID, path))
+			buf.WriteString("\t}\n")
+			buf.WriteString(fmt.Sprintf("\trootCmd.AddCommand(cmd%s)\n", opID))
 		}
 	}
-	buf.WriteString("\tdefault:\n\t\tfmt.Printf(\"Unknown command: %s\\n\", command)\n\t\tos.Exit(1)\n\t}\n}\n")
+	buf.WriteString("\n\tif err := rootCmd.Execute(); err != nil {\n\t\tfmt.Println(err)\n\t\tos.Exit(1)\n\t}\n}\n")
 	path := filepath.Join(outDir, "sdk_cli.go")
 	return os.WriteFile(path, buf.Bytes(), 0644)
 }
-
 func runToOpenAPI(in, outPath string) error {
 	if in == "" {
 		return fmt.Errorf("input path is required")
@@ -407,14 +411,13 @@ func generateRoutes(oa *openapi.OpenAPI, outDir string) error {
 					Tok: token.IMPORT,
 					Specs: []dst.Spec{
 						&dst.ImportSpec{
-							Path: &dst.BasicLit{Kind: token.STRING, Value: `"net/http"`},
+							Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/gin-gonic/gin"`},
 						},
 					},
 				},
 				decl,
 			},
 		}
-
 		fileName := strings.ReplaceAll(path, "/", "_")
 		fileName = strings.ReplaceAll(fileName, "{", "")
 		fileName = strings.ReplaceAll(fileName, "}", "")

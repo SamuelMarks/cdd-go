@@ -1,62 +1,37 @@
-.PHONY: all help install_base install_deps build_docs build build_wasm test run default
+.PHONY: all default help install_base install_deps build_docs build test run build_wasm build_docker run_docker
 
-BIN_DIR ?= bin
-DOCS_DIR ?= docs
+default: all
 
-# If the first argument is "run"...
-ifeq (run,$(firstword $(MAKECMDGOALS)))
-  # use the rest as arguments for "run"
-  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-  # ...and turn them into do-nothing targets
-  $(eval $(RUN_ARGS) $(ARGS):;@:)
-endif
-
-# If the first argument is "build"...
-ifeq (build,$(firstword $(MAKECMDGOALS)))
-  ifneq (,$(word 2, $(MAKECMDGOALS)))
-    BIN_DIR := $(word 2, $(MAKECMDGOALS))
-    $(eval $(BIN_DIR):;@:)
-  endif
-endif
-
-# If the first argument is "build_docs"...
-ifeq (build_docs,$(firstword $(MAKECMDGOALS)))
-  ifneq (,$(word 2, $(MAKECMDGOALS)))
-    DOCS_DIR := $(word 2, $(MAKECMDGOALS))
-    $(eval $(DOCS_DIR):;@:)
-  endif
-endif
-
-default: help
 all: help
 
 help:
-	@echo "Available targets:"
-	@echo "  install_base : install Go runtime (assumes 'go' is already in PATH)"
-	@echo "  install_deps : install local dependencies (go mod download)"
-	@echo "  build_docs   : build the API docs and put them in the docs directory."
-	@echo "  build        : build the CLI binary."
-	@echo "  build_wasm   : build the WASM binary."
-	@echo "  test         : run tests locally"
-	@echo "  run          : run the CLI. Usage: make run --version"
-	@echo "  help         : show this help text"
+	@echo "Available tasks:"
+	@echo "  install_base   Install language runtime & tools"
+	@echo "  install_deps   Install dependencies"
+	@echo "  build_docs     Build the API docs (specify DOCS_DIR=... for alternative)"
+	@echo "  build          Build the CLI binary (specify BIN_DIR=... for alternative)"
+	@echo "  test           Run tests locally"
+	@echo "  run            Run the CLI (builds if not built, pass args via ARGS=\"...\")"
+	@echo "  build_wasm     Build WASM binary"
+	@echo "  build_docker   Build Alpine and Debian Docker images"
+	@echo "  run_docker     Run the Docker images"
 
 install_base:
-	@command -v go >/dev/null 2>&1 || { echo >&2 "Go is not installed. Please install Go 1.21+."; exit 1; }
-	@echo "Go is installed."
+	@echo "Installing base tools..."
+	go version || (echo "Please install Go 1.25+"; exit 1)
 
 install_deps:
-	go mod download
 	go mod tidy
+	go mod download
 
-build_docs:
-	@mkdir -p $(DOCS_DIR)
-	@echo "Building docs to $(DOCS_DIR)..."
-	@go run scripts/doc_cover.go > $(DOCS_DIR)/doc_coverage.txt || echo "doc_cover.go failed"
-	@echo "Docs built."
+DOCS_DIR ?= docs
+build_docs: build
+	mkdir -p $(DOCS_DIR)
+	./bin/cdd-go to_docs_json -i spec.json -o $(DOCS_DIR)/docs.json || true
 
-build:
-	@mkdir -p $(BIN_DIR)
+BIN_DIR ?= bin
+build: install_deps
+	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/cdd-go ./cmd/cdd-go
 
 test:
@@ -64,19 +39,14 @@ test:
 	go tool cover -func=coverage.out
 
 run: build
-	./$(BIN_DIR)/cdd-go $(RUN_ARGS) $(ARGS)
+	./$(BIN_DIR)/cdd-go $(ARGS)
 
 build_wasm:
-	@mkdir -p $(BIN_DIR)
 	GOOS=js GOARCH=wasm go build -o $(BIN_DIR)/cdd-go.wasm ./cmd/cdd-go
+
 build_docker:
-	docker build -t cdd-go-alpine -f alpine.Dockerfile .
-	docker build -t cdd-go-debian -f debian.Dockerfile .
+	docker build -t cdd-go:alpine -f alpine.Dockerfile .
+	docker build -t cdd-go:debian -f debian.Dockerfile .
 
 run_docker:
-	docker run -d -p 8085:8085 --name cdd-go-test cdd-go-alpine --port 8085 --listen 0.0.0.0
-	sleep 2
-	curl -X POST -H "Content-Type: application/json" -d "{\"method\":\"version\",\"id\":1}" http://127.0.0.1:8085
-	docker stop cdd-go-test
-	docker rm cdd-go-test
-	docker rmi cdd-go-alpine cdd-go-debian
+	docker run --rm -p 8082:8082 cdd-go:alpine

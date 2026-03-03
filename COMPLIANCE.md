@@ -1,6 +1,21 @@
-# Compliance
+# OpenAPI 3.2.0 Compliance
 
-`cdd-go` strictly adheres to OpenAPI 3.2.0 specification for both parsing and emitting.
-Currently achieved compliance: Partial (100% core path/operation mapping, ongoing coverage for deep nested schemas).
+`cdd-go` currently partially implements OpenAPI 3.2.0.
 
-The `to_docs_json` tool implements the canonical CDD docs json schema perfectly.
+Currently Supported:
+- Schemas (`string`, `object`, etc)
+- Operations (`GET`, `POST`, `PUT`, `DELETE`)
+- operationId
+- Path definitions
+- Components -> Schemas
+
+To Be Implemented:
+- `patternProperties`
+- `$dynamicRef` and other advanced JSON schema 2020-12 references.
+- `webhooks`
+- Request Bodies
+- Responses and HTTP status codes
+- Full Security Schemes
+- Parameter serialization rules
+
+Full compliance validation is a work in progress.

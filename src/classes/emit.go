@@ -37,9 +37,8 @@ func EmitType(name string, schema *openapi.Schema) (*dst.TypeSpec, error) {
 				Type:  EmitTypeExpr(&pSchema),
 				Tag: &dst.BasicLit{
 					Kind:  token.STRING,
-					Value: fmt.Sprintf("`json:\"%s\"`", propName),
-				},
-			}
+					Value: fmt.Sprintf("`json:\"%s\" gorm:\"column:%s\"`", propName, propName),
+				}}
 			if pSchema.Description != "" {
 				f.Decs.Start.Append(fmt.Sprintf("// %s", pSchema.Description))
 			}

@@ -58,16 +58,16 @@ func TestEmitHandlerInterface(t *testing.T) {
 	if !strings.Contains(out, "// Get a user by ID") {
 		t.Errorf("expected Get summary")
 	}
-	if !strings.Contains(out, "GetUser(w http.ResponseWriter, r *http.Request)") {
+	if !strings.Contains(out, "GetUser(c *gin.Context)") {
 		t.Errorf("expected GetUser method, got %s", out)
 	}
-	if !strings.Contains(out, "Post(w http.ResponseWriter, r *http.Request)") {
+	if !strings.Contains(out, "Post(c *gin.Context)") {
 		t.Errorf("expected Post method, got %s", out)
 	}
-	if !strings.Contains(out, "Put(w http.ResponseWriter, r *http.Request)") {
+	if !strings.Contains(out, "Put(c *gin.Context)") {
 		t.Errorf("expected Put method, got %s", out)
 	}
-	if !strings.Contains(out, "Delete(w http.ResponseWriter, r *http.Request)") {
+	if !strings.Contains(out, "Delete(c *gin.Context)") {
 		t.Errorf("expected Delete method, got %s", out)
 	}
 }

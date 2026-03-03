@@ -3,8 +3,8 @@ cdd-go
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![CI/CD](https://github.com/offscale/cdd-go/workflows/CI/badge.svg)](https://github.com/offscale/cdd-go/actions)
-[![Test Coverage](https://img.shields.io/badge/test_coverage-97.9%25-brightgreen.svg)](#)
-[![Doc Coverage](https://img.shields.io/badge/doc_coverage-100.0%25-brightgreen.svg)](#)
+![Test Coverage](https://img.shields.io/badge/Test%20Coverage-94.4%25-brightgreen.svg)
+![Doc Coverage](https://img.shields.io/badge/Doc%20Coverage-100.0%25-brightgreen.svg)
 
 OpenAPI ↔ Go. This is one compiler in a suite, all focussed on the same task: Compiler Driven Development (CDD).
 
@@ -13,12 +13,9 @@ Each compiler is written in its target language, is whitespace and comment sensi
 The CLI—at a minimum—has:
 - `cdd-go --help`
 - `cdd-go --version`
-- `cdd-go to_openapi -f path/to/code -o spec.json`
-- `cdd-go serve_json_rpc --port 8082 --listen 0.0.0.0`
-- `cdd-go to_docs_json --no-imports --no-wrapping -i spec.json -o docs.json`
-- `cdd-go from_openapi to_sdk_cli -i spec.json -o target_directory`
-- `cdd-go from_openapi to_sdk -i spec.json -o target_directory`
-- `cdd-go from_openapi to_server -i spec.json -o target_directory`
+- `cdd-go from_openapi -i spec.json`
+- `cdd-go to_openapi -f path/to/code`
+- `cdd-go to_docs_json --no-imports --no-wrapping -i spec.json`
 
 The goal of this project is to enable rapid application development without tradeoffs. Tradeoffs of Protocol Buffers / Thrift etc. are an untouchable "generated" directory and package, compile-time and/or runtime overhead. Tradeoffs of Java or JavaScript for everything are: overhead in hardware access, offline mode, ML inefficiency, and more. And neither of these alterantive approaches are truly integrated into your target system, test frameworks, and bigger abstractions you build in your app. Tradeoffs in CDD are code duplication (but CDD handles the synchronisation for you).
 
@@ -34,28 +31,22 @@ The `cdd-go` compiler leverages a unified architecture to support various facets
 
 ## 📦 Installation
 
-To install `cdd-go` as a standalone binary:
+Requires Go 1.25+.
 
 ```bash
 go install github.com/samuel/cdd-go/cmd/cdd-go@latest
 ```
 
-Ensure `$(go env GOPATH)/bin` is in your `$PATH`.
-
 ## 🛠 Usage
 
 ### Command Line Interface
 
-Generate an OpenAPI spec from your Go code:
-
 ```bash
-cdd-go to_openapi -f ./src/ -o openapi.json
-```
+# Generate Go SDK from OpenAPI
+cdd-go from_openapi to_sdk -i openapi.json -o ./sdk
 
-Generate a Go server framework from an OpenAPI spec:
-
-```bash
-cdd-go from_openapi to_server -i openapi.json -o ./generated-server/
+# Generate OpenAPI from Go source code
+cdd-go to_openapi -f ./src -o openapi.json
 ```
 
 ### Programmatic SDK / Library
@@ -71,17 +62,14 @@ import (
 func main() {
 	f, _ := os.Open("openapi.json")
 	defer f.Close()
-
 	oa, _ := openapi.Parse(f)
-
-	// Print the version or process
-	println(oa.OpenAPI)
+	// Work with the AST representations
 }
 ```
 
 ## Design choices
 
-`cdd-go` leverages `github.com/dave/dst` to read and edit the AST without destroying source code formatting and comments. This is a massive improvement over standard `go/ast` which loses comment alignment and whitespace information, allowing for true bidirectional synchronization.
+We chose `github.com/dave/dst` to manipulate Go source code because it provides a reliable, high-level abstraction over the standard `go/ast` tree while fully preserving comments and whitespace, allowing surgical code generation that feels hand-written. We rely on standard Go tools, `gin-gonic/gin` for generated REST routes, and `cobra` for the generated SDK CLIs to ensure familiar, idiomatic output.
 
 ## 🏗 Supported Conversions for Go
 
@@ -89,17 +77,14 @@ func main() {
 
 | Concept | Parse (From) | Emit (To) |
 |---------|--------------|-----------|
-| OpenAPI (JSON/YAML) | [✅] | [✅] |
-| `Go` Models / Structs / Types | [✅] | [✅] |
-| `Go` Server Routes / Endpoints | [✅] | [✅] |
-| `Go` API Clients / SDKs | [✅] | [✅] |
-| `Go` ORM / DB Schemas | [ ] | [ ] |
-| `Go` CLI Argument Parsers | [ ] | [✅] |
-| `Go` Docstrings / Comments | [✅] | [✅] |
-
-| WASM Support | Implemented |
-|---------|--------------|
-| Yes | Yes |
+| WebAssembly (WASM) | ❌ | ✅ |
+| OpenAPI (JSON/YAML) | ✅ | ✅ |
+| `Go` Models / Structs / Types | ✅ | ✅ |
+| `Go` Server Routes / Endpoints | ✅ | ✅ |
+| `Go` API Clients / SDKs | ✅ | ✅ |
+| `Go` ORM / DB Schemas | ✅ | ✅ |
+| `Go` CLI Argument Parsers | ✅ | ✅ |
+| `Go` Docstrings / Comments | ✅ | ✅ |
 
 ---
 

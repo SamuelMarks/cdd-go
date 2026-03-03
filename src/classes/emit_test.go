@@ -73,13 +73,13 @@ func TestEmitType(t *testing.T) {
 	if !strings.Contains(out, "// Unique identifier") {
 		t.Errorf("expected property description")
 	}
-	if !strings.Contains(out, "Age int `json:\"age\"`") {
+	if !strings.Contains(out, "Age int `json:\"age\" gorm:\"column:age\"`") {
 		t.Errorf("expected int age field, got %s", out)
 	}
-	if !strings.Contains(out, "Friends []string `json:\"friends\"`") {
+	if !strings.Contains(out, "Friends []string `json:\"friends\" gorm:\"column:friends\"`") {
 		t.Errorf("expected string array friends field, got %s", out)
 	}
-	if !strings.Contains(out, "Settings Settings `json:\"settings\"`") {
+	if !strings.Contains(out, "Settings Settings `json:\"settings\" gorm:\"column:settings\"`") {
 		t.Errorf("expected settings field, got %s", out)
 	}
 }

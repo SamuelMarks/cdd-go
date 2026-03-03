@@ -1,19 +1,33 @@
-# Developing
+# Developing `cdd-go`
 
-## Prerequisites
-- Go 1.25+
-- Make
+## Setup
 
-## Running Tests
-Run tests with coverage using the Make target:
+Ensure you have Go 1.25+ installed.
+
+```bash
+make install_deps
+```
+
+## Testing
+
+Run tests and display coverage (requires 100% statement coverage for core packages):
+
 ```bash
 make test
 ```
 
-## Running the CLI
+## Building
+
 ```bash
-make run --help
+make build
+make build_wasm
+make build_docker
 ```
 
-## Adding new features
-Please maintain modular directory trees (`src/classes`, `src/routes`, etc.). Maintain 100% test and doc coverage. Add test cases for any new functionality.
+## Architecture Map
+
+- `src/classes`: Parses and emits Go structs / models.
+- `src/clients`: Parses and emits Go client SDK interfaces.
+- `src/functions`: Parses and emits OpenAPI Operations.
+- `src/routes`: Parses and emits Go `gin-gonic/gin` web server routes.
+- `cmd/cdd-go`: The main CLI entrypoint.
