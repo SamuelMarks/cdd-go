@@ -72,7 +72,7 @@ By standardizing on a single IR (heavily inspired by OpenAPI / JSON Schema primi
 
 The Backend's responsibility is to take the universal IR and generate valid target output. Emitters can be written to support various environments (e.g., Client vs Server, Web vs CLI).
 
-* **Code Generation**: Emitters iterate over the IR and generate idiomatic `Go` source code using DST modifications for non-destructive edits or new tree generation. 
+* **Code Generation**: Emitters iterate over the IR and generate idiomatic `Go` source code using DST modifications for non-destructive edits or new tree generation.
   * A **Server Emitter** creates routing controllers and request-validation logic using `gin-gonic`.
   * A **Client Emitter** creates API wrappers, fetch functions, and response-parsing logic using `net/http`.
 * **Database & CLI Generation**: Emitters can also target ORM models (via struct tags for `gorm`) or command-line parsers (via `cobra` commands) by mapping IR properties to database columns or CLI arguments.

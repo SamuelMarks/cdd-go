@@ -14,6 +14,8 @@ import (
 	"github.com/dave/dst/decorator"
 	"github.com/samuel/cdd-go/src/classes"
 	"github.com/samuel/cdd-go/src/clients"
+	"github.com/samuel/cdd-go/src/commands"
+	"github.com/samuel/cdd-go/src/components"
 	"github.com/samuel/cdd-go/src/mocks"
 	"github.com/samuel/cdd-go/src/openapi"
 	"github.com/samuel/cdd-go/src/routes"
@@ -215,27 +217,37 @@ func generateGithubActions(outDir string) {
 }
 
 func generateCLI(oa *openapi.OpenAPI, outDir string) error {
-	var buf bytes.Buffer
-	buf.WriteString("package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"github.com/spf13/cobra\"\n)\n\nfunc main() {\n")
-	buf.WriteString("\trootCmd := &cobra.Command{Use: \"sdk_cli\"}\n")
-
+	if oa.Paths == nil {
+		return writeDstFile(filepath.Join(outDir, "sdk_cli.go"), &dst.File{Name: dst.NewIdent("main")})
+	}
+	file := &dst.File{Name: dst.NewIdent("main")}
 	for path, item := range oa.Paths {
 		if item.Get != nil {
-			opID := item.Get.OperationID
-			if opID == "" {
-				opID = "get" + strings.ReplaceAll(path, "/", "_")
-			}
-			buf.WriteString(fmt.Sprintf("\n\tcmd%s := &cobra.Command{\n", opID))
-			buf.WriteString(fmt.Sprintf("\t\tUse: \"%s\",\n", opID))
-			buf.WriteString(fmt.Sprintf("\t\tShort: \"Call %s on %s\",\n", opID, path))
-			buf.WriteString(fmt.Sprintf("\t\tRun: func(cmd *cobra.Command, args []string) {\n\t\t\tfmt.Println(\"Calling %s on %s\")\n\t\t},\n", opID, path))
-			buf.WriteString("\t}\n")
-			buf.WriteString(fmt.Sprintf("\trootCmd.AddCommand(cmd%s)\n", opID))
+			file.Decls = append(file.Decls, commands.Emit(path, "get", item.Get))
+		}
+		if item.Post != nil {
+			file.Decls = append(file.Decls, commands.Emit(path, "post", item.Post))
+		}
+		if item.Put != nil {
+			file.Decls = append(file.Decls, commands.Emit(path, "put", item.Put))
+		}
+		if item.Delete != nil {
+			file.Decls = append(file.Decls, commands.Emit(path, "delete", item.Delete))
+		}
+		if item.Patch != nil {
+			file.Decls = append(file.Decls, commands.Emit(path, "patch", item.Patch))
+		}
+		if item.Options != nil {
+			file.Decls = append(file.Decls, commands.Emit(path, "options", item.Options))
+		}
+		if item.Head != nil {
+			file.Decls = append(file.Decls, commands.Emit(path, "head", item.Head))
+		}
+		if item.Trace != nil {
+			file.Decls = append(file.Decls, commands.Emit(path, "trace", item.Trace))
 		}
 	}
-	buf.WriteString("\n\tif err := rootCmd.Execute(); err != nil {\n\t\tfmt.Println(err)\n\t\tos.Exit(1)\n\t}\n}\n")
-	path := filepath.Join(outDir, "sdk_cli.go")
-	return os.WriteFile(path, buf.Bytes(), 0644)
+	return writeDstFile(filepath.Join(outDir, "sdk_cli.go"), file)
 }
 func runToOpenAPI(in, outPath string) error {
 	if in == "" {
@@ -289,6 +301,50 @@ func generateOpenAPI(inputPath string, outPath string) error {
 
 	fset := token.NewFileSet()
 	for _, fpath := range files {
+		if strings.HasSuffix(fpath, "components.go") {
+			f, err := decorator.ParseFile(fset, fpath, nil, parser.ParseComments)
+			if err == nil {
+				if parsedComp := components.Parse(f); parsedComp != nil {
+					if oa.Components == nil {
+						oa.Components = parsedComp
+					} else {
+						if oa.Components.Schemas == nil {
+							oa.Components.Schemas = make(map[string]openapi.Schema)
+						}
+						if oa.Components.SecuritySchemes == nil {
+							oa.Components.SecuritySchemes = make(map[string]openapi.SecurityScheme)
+						}
+						if oa.Components.Parameters == nil {
+							oa.Components.Parameters = make(map[string]openapi.Parameter)
+						}
+						if oa.Components.Headers == nil {
+							oa.Components.Headers = make(map[string]openapi.Header)
+						}
+						if oa.Components.RequestBodies == nil {
+							oa.Components.RequestBodies = make(map[string]openapi.RequestBody)
+						}
+						if oa.Components.Responses == nil {
+							oa.Components.Responses = make(map[string]openapi.Response)
+						}
+						for k, v := range parsedComp.SecuritySchemes {
+							oa.Components.SecuritySchemes[k] = v
+						}
+						for k, v := range parsedComp.Parameters {
+							oa.Components.Parameters[k] = v
+						}
+						for k, v := range parsedComp.Headers {
+							oa.Components.Headers[k] = v
+						}
+						for k, v := range parsedComp.RequestBodies {
+							oa.Components.RequestBodies[k] = v
+						}
+						for k, v := range parsedComp.Responses {
+							oa.Components.Responses[k] = v
+						}
+					}
+				}
+			}
+		}
 		file, err := decorator.ParseFile(fset, fpath, nil, parser.ParseComments)
 		if err != nil {
 			return fmt.Errorf("failed to parse %s: %w", fpath, err)
@@ -350,10 +406,24 @@ func generateOpenAPI(inputPath string, outPath string) error {
 }
 
 func generateClasses(oa *openapi.OpenAPI, outDir string) error {
-	if oa.Components == nil || oa.Components.Schemas == nil {
+	if oa.Components == nil {
 		return nil
 	}
 
+	compDecls := components.Emit(oa.Components)
+	if len(compDecls) > 0 {
+		file := &dst.File{
+			Name:  dst.NewIdent("components"),
+			Decls: compDecls,
+		}
+		if err := writeDstFile(filepath.Join(outDir, "components.go"), file); err != nil {
+			return err
+		}
+	}
+
+	if oa.Components.Schemas == nil {
+		return nil
+	}
 	for name, schema := range oa.Components.Schemas {
 		var ts *dst.TypeSpec
 		var err error

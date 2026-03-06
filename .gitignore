@@ -8,3 +8,11 @@ bin/
 *coverage.html
 coverage.out
 *.tmp
+
+# Temporary debug/fix scripts
+fix_*.sh
+fix_*.go
+*.patch
+*.rej
+*.orig
+update_conformance*.py
