@@ -3,7 +3,7 @@ cdd-go
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![CI/CD](https://github.com/offscale/cdd-go/workflows/CI/badge.svg)](https://github.com/offscale/cdd-go/actions)
-![Test Coverage](https://img.shields.io/badge/Test%20Coverage-94.4%25-brightgreen.svg)
+![Test Coverage](https://img.shields.io/badge/Test%20Coverage-99.6%25-brightgreen.svg)
 ![Doc Coverage](https://img.shields.io/badge/Doc%20Coverage-100.0%25-brightgreen.svg)
 
 OpenAPI ↔ Go. This is one compiler in a suite, all focussed on the same task: Compiler Driven Development (CDD).

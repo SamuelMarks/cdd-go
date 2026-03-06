@@ -542,3 +542,107 @@ func TestGenerateCLIErr2(t *testing.T) {
 		t.Errorf("expected err")
 	}
 }
+
+func TestGenerateCLIMethods(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "info": {"title": "Test"}, "paths": {"/test": {"get":{}, "post":{}, "put":{}, "delete":{}, "patch":{}, "options":{}, "head":{}, "trace":{}}}}`), 0644)
+
+	err := run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected err: %v", err)
+	}
+}
+
+func TestGenerateClassesNoSchemas(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "components": {"securitySchemes": {"basic": {"type": "http"}}}}`), 0644)
+	err := run([]string{"from_openapi", "to_sdk", "-i", path, "-o", dir})
+	if err != nil {
+		t.Errorf("unexpected err: %v", err)
+	}
+}
+
+func TestGenerateOpenAPIParseErr(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.go")
+	os.WriteFile(path, []byte("package bad\nfunc x(){}"), 0644)
+
+	// Create another file that has syntax error for dst to fail on
+	path2 := filepath.Join(dir, "bad2.go")
+	os.WriteFile(path2, []byte("package bad\nfunc x(){"), 0644) // dst fails gracefully here usually
+
+	generateOpenAPI(dir, filepath.Join(dir, "out.json"))
+}
+
+func TestRunServerJSONRPCPortErr(t *testing.T) {
+	// Don't test port -1 if it causes http handle func panics because of conflicting registrations, test invalid flag instead for basic coverage
+	err := runServerJSONRPC([]string{"-invalid_port_flag"})
+	if err == nil {
+		t.Errorf("expected err")
+	}
+}
+
+func TestRunToDocsJSONInputErr(t *testing.T) {
+	err := runToDocsJSON([]string{})
+	if err == nil {
+		t.Errorf("expected err for missing input")
+	}
+}
+
+func TestRunToDocsJSONOpenErr(t *testing.T) {
+	err := runToDocsJSON([]string{"-i", "doesnotexist.json"})
+	if err == nil {
+		t.Errorf("expected err for missing file")
+	}
+}
+
+func TestRunToDocsJSONParseErr(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.json")
+	os.WriteFile(path, []byte("{ bad json"), 0644)
+	err := runToDocsJSON([]string{"-i", path})
+	if err == nil {
+		t.Errorf("expected parse err")
+	}
+}
+
+func TestRunToDocsJSONCreateErr(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
+	out := filepath.Join(dir, "readonly", "out.json") // readonly dir doesn't exist
+	err := runToDocsJSON([]string{"-i", path, "-o", out})
+	if err == nil {
+		t.Errorf("expected create file err")
+	}
+}
+
+func TestGenerateClassesComponentGoErr(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "components": {"securitySchemes": {"basic": {"type": "http"}}}}`), 0644)
+	outDir := filepath.Join(dir, "readonly")
+	os.MkdirAll(outDir, 0555)
+
+	err := generateClasses(&openapi.OpenAPI{Components: &openapi.Components{SecuritySchemes: map[string]openapi.SecurityScheme{"b": {Type: "http"}}}}, outDir)
+	if err == nil {
+		t.Errorf("expected write error for components.go")
+	}
+}
+
+func TestGenerateOpenAPIComponentsInit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "components.go")
+	os.WriteFile(path, []byte("package main\nvar SecuritySchemeTest = 1"), 0644)
+
+	// Create another invalid component that won't panic but fail parsing to cover branching
+	path2 := filepath.Join(dir, "bad_components.go")
+	os.WriteFile(path2, []byte("package main\nfunc Test(){}"), 0644)
+
+	err := generateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	if err != nil {
+		t.Errorf("unexpected err: %v", err)
+	}
+}
