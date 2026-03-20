@@ -92,13 +92,13 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	os.WriteFile(filepath.Join(goDir, "a.go"), []byte(`package a; type A struct{}`), 0644)
 	os.WriteFile(filepath.Join(goDir, "a_test.go"), []byte(`package a; type B struct{}`), 0644) // should be ignored
 
-	err = run([]string{"to_openapi", "-in", goDir, "-o", filepath.Join(dir, "output_dir.json")})
+	err = run([]string{"to_openapi", "-i", goDir, "-o", filepath.Join(dir, "output_dir.json")})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	// test language-to-openapi file error (not found)
-	err = run([]string{"to_openapi", "-in", filepath.Join(dir, "missing.go")})
+	err = run([]string{"to_openapi", "-i", filepath.Join(dir, "missing.go")})
 	if err == nil {
 		t.Errorf("expected error for missing go file")
 	}
@@ -106,13 +106,13 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	// test language-to-openapi parsing error
 	errGo := filepath.Join(dir, "err.go")
 	os.WriteFile(errGo, []byte(`package main; type;`), 0644)
-	err = run([]string{"to_openapi", "-in", errGo})
+	err = run([]string{"to_openapi", "-i", errGo})
 	if err == nil {
 		t.Errorf("expected parsing error")
 	}
 
 	// Output dir mapping test
-	err = run([]string{"to_openapi", "-in", goDir, "-o", "generated"})
+	err = run([]string{"to_openapi", "-i", goDir, "-o", "generated"})
 	// this will write to openapi.json in current dir. Let's ignore err, just want coverage.
 
 	// Force WriteDstFile error by providing a path that is a directory
@@ -179,7 +179,7 @@ func TestGenerateOpenAPIWriteError(t *testing.T) {
 	os.MkdirAll(outDir, 0755)
 	os.MkdirAll(filepath.Join(outDir, "openapi.json"), 0755) // The file we want to create is already a dir
 
-	err := run([]string{"to_openapi", "-in", goFile, "-o", outDir})
+	err := run([]string{"to_openapi", "-i", goFile, "-o", outDir})
 	if err == nil {
 		t.Errorf("expected error opening file that is a dir")
 	}
@@ -196,7 +196,7 @@ func TestGenerateOpenAPIMkdirError(t *testing.T) {
 
 	outPath := filepath.Join(blockerFile, "openapi.json")
 
-	err := run([]string{"to_openapi", "-in", goFile, "-o", outPath})
+	err := run([]string{"to_openapi", "-i", goFile, "-o", outPath})
 	if err == nil {
 		t.Errorf("expected error when mkdir fails")
 	}
@@ -209,7 +209,7 @@ func TestGenerateOpenAPIReadDirError(t *testing.T) {
 	os.Chmod(dir, 0000)
 	defer os.Chmod(dir, 0755)
 
-	err := run([]string{"to_openapi", "-in", dir, "-o", "test.json"})
+	err := run([]string{"to_openapi", "-i", dir, "-o", "test.json"})
 	if err == nil {
 		t.Errorf("expected error when reading dir fails")
 	}
