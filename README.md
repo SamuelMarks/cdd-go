@@ -102,3 +102,60 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
+
+## CLI Help
+
+```
+$ ./bin/cdd-go --help
+cdd-go is a Code-Driven Development tool for Go.
+
+Usage:
+  cdd-go [subcommand] [flags]
+
+Subcommands:
+  from_openapi     Generate code from OpenAPI spec
+  to_openapi       Generate OpenAPI spec from code
+  to_docs_json     Generate documentation JSON from OpenAPI spec
+  server_json_rpc  Run a JSON-RPC server exposing the CLI
+
+Flags:
+  -h, --help       Show this help message
+  -v, --version    Show version information
+```
+
+### `from_openapi`
+
+```
+$ ./bin/cdd-go from_openapi --help
+error: input file or directory is required
+```
+
+### `to_openapi`
+
+```
+$ ./bin/cdd-go to_openapi --help
+Usage of to_openapi:
+  -i string
+    	Input file or directory path
+  -o string
+    	Output file path (default "openapi.json")
+error: flag: help requested
+```
+
+### `to_docs_json`
+
+```
+$ ./bin/cdd-go to_docs_json --help
+Usage of to_docs_json:
+  -i string
+    	Input file path
+  -input string
+    	Input file path
+  -no-imports
+    	Omit imports
+  -no-wrapping
+    	Omit wrapping
+  -o string
+    	Output file path
+error: flag: help requested
+```
