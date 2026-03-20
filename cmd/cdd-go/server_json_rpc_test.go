@@ -97,7 +97,7 @@ func TestRunServerJSONRPC_Handler(t *testing.T) {
 	}
 
 	// 9. to_openapi (valid params, missing file)
-	resp, _ = doRequest("to_openapi", `["-in", "missing.go"]`)
+	resp, _ = doRequest("to_openapi", `["-i", "missing.go"]`)
 	if resp.Error == nil {
 		t.Errorf("expected error for missing file")
 	}
@@ -105,7 +105,7 @@ func TestRunServerJSONRPC_Handler(t *testing.T) {
 	// 10. to_openapi (valid params, valid file)
 	goFile := dir + "/main.go"
 	os.WriteFile(goFile, []byte(`package main`), 0644)
-	resp, _ = doRequest("to_openapi", fmt.Sprintf(`["-in", "%s", "-o", "%s/out.json"]`, goFile, dir))
+	resp, _ = doRequest("to_openapi", fmt.Sprintf(`["-i", "%s", "-o", "%s/out.json"]`, goFile, dir))
 	if resp.Error != nil {
 		t.Errorf("expected no error, got %v", resp.Error)
 	}

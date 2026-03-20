@@ -108,26 +108,11 @@ func run(args []string) error {
 	case "to_openapi":
 		fs := flag.NewFlagSet("to_openapi", flag.ContinueOnError)
 		fs.SetOutput(stderr)
-		fs.StringVar(&in, "f", envOrDefault("CDD_GO_INPUT", ""), "Input file or directory path")
+		fs.StringVar(&in, "i", envOrDefault("CDD_GO_INPUT", ""), "Input file or directory path")
 		fs.StringVar(&out, "o", envOrDefault("CDD_GO_OUTPUT", "openapi.json"), "Output file path")
-		// Also allow -i and -in for compatibility
-		var inAlt1, inAlt2, outAlt1 string
-		fs.StringVar(&inAlt1, "i", "", "")
-		fs.StringVar(&inAlt2, "in", "", "")
-		fs.StringVar(&outAlt1, "out", "", "")
 
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
-		}
-		if in == "" {
-			if inAlt1 != "" {
-				in = inAlt1
-			} else {
-				in = inAlt2
-			}
-		}
-		if out == "openapi.json" && outAlt1 != "" {
-			out = outAlt1
 		}
 
 		return runToOpenAPI(in, out)
