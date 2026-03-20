@@ -2,8 +2,8 @@ cdd-go
 ======
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI/CD](https://github.com/offscale/cdd-go/workflows/CI/badge.svg)](https://github.com/offscale/cdd-go/actions)
-![Test Coverage](https://img.shields.io/badge/Test%20Coverage-99.6%25-brightgreen.svg)
+[![CI](https://github.com/SamuelMarks/cdd-go/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/cdd-go/actions/workflows/ci.yml)
+![Test Coverage](https://img.shields.io/badge/Test%20Coverage-100.0%25-brightgreen.svg)
 ![Doc Coverage](https://img.shields.io/badge/Doc%20Coverage-100.0%25-brightgreen.svg)
 
 OpenAPI ↔ Go. This is one compiler in a suite, all focussed on the same task: Compiler Driven Development (CDD).
@@ -34,7 +34,7 @@ The `cdd-go` compiler leverages a unified architecture to support various facets
 Requires Go 1.25+.
 
 ```bash
-go install github.com/samuel/cdd-go/cmd/cdd-go@latest
+go install github.com/SamuelMarks/cdd-go/cmd/cdd-go@latest
 ```
 
 ## 🛠 Usage
@@ -51,21 +51,166 @@ cdd-go to_openapi -f ./src -o openapi.json
 
 ### Programmatic SDK / Library
 
+The `cdd-go` project provides a robust, granular SDK for programmatically inspecting, modifying, and generating both OpenAPI specifications and Go AST (Abstract Syntax Tree) nodes.
+
+#### Parsing and Emitting OpenAPI JSON
+
+At the core is the `openapi` package, which lets you seamlessly ingest and output OpenAPI documents.
+
 ```go
 package main
 
 import (
 	"os"
-	"github.com/samuel/cdd-go/src/openapi"
+
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
 
 func main() {
+	// Parse OpenAPI JSON to a structured *openapi.OpenAPI object
 	f, _ := os.Open("openapi.json")
 	defer f.Close()
-	oa, _ := openapi.Parse(f)
-	// Work with the AST representations
+	oa, err := openapi.Parse(f)
+	if err != nil {
+		panic(err)
+	}
+
+	// Manipulate the OpenAPI object
+	oa.Info.Version = "2.0.0"
+
+	// Emit the OpenAPI object back to JSON
+	out, _ := os.Create("openapi_v2.json")
+	defer out.Close()
+	openapi.Emit(out, oa)
 }
 ```
+
+#### Working with Schemas (Models)
+
+The `schemas` package handles bidirectional translation between Go `dst.GenDecl` (struct declarations) and OpenAPI `Schema` objects.
+
+```go
+package main
+
+import (
+	"fmt"
+	"go/token"
+
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
+	"github.com/SamuelMarks/cdd-go/src/schemas"
+)
+
+func main() {
+	// 1. Emit a Go struct from an OpenAPI Schema
+	schema := &openapi.Schema{
+		Type: "object",
+		Description: "User profile information",
+		Properties: map[string]openapi.Schema{
+			"id":   {Type: "integer"},
+			"name": {Type: "string", Description: "The user's full name"},
+		},
+	}
+	
+	decl := schemas.Emit("User", schema)
+	
+	// Print the generated Go struct
+	fset := token.NewFileSet()
+	decorator.Print(fset, decl)
+
+	// 2. Parse a Go struct AST back into an OpenAPI Schema
+	name, parsedSchema := schemas.Parse(decl)
+	fmt.Printf("Parsed Schema '%s' with %d properties\n", name, len(parsedSchema.Properties))
+}
+```
+
+#### Working with Routes (Interfaces)
+
+The `routes` package maps OpenAPI `PathItem` objects representing endpoints into Go `dst.InterfaceType` nodes. This lets you generate standard Go interfaces for your server handlers, complete with docstrings.
+
+```go
+package main
+
+import (
+	"go/token"
+
+	"github.com/dave/dst/decorator"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
+	"github.com/SamuelMarks/cdd-go/src/routes"
+)
+
+func main() {
+	pathItem := &openapi.PathItem{
+		Summary: "User Management",
+		Get: &openapi.Operation{
+			OperationID: "GetUser",
+			Summary:     "Retrieves a user by ID",
+		},
+		Post: &openapi.Operation{
+			OperationID: "CreateUser",
+			Summary:     "Creates a new user",
+		},
+	}
+
+	// Emit an interface declaration for the route handlers
+	decl, err := routes.EmitHandlerInterface("/users", pathItem)
+	if err != nil {
+		panic(err)
+	}
+
+	fset := token.NewFileSet()
+	decorator.Print(fset, decl)
+}
+```
+
+#### Working with Components
+
+If you need to generate all the reusable components from an OpenAPI document (like security schemes, parameters, headers, and request bodies), the `components` package can emit an array of `dst.Decl`.
+
+```go
+package main
+
+import (
+	"go/token"
+
+	"github.com/dave/dst/decorator"
+	"github.com/SamuelMarks/cdd-go/src/components"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
+)
+
+func main() {
+	comp := &openapi.Components{
+		Headers: map[string]openapi.Header{
+			"Rate-Limit": {
+				Description: "The number of allowed requests in the current period",
+				Schema: &openapi.Schema{Type: "integer"},
+			},
+		},
+	}
+
+	// Returns an array of AST declarations for all components
+	decls := components.Emit(comp)
+
+	fset := token.NewFileSet()
+	for _, decl := range decls {
+		decorator.Print(fset, decl)
+	}
+}
+```
+
+### Granular Package Overview
+
+The library is broken out into modules aligning to OpenAPI specifications and Go constructs:
+- **`openapi`**: Top-level parsing/emitting and type definitions.
+- **`schemas`**: OpenAPI `Schema` ↔ Go structs/types (`dst.GenDecl`).
+- **`routes`**: OpenAPI `PathItem`/`Operation` ↔ Go interfaces (`dst.TypeSpec`).
+- **`clients`**: Emits Go interfaces (`dst.TypeSpec`) for client SDK usage.
+- **`components`**: OpenAPI `Components` ↔ Multiple Go declarations.
+- **`docstrings`**: Extracts and emits Go comments aligned to OpenAPI descriptions/summaries.
+- *(And many more for parameters, headers, servers, mocks, etc.)*
+
+This enables deep integration for developers looking to incorporate OpenAPI-driven capabilities into their own Go-based code generators or toolchains.
 
 ## Design choices
 

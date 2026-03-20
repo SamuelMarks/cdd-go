@@ -578,7 +578,7 @@ func TestGenerateOpenAPIParseErr(t *testing.T) {
 
 func TestRunServerJSONRPCPortErr(t *testing.T) {
 	// Don't test port -1 if it causes http handle func panics because of conflicting registrations, test invalid flag instead for basic coverage
-	err := runServerJSONRPC([]string{"-invalid_port_flag"})
+	err := run([]string{"server_json_rpc", "-invalid_port_flag"})
 	if err == nil {
 		t.Errorf("expected err")
 	}
@@ -644,5 +644,15 @@ func TestGenerateOpenAPIComponentsInit(t *testing.T) {
 	err := generateOpenAPI(dir, filepath.Join(dir, "out.json"))
 	if err != nil {
 		t.Errorf("unexpected err: %v", err)
+	}
+}
+func TestFromOpenAPINoSubcommand(t *testing.T) {
+	err := run([]string{"from_openapi"})
+	if err == nil {
+		t.Errorf("expected error when no subcommand is provided to from_openapi")
+	}
+	expected := "expected 'to_sdk', 'to_sdk_cli', or 'to_server' subcommands for from_openapi"
+	if err.Error() != expected {
+		t.Errorf("expected %q, got %q", expected, err.Error())
 	}
 }
