@@ -290,42 +290,35 @@ func generateOpenAPI(inputPath string, outPath string) error {
 			f, err := decorator.ParseFile(fset, fpath, nil, parser.ParseComments)
 			if err == nil {
 				if parsedComp := components.Parse(f); parsedComp != nil {
-					if oa.Components == nil {
-						oa.Components = parsedComp
-					} else {
-						if oa.Components.Schemas == nil {
-							oa.Components.Schemas = make(map[string]openapi.Schema)
-						}
-						if oa.Components.SecuritySchemes == nil {
-							oa.Components.SecuritySchemes = make(map[string]openapi.SecurityScheme)
-						}
-						if oa.Components.Parameters == nil {
-							oa.Components.Parameters = make(map[string]openapi.Parameter)
-						}
-						if oa.Components.Headers == nil {
-							oa.Components.Headers = make(map[string]openapi.Header)
-						}
-						if oa.Components.RequestBodies == nil {
-							oa.Components.RequestBodies = make(map[string]openapi.RequestBody)
-						}
-						if oa.Components.Responses == nil {
-							oa.Components.Responses = make(map[string]openapi.Response)
-						}
-						for k, v := range parsedComp.SecuritySchemes {
-							oa.Components.SecuritySchemes[k] = v
-						}
-						for k, v := range parsedComp.Parameters {
-							oa.Components.Parameters[k] = v
-						}
-						for k, v := range parsedComp.Headers {
-							oa.Components.Headers[k] = v
-						}
-						for k, v := range parsedComp.RequestBodies {
-							oa.Components.RequestBodies[k] = v
-						}
-						for k, v := range parsedComp.Responses {
-							oa.Components.Responses[k] = v
-						}
+					if oa.Components.SecuritySchemes == nil {
+						oa.Components.SecuritySchemes = make(map[string]openapi.SecurityScheme)
+					}
+					if oa.Components.Parameters == nil {
+						oa.Components.Parameters = make(map[string]openapi.Parameter)
+					}
+					if oa.Components.Headers == nil {
+						oa.Components.Headers = make(map[string]openapi.Header)
+					}
+					if oa.Components.RequestBodies == nil {
+						oa.Components.RequestBodies = make(map[string]openapi.RequestBody)
+					}
+					if oa.Components.Responses == nil {
+						oa.Components.Responses = make(map[string]openapi.Response)
+					}
+					for k, v := range parsedComp.SecuritySchemes {
+						oa.Components.SecuritySchemes[k] = v
+					}
+					for k, v := range parsedComp.Parameters {
+						oa.Components.Parameters[k] = v
+					}
+					for k, v := range parsedComp.Headers {
+						oa.Components.Headers[k] = v
+					}
+					for k, v := range parsedComp.RequestBodies {
+						oa.Components.RequestBodies[k] = v
+					}
+					for k, v := range parsedComp.Responses {
+						oa.Components.Responses[k] = v
 					}
 				}
 			}

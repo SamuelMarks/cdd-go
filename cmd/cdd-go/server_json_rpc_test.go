@@ -87,7 +87,17 @@ func TestRunServerJSONRPC_Handler(t *testing.T) {
 	os.WriteFile(specFile, []byte(`{"openapi": "3.2.0"}`), 0644)
 	resp, _ = doRequest("to_docs_json", fmt.Sprintf(`["-i", "%s"]`, specFile))
 	if resp.Error != nil {
-		t.Errorf("expected no error, got %v", resp.Error)
+		t.Errorf("expected no error for valid file, got: %s", resp.Error)
+	}
+
+	// 8. to_docs_json (valid params, output to file)
+	outFile := dir + "/out.json"
+	resp, _ = doRequest("to_docs_json", fmt.Sprintf(`["-i", "%s", "-o", "%s"]`, specFile, outFile))
+	if resp.Error != nil {
+		t.Errorf("expected no error for valid file with out, got: %s", resp.Error)
+	}
+	if resp.Result != "" {
+		t.Errorf("expected empty result since it went to file, got %v", resp.Result)
 	}
 
 	// 8. to_openapi (invalid params)
