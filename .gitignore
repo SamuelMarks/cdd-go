@@ -16,3 +16,12 @@ fix_*.go
 *.rej
 *.orig
 update_conformance*.py
+
+*.wasm
+node_modules/
+dist/
+build/
+__pycache__/
+*.so
+target/
+.idea/
