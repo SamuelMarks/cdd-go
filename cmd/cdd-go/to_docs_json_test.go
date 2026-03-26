@@ -214,3 +214,43 @@ func TestRunToDocsJSONEncodeError(t *testing.T) {
 		t.Errorf("expected error from json Encode")
 	}
 }
+
+func TestRunToDocsJSONNoOpID(t *testing.T) {
+	dir := t.TempDir()
+	openAPIPath := filepath.Join(dir, "openapi.json")
+	os.WriteFile(openAPIPath, []byte(`{
+  "openapi": "3.0.0",
+  "info": { "title": "Test API", "version": "1.0.0" },
+  "paths": {
+    "/pets": {
+      "get": {}
+    }
+  }
+}`), 0644)
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runToDocsJSON([]string{"-i", openAPIPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	var result []DocsJSONOutput
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("Failed to unmarshal output: %v", err)
+	}
+
+	if result[0].Operations[0].OperationId != "request" {
+		t.Errorf("expected operationId \"request\", got \"%s\"", result[0].Operations[0].OperationId)
+	}
+}
