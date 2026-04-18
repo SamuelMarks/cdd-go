@@ -42,7 +42,4 @@ jobs:
       with:
         files: |
           bin/cdd-go
-
-        files: |
-          bin/cdd-go
           bin/cdd-go.wasm
