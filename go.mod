@@ -1,4 +1,4 @@
-module github.com/samuel/cdd-go
+module github.com/SamuelMarks/cdd-go
 
 go 1.25.7
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"go/token"
 
+	"github.com/SamuelMarks/cdd-go/src/docstrings"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/docstrings"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // EmitExample generates a dst.GenDecl (variable declaration) from an OpenAPI Example.

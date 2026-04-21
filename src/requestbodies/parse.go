@@ -3,9 +3,9 @@ package requestbodies
 import (
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/docstrings"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/docstrings"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // Parse extracts an OpenAPI RequestBody object from a struct field AST representation.

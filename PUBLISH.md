@@ -8,7 +8,7 @@ Go modules are distributed via source code repositories (like GitHub). To publis
 git tag v0.0.1
 git push origin v0.0.1
 # Trigger indexing
-GOPROXY=https://proxy.golang.org GO111MODULE=on go list -m github.com/samuel/cdd-go@v0.0.1
+GOPROXY=https://proxy.golang.org GO111MODULE=on go list -m github.com/SamuelMarks/cdd-go@v0.0.1
 ```
 
 ## Publishing Docs
@@ -21,4 +21,4 @@ For example, to upload to S3:
 aws s3 sync ./docs s3://my-cdd-docs-bucket --acl public-read
 ```
 
-Go automatically generates library documentation for `pkg.go.dev` via code comments, so `pkg.go.dev/github.com/samuel/cdd-go` will serve as the most popular location for standard API reference.
+Go automatically generates library documentation for `pkg.go.dev` via code comments, so `pkg.go.dev/github.com/SamuelMarks/cdd-go` will serve as the most popular location for standard API reference.

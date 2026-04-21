@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // ParseType parses a dst.TypeSpec into an OpenAPI Schema.

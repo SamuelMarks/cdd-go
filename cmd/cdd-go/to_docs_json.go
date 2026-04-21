@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/samuel/cdd-go/src/openapi"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
 
 type DocsJSONOutput struct {
