@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // ParseTest converts a dst.FuncDecl into an OpenAPI Operation representation.

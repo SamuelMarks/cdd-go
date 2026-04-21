@@ -3,9 +3,9 @@ package responses
 import (
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/headers"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/headers"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // Emit formats an OpenAPI Responses object into a slice of Go return types.

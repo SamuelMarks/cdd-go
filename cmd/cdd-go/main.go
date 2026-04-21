@@ -10,15 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/classes"
+	"github.com/SamuelMarks/cdd-go/src/clients"
+	"github.com/SamuelMarks/cdd-go/src/commands"
+	"github.com/SamuelMarks/cdd-go/src/components"
+	"github.com/SamuelMarks/cdd-go/src/mocks"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
+	"github.com/SamuelMarks/cdd-go/src/routes"
 	"github.com/dave/dst"
 	"github.com/dave/dst/decorator"
-	"github.com/samuel/cdd-go/src/classes"
-	"github.com/samuel/cdd-go/src/clients"
-	"github.com/samuel/cdd-go/src/commands"
-	"github.com/samuel/cdd-go/src/components"
-	"github.com/samuel/cdd-go/src/mocks"
-	"github.com/samuel/cdd-go/src/openapi"
-	"github.com/samuel/cdd-go/src/routes"
 )
 
 var osExit = os.Exit

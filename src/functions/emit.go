@@ -4,9 +4,9 @@ package functions
 import (
 	"fmt"
 
+	"github.com/SamuelMarks/cdd-go/src/docstrings"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/docstrings"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // EmitOperation generates a dst.FuncDecl from an OpenAPI Operation.

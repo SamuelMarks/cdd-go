@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // ParseHandlerInterface parses a dst.InterfaceType into an OpenAPI PathItem.

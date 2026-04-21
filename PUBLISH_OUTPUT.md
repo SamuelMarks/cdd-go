@@ -24,7 +24,7 @@ jobs:
           go-version: 1.25
 
       - name: Install cdd-go
-        run: go install github.com/samuel/cdd-go/cmd/cdd-go@latest
+        run: go install github.com/SamuelMarks/cdd-go/cmd/cdd-go@latest
 
       - name: Download server OpenAPI
         run: curl -sL "https://api.my-server.com/openapi.json" -o spec.json

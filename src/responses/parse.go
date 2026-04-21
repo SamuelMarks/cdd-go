@@ -1,9 +1,9 @@
 package responses
 
 import (
+	"github.com/SamuelMarks/cdd-go/src/headers"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/headers"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // Parse extracts an OpenAPI Responses object from a Go return type list.

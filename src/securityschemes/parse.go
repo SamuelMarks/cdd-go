@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/oauthflows"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/oauthflows"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // Parse extracts an OpenAPI SecurityScheme object from a struct representation.

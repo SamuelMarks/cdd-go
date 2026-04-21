@@ -5,8 +5,8 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // EmitClientInterface generates a Go interface for an OpenAPI PathItem to be used as a client.

@@ -6,8 +6,8 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // EmitType converts an OpenAPI Schema into a dst.TypeSpec.

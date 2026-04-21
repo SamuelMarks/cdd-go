@@ -4,8 +4,8 @@ import (
 	"go/token"
 	"strconv"
 
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // Parse extracts an OpenAPI SecurityRequirement slice from an AST representation.

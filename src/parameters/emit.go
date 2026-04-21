@@ -3,9 +3,9 @@ package parameters
 import (
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/docstrings"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/docstrings"
-	"github.com/samuel/cdd-go/src/openapi"
 )
 
 // Emit formats an OpenAPI Parameter object into a struct field AST representation.

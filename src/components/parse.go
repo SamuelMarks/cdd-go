@@ -4,14 +4,14 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/headers"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
+	"github.com/SamuelMarks/cdd-go/src/parameters"
+	"github.com/SamuelMarks/cdd-go/src/requestbodies"
+	"github.com/SamuelMarks/cdd-go/src/responses"
+	"github.com/SamuelMarks/cdd-go/src/schemas"
+	"github.com/SamuelMarks/cdd-go/src/securityschemes"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/headers"
-	"github.com/samuel/cdd-go/src/openapi"
-	"github.com/samuel/cdd-go/src/parameters"
-	"github.com/samuel/cdd-go/src/requestbodies"
-	"github.com/samuel/cdd-go/src/responses"
-	"github.com/samuel/cdd-go/src/schemas"
-	"github.com/samuel/cdd-go/src/securityschemes"
 )
 
 // Parse extracts OpenAPI components from a file

@@ -1,8 +1,8 @@
 package responses
 
 import (
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"github.com/samuel/cdd-go/src/openapi"
 	"testing"
 )
 
