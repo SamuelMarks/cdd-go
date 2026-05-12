@@ -275,7 +275,7 @@ func TestMainSuccess(t *testing.T) {
 	}
 
 	// verify files generated
-	if _, err := os.Stat(filepath.Join(dir, "out", "pong.go")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "out", "models", "pong.go")); os.IsNotExist(err) {
 		t.Errorf("expected pong.go to be generated")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "out", "ping_routes.go")); os.IsNotExist(err) {
@@ -654,5 +654,56 @@ func TestFromOpenAPINoSubcommand(t *testing.T) {
 	expected := "expected 'to_sdk', 'to_sdk_cli', or 'to_server' subcommands for from_openapi"
 	if err.Error() != expected {
 		t.Errorf("expected %q, got %q", expected, err.Error())
+	}
+}
+func TestGenerateClassesMkdirErr(t *testing.T) {
+	err := generateClasses(&openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"a": {}}}}, "/dev/null/dir")
+	if err == nil {
+		t.Errorf("expected error from MkdirAll")
+	}
+}
+
+func TestGenerateClientsMkdirErr(t *testing.T) {
+	err := generateClients(&openapi.OpenAPI{Paths: openapi.Paths{"/": openapi.PathItem{}}}, "/dev/null/dir")
+	if err == nil {
+		t.Errorf("expected error from MkdirAll")
+	}
+}
+func TestGenerateClassesWriteErr(t *testing.T) {
+	dir := t.TempDir()
+	outDir := filepath.Join(dir, "readonly")
+	modelsDir := filepath.Join(outDir, "models")
+	os.MkdirAll(modelsDir, 0755)
+
+	// Make components.go a directory so writing to it fails
+	targetFile := filepath.Join(modelsDir, "components.go")
+	os.MkdirAll(targetFile, 0755)
+
+	err := generateClasses(&openapi.OpenAPI{Components: &openapi.Components{SecuritySchemes: map[string]openapi.SecurityScheme{"b": {Type: "http"}}}}, outDir)
+	if err == nil {
+		t.Errorf("expected write error for components.go")
+	}
+
+	targetFileSchema := filepath.Join(modelsDir, "a.go")
+	os.MkdirAll(targetFileSchema, 0755)
+
+	err = generateClasses(&openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"a": {}}}}, outDir)
+	if err == nil {
+		t.Errorf("expected write error for schema.go")
+	}
+}
+
+func TestGenerateClientsWriteErr(t *testing.T) {
+	dir := t.TempDir()
+	outDir := filepath.Join(dir, "readonly")
+	clientDir := filepath.Join(outDir, "client")
+	os.MkdirAll(clientDir, 0755)
+
+	targetFile := filepath.Join(clientDir, "a_client.go")
+	os.MkdirAll(targetFile, 0755)
+
+	err := generateClients(&openapi.OpenAPI{Paths: openapi.Paths{"/a": openapi.PathItem{}}}, outDir)
+	if err == nil {
+		t.Errorf("expected write error for client.go")
 	}
 }
