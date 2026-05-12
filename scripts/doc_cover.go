@@ -10,12 +10,15 @@ import (
 	"strings"
 )
 
-func main() {
+func calculateCoverage(srcDir string) (float64, error) {
 	fset := token.NewFileSet()
 	var total, docs int
 
-	err := filepath.Walk("src", func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".go") || strings.HasSuffix(info.Name(), "_test.go") {
+	err := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".go") || strings.HasSuffix(info.Name(), "_test.go") {
 			return nil
 		}
 
@@ -63,14 +66,28 @@ func main() {
 	})
 
 	if err != nil {
-		fmt.Println("0.0%")
-		os.Exit(1)
+		return 0.0, err
 	}
 
 	if total == 0 {
-		fmt.Println("100.0%")
-		return
+		return 100.0, nil
 	}
 
-	fmt.Printf("%.1f%%\n", float64(docs)/float64(total)*100.0)
+	return float64(docs) / float64(total) * 100.0, nil
+}
+
+var osExit = os.Exit
+
+func runMain(srcDir string) {
+	coverage, err := calculateCoverage(srcDir)
+	if err != nil {
+		fmt.Println("0.0%")
+		osExit(1)
+		return
+	}
+	fmt.Printf("%.1f%%\n", coverage)
+}
+
+func main() {
+	runMain("src")
 }

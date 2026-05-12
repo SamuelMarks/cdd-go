@@ -271,14 +271,17 @@ func generateOpenAPI(inputPath string, outPath string) error {
 
 	var files []string
 	if stat.IsDir() {
-		entries, err := os.ReadDir(inputPath)
+		err := filepath.WalkDir(inputPath, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") && !strings.HasSuffix(d.Name(), "_test.go") {
+				files = append(files, path)
+			}
+			return nil
+		})
 		if err != nil {
 			return err
-		}
-		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") && !strings.HasSuffix(e.Name(), "_test.go") {
-				files = append(files, filepath.Join(inputPath, e.Name()))
-			}
 		}
 	} else {
 		files = append(files, inputPath)
@@ -388,13 +391,18 @@ func generateClasses(oa *openapi.OpenAPI, outDir string) error {
 		return nil
 	}
 
+	modelsDir := filepath.Join(outDir, "models")
+	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+		return err
+	}
+
 	compDecls := components.Emit(oa.Components)
 	if len(compDecls) > 0 {
 		file := &dst.File{
-			Name:  dst.NewIdent("components"),
+			Name:  dst.NewIdent("models"),
 			Decls: compDecls,
 		}
-		if err := writeDstFile(filepath.Join(outDir, "components.go"), file); err != nil {
+		if err := writeDstFile(filepath.Join(modelsDir, "components.go"), file); err != nil {
 			return err
 		}
 	}
@@ -421,11 +429,11 @@ func generateClasses(oa *openapi.OpenAPI, outDir string) error {
 		}
 
 		file := &dst.File{
-			Name:  dst.NewIdent("classes"),
+			Name:  dst.NewIdent("models"),
 			Decls: []dst.Decl{decl},
 		}
 
-		if err := writeDstFile(filepath.Join(outDir, strings.ToLower(name)+".go"), file); err != nil {
+		if err := writeDstFile(filepath.Join(modelsDir, strings.ToLower(name)+".go"), file); err != nil {
 			return err
 		}
 	}
@@ -501,6 +509,11 @@ func generateClients(oa *openapi.OpenAPI, outDir string) error {
 		return nil
 	}
 
+	clientDir := filepath.Join(outDir, "client")
+	if err := os.MkdirAll(clientDir, 0755); err != nil {
+		return err
+	}
+
 	for path, item := range oa.Paths {
 		var decl *dst.GenDecl
 		var err error
@@ -513,7 +526,7 @@ func generateClients(oa *openapi.OpenAPI, outDir string) error {
 			return err
 		}
 		file := &dst.File{
-			Name: dst.NewIdent("clients"),
+			Name: dst.NewIdent("client"),
 			Decls: []dst.Decl{
 				&dst.GenDecl{
 					Tok: token.IMPORT,
@@ -535,7 +548,7 @@ func generateClients(oa *openapi.OpenAPI, outDir string) error {
 			fileName = "root"
 		}
 
-		if err := writeDstFile(filepath.Join(outDir, fileName+"_clients.go"), file); err != nil {
+		if err := writeDstFile(filepath.Join(clientDir, fileName+"_client.go"), file); err != nil {
 			return err
 		}
 	}

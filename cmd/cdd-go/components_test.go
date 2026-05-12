@@ -51,7 +51,7 @@ func TestComponentsBasic(t *testing.T) {
 		t.Fatalf("failed to generate: %v", err)
 	}
 
-	compCode, err := ioutil.ReadFile(filepath.Join(outDir, "components.go"))
+	compCode, err := ioutil.ReadFile(filepath.Join(outDir, "models", "components.go"))
 	if err != nil {
 		t.Fatalf("failed to read components.go: %v", err)
 	}
