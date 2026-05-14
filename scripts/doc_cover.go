@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func calculateCoverage(srcDir string) (float64, error) {
+func calculateCoverageCount(srcDir string) (int, int, error) {
 	fset := token.NewFileSet()
 	var total, docs int
 
@@ -66,28 +66,55 @@ func calculateCoverage(srcDir string) (float64, error) {
 	})
 
 	if err != nil {
-		return 0.0, err
+		return 0, 0, err
 	}
 
+	return total, docs, nil
+}
+
+func calculateCoverage(srcDir string) (float64, error) {
+	total, docs, err := calculateCoverageCount(srcDir)
+	if err != nil {
+		return 0.0, err
+	}
 	if total == 0 {
 		return 100.0, nil
 	}
-
 	return float64(docs) / float64(total) * 100.0, nil
 }
 
 var osExit = os.Exit
 
 func runMain(srcDir string) {
-	coverage, err := calculateCoverage(srcDir)
+	total, docs, err := calculateCoverageCount(srcDir)
 	if err != nil {
 		fmt.Println("0.0%")
 		osExit(1)
 		return
 	}
-	fmt.Printf("%.1f%%\n", coverage)
+	if total == 0 {
+		fmt.Println("100.0%")
+		return
+	}
+	fmt.Printf("%.1f%%\n", float64(docs)/float64(total)*100.0)
 }
 
 func main() {
-	runMain("src")
+	var total, docs int
+	dirs := []string{"src", "cmd", "cdd"}
+	for _, dir := range dirs {
+		t, d, err := calculateCoverageCount(dir)
+		if err != nil {
+			fmt.Println("0.0%")
+			osExit(1)
+			return
+		}
+		total += t
+		docs += d
+	}
+	if total == 0 {
+		fmt.Println("100.0%")
+		return
+	}
+	fmt.Printf("%.1f%%\n", float64(docs)/float64(total)*100.0)
 }

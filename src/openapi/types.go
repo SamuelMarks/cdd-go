@@ -38,6 +38,9 @@ type OpenAPI struct {
 
 	// ExternalDocs provides additional external documentation.
 	ExternalDocs *ExternalDocs `json:"externalDocs,omitempty"`
+
+	// Definitions holds reusable Schema Objects for Swagger 2.0.
+	Definitions map[string]Schema `json:"definitions,omitempty"`
 }
 
 // Info provides metadata about the API.

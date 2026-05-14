@@ -92,12 +92,71 @@ func TestMainCoverage(t *testing.T) {
 }
 
 func TestMainDirectly(t *testing.T) {
-	// Call main directly. We are inside scripts/ dir when tests run.
-	// The path "src" doesn't exist relative to "scripts", so main will exit 1!
-	// So we need to mock os.Exit here too!
 	oldOsExit := osExit
 	defer func() { osExit = oldOsExit }()
-
 	osExit = func(code int) {}
+
+	// main normally runs with src, cmd, cdd. Since we are inside scripts, those might not exist or might exist.
+	// But it covers the code path.
+	main()
+}
+
+func TestRunMainEmpty(t *testing.T) {
+	dir := t.TempDir()
+	runMain(dir)
+}
+
+func TestMainError(t *testing.T) {
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+
+	// Go to a place where "src" exists but is unreadable or just a file
+	dir := t.TempDir()
+	os.Chdir(dir)
+	os.WriteFile("src", []byte("file, not dir"), 0644)
+
+	oldOsExit := osExit
+	defer func() { osExit = oldOsExit }()
+	exitCalled := false
+	osExit = func(code int) { exitCalled = true }
+
+	main()
+	if !exitCalled {
+		t.Errorf("expected osExit for error in main")
+	}
+}
+
+func TestMainEmptyDirs(t *testing.T) {
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+
+	dir := t.TempDir()
+	os.Chdir(dir)
+	os.MkdirAll("src", 0755)
+	os.MkdirAll("cmd", 0755)
+	os.MkdirAll("cdd", 0755)
+
+	oldOsExit := osExit
+	defer func() { osExit = oldOsExit }()
+	osExit = func(code int) {}
+
+	main()
+}
+
+func TestMainWithFiles(t *testing.T) {
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+
+	dir := t.TempDir()
+	os.Chdir(dir)
+	os.MkdirAll("src", 0755)
+	os.WriteFile("src/a.go", []byte("package a\n// A is doc\ntype A int\n"), 0644)
+	os.MkdirAll("cmd", 0755)
+	os.MkdirAll("cdd", 0755)
+
+	oldOsExit := osExit
+	defer func() { osExit = oldOsExit }()
+	osExit = func(code int) {}
+
 	main()
 }

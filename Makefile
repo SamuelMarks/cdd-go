@@ -42,7 +42,7 @@ run: build
 	./$(BIN_DIR)/cdd-go $(ARGS)
 
 build_wasm:
-	GOOS=js GOARCH=wasm go build -o $(BIN_DIR)/cdd-go.wasm ./cmd/cdd-go
+	GOOS=wasip1 GOARCH=wasm go build -o $(BIN_DIR)/cdd-go.wasm ./cmd/cdd-go
 
 build_docker:
 	docker build -t cdd-go:alpine -f alpine.Dockerfile .
