@@ -10,11 +10,13 @@ import (
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
 
+// DocsJSONOutput is the root structure for the documentation JSON output.
 type DocsJSONOutput struct {
 	Language   string          `json:"language"`
 	Operations []DocsOperation `json:"operations"`
 }
 
+// DocsOperation represents a single API operation documented in the JSON output.
 type DocsOperation struct {
 	Method      string   `json:"method"`
 	Path        string   `json:"path"`
@@ -22,6 +24,7 @@ type DocsOperation struct {
 	Code        DocsCode `json:"code"`
 }
 
+// DocsCode contains the code snippet and metadata for a specific operation.
 type DocsCode struct {
 	Imports      *string `json:"imports,omitempty"`
 	WrapperStart *string `json:"wrapperStart,omitempty"`

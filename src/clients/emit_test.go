@@ -26,6 +26,18 @@ func TestEmitClientInterface(t *testing.T) {
 		Delete: &openapi.Operation{
 			Summary: "Delete a user",
 		},
+		Patch: &openapi.Operation{
+			Summary: "Patch a user",
+		},
+		Options: &openapi.Operation{
+			Summary: "Options for a user",
+		},
+		Head: &openapi.Operation{
+			Summary: "Head for a user",
+		},
+		Trace: &openapi.Operation{
+			Summary: "Trace for a user",
+		},
 	}
 
 	decl, err := EmitClientInterface("/users/{id}", pathItem)
@@ -69,6 +81,18 @@ func TestEmitClientInterface(t *testing.T) {
 	}
 	if !strings.Contains(out, "Delete(req *http.Request) (*http.Response, error)") {
 		t.Errorf("expected Delete method, got %s", out)
+	}
+	if !strings.Contains(out, "Patch(req *http.Request) (*http.Response, error)") {
+		t.Errorf("expected Patch method, got %s", out)
+	}
+	if !strings.Contains(out, "Options(req *http.Request) (*http.Response, error)") {
+		t.Errorf("expected Options method, got %s", out)
+	}
+	if !strings.Contains(out, "Head(req *http.Request) (*http.Response, error)") {
+		t.Errorf("expected Head method, got %s", out)
+	}
+	if !strings.Contains(out, "Trace(req *http.Request) (*http.Response, error)") {
+		t.Errorf("expected Trace method, got %s", out)
 	}
 }
 

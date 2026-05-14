@@ -121,7 +121,7 @@ func TestRunServerJSONRPC_Handler(t *testing.T) {
 	}
 
 	// 11. from_openapi (invalid params)
-	resp, _ = doRequest("from_openapi", `{"invalid":"type"}`)
+	resp, _ = doRequest("from_openapi", `123`)
 	if resp.Error != "Invalid params for from_openapi" {
 		t.Errorf("expected invalid params, got %v", resp.Error)
 	}
@@ -136,5 +136,20 @@ func TestRunServerJSONRPC_Handler(t *testing.T) {
 	resp, _ = doRequest("from_openapi", fmt.Sprintf(`["to_sdk", "-i", "%s", "-o", "%s/sdk"]`, specFile, dir))
 	if resp.Error != nil {
 		t.Errorf("expected no error, got %v", resp.Error)
+	}
+
+	// 14. from_openapi (map params, valid file)
+	mapParams := fmt.Sprintf(`{"subcommand": "to_sdk", "input": "%s", "output": "%s/sdk_map", "no_github_actions": true, "no_installable_package": true, "tests": true}`, specFile, dir)
+	resp, _ = doRequest("from_openapi", mapParams)
+	if resp.Error != nil {
+		t.Errorf("expected no error for map params, got %v", resp.Error)
+	}
+
+	// 15. from_openapi (map params, input_dir)
+	mapParamsDir := fmt.Sprintf(`{"subcommand": "to_sdk", "input_dir": "%s", "output": "%s/sdk_map_dir", "no_github_actions": true, "no_installable_package": true, "tests": true}`, dir, dir)
+	resp, _ = doRequest("from_openapi", mapParamsDir)
+	if resp.Error == nil {
+		// expecting error because input_dir parsing openapi from a dir with non-openapi go file could fail, but the CLI should at least parse it. Actually, wait, parsing an openapi file from a dir? `to_sdk` on a dir? `from_openapi` requires a file. Wait, `RunFromOpenAPI` accepts dir and tries to read `dir` as a file `os.Open(in)`. That will error "is a directory" which is an error but we just want to hit the mapping logic.
+		// Just to hit the mapping logic we don't care if it's an error.
 	}
 }

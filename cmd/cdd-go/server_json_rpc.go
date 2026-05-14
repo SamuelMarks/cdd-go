@@ -100,8 +100,39 @@ func runServerJSONRPC(args []string) error {
 			}
 		case "from_openapi":
 			var params []string
+			var mapParams map[string]interface{}
 			if err := json.Unmarshal(req.Params, &params); err == nil {
 				err := run(append([]string{"from_openapi"}, params...))
+				if err != nil {
+					errResp = err.Error()
+				} else {
+					result = "Success"
+				}
+			} else if err := json.Unmarshal(req.Params, &mapParams); err == nil {
+				var args []string
+				args = append(args, "from_openapi")
+				if sub, ok := mapParams["subcommand"].(string); ok && sub != "" {
+					args = append(args, sub)
+				}
+				if in, ok := mapParams["input"].(string); ok && in != "" {
+					args = append(args, "-i", in)
+				}
+				if inDir, ok := mapParams["input_dir"].(string); ok && inDir != "" {
+					args = append(args, "-input-dir", inDir)
+				}
+				if out, ok := mapParams["output"].(string); ok && out != "" {
+					args = append(args, "-o", out)
+				}
+				if noGithub, ok := mapParams["no_github_actions"].(bool); ok && noGithub {
+					args = append(args, "-no-github-actions")
+				}
+				if noInstall, ok := mapParams["no_installable_package"].(bool); ok && noInstall {
+					args = append(args, "-no-installable-package")
+				}
+				if createTests, ok := mapParams["tests"].(bool); ok && createTests {
+					args = append(args, "-create-composable-tests")
+				}
+				err := run(args)
 				if err != nil {
 					errResp = err.Error()
 				} else {

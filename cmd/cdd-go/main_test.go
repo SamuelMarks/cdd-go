@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/SamuelMarks/cdd-go/cdd"
+
 	"encoding/json"
 	"fmt"
 	"os"
@@ -167,6 +169,14 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	err = run([]string{"from_openapi", "to_server", "-i", filepath.Join(dir, "missing.json")})
 	if err == nil {
 		t.Errorf("expected error for missing file")
+	}
+
+	// generate composable tests and mocks test
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "paths": {"/test": {"get": {"summary": "test operation"}}}, "components": {"examples": {"testEx": {"value": "some-val"}}}}`), 0644)
+	compDir := filepath.Join(dir, "composable")
+	err = run([]string{"from_openapi", "to_sdk", "-i", path, "-o", compDir, "-create-composable-tests"})
+	if err != nil {
+		t.Errorf("unexpected error creating composable tests: %v", err)
 	}
 }
 
@@ -345,7 +355,7 @@ func TestGenerateClientsWriteError(t *testing.T) {
 }
 
 func TestWriteDstFileFprintError(t *testing.T) {
-	err := writeDstFile("fprint_error.go", nil)
+	err := cdd.WriteDstFile("fprint_error.go", nil)
 	if err == nil {
 		t.Errorf("expected error from simulated fprint error")
 	}
@@ -472,15 +482,15 @@ func TestCoverageExtras2(t *testing.T) {
 }
 
 func TestGenerateNil(t *testing.T) {
-	err := generateRoutes(&openapi.OpenAPI{}, "dir")
+	err := cdd.GenerateRoutes(&openapi.OpenAPI{}, "dir")
 	if err != nil {
 		t.Errorf("expected no err")
 	}
-	err = generateClients(&openapi.OpenAPI{}, "dir")
+	err = cdd.GenerateClients(&openapi.OpenAPI{}, "dir")
 	if err != nil {
 		t.Errorf("expected no err")
 	}
-	err = generateClasses(&openapi.OpenAPI{}, "dir")
+	err = cdd.GenerateClasses(&openapi.OpenAPI{}, "dir")
 	if err != nil {
 		t.Errorf("expected no err")
 	}
@@ -573,7 +583,7 @@ func TestGenerateOpenAPIParseErr(t *testing.T) {
 	path2 := filepath.Join(dir, "bad2.go")
 	os.WriteFile(path2, []byte("package bad\nfunc x(){"), 0644) // dst fails gracefully here usually
 
-	generateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	cdd.GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
 }
 
 func TestRunServerJSONRPCPortErr(t *testing.T) {
@@ -626,7 +636,7 @@ func TestGenerateClassesComponentGoErr(t *testing.T) {
 	outDir := filepath.Join(dir, "readonly")
 	os.MkdirAll(outDir, 0555)
 
-	err := generateClasses(&openapi.OpenAPI{Components: &openapi.Components{SecuritySchemes: map[string]openapi.SecurityScheme{"b": {Type: "http"}}}}, outDir)
+	err := cdd.GenerateClasses(&openapi.OpenAPI{Components: &openapi.Components{SecuritySchemes: map[string]openapi.SecurityScheme{"b": {Type: "http"}}}}, outDir)
 	if err == nil {
 		t.Errorf("expected write error for components.go")
 	}
@@ -641,7 +651,7 @@ func TestGenerateOpenAPIComponentsInit(t *testing.T) {
 	path2 := filepath.Join(dir, "bad_components.go")
 	os.WriteFile(path2, []byte("package main\nfunc Test(){}"), 0644)
 
-	err := generateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	err := cdd.GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
 	if err != nil {
 		t.Errorf("unexpected err: %v", err)
 	}
@@ -657,14 +667,14 @@ func TestFromOpenAPINoSubcommand(t *testing.T) {
 	}
 }
 func TestGenerateClassesMkdirErr(t *testing.T) {
-	err := generateClasses(&openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"a": {}}}}, "/dev/null/dir")
+	err := cdd.GenerateClasses(&openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"a": {}}}}, "/dev/null/dir")
 	if err == nil {
 		t.Errorf("expected error from MkdirAll")
 	}
 }
 
 func TestGenerateClientsMkdirErr(t *testing.T) {
-	err := generateClients(&openapi.OpenAPI{Paths: openapi.Paths{"/": openapi.PathItem{}}}, "/dev/null/dir")
+	err := cdd.GenerateClients(&openapi.OpenAPI{Paths: openapi.Paths{"/": openapi.PathItem{}}}, "/dev/null/dir")
 	if err == nil {
 		t.Errorf("expected error from MkdirAll")
 	}
@@ -679,7 +689,7 @@ func TestGenerateClassesWriteErr(t *testing.T) {
 	targetFile := filepath.Join(modelsDir, "components.go")
 	os.MkdirAll(targetFile, 0755)
 
-	err := generateClasses(&openapi.OpenAPI{Components: &openapi.Components{SecuritySchemes: map[string]openapi.SecurityScheme{"b": {Type: "http"}}}}, outDir)
+	err := cdd.GenerateClasses(&openapi.OpenAPI{Components: &openapi.Components{SecuritySchemes: map[string]openapi.SecurityScheme{"b": {Type: "http"}}}}, outDir)
 	if err == nil {
 		t.Errorf("expected write error for components.go")
 	}
@@ -687,7 +697,7 @@ func TestGenerateClassesWriteErr(t *testing.T) {
 	targetFileSchema := filepath.Join(modelsDir, "a.go")
 	os.MkdirAll(targetFileSchema, 0755)
 
-	err = generateClasses(&openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"a": {}}}}, outDir)
+	err = cdd.GenerateClasses(&openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"a": {}}}}, outDir)
 	if err == nil {
 		t.Errorf("expected write error for schema.go")
 	}
@@ -702,7 +712,7 @@ func TestGenerateClientsWriteErr(t *testing.T) {
 	targetFile := filepath.Join(clientDir, "a_client.go")
 	os.MkdirAll(targetFile, 0755)
 
-	err := generateClients(&openapi.OpenAPI{Paths: openapi.Paths{"/a": openapi.PathItem{}}}, outDir)
+	err := cdd.GenerateClients(&openapi.OpenAPI{Paths: openapi.Paths{"/a": openapi.PathItem{}}}, outDir)
 	if err == nil {
 		t.Errorf("expected write error for client.go")
 	}

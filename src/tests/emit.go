@@ -1,4 +1,3 @@
-// Package tests provides parsing and emitting for Go test functions for OpenAPI paths/operations.
 package tests
 
 import (
@@ -47,6 +46,132 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	if op.Summary != "" {
 		fd.Decs.Start.Append(fmt.Sprintf("// %s tests the %s operation.", name, op.Summary))
 	}
+	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+		Lhs: []dst.Expr{dst.NewIdent("_")},
+		Tok: 47, // :=
+		Rhs: []dst.Expr{
+			&dst.CallExpr{
+				Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
+				Args: []dst.Expr{&dst.BasicLit{Kind: 9, Value: `""`}},
+			},
+		},
+	})
+
+	// path templating {param} -> "dummy"
+	pathFilled := path
+	for _, param := range op.Parameters {
+		if param.In == "path" {
+			pathFilled = strings.ReplaceAll(pathFilled, "{"+param.Name+"}", "dummy")
+		}
+	}
+	// fallback for any remaining braces
+	pathFilled = strings.ReplaceAll(pathFilled, "{", "")
+	pathFilled = strings.ReplaceAll(pathFilled, "}", "")
+
+	bodyArg := "nil"
+	if op.RequestBody != nil {
+		bodyArg = `strings.NewReader("{\"dummy\":\"test_string\"}")`
+	}
+
+	urlStr := "http://localhost:8080/api/v3" + pathFilled
+
+	// Build AST: req, err := http.NewRequest(METHOD, URL, bodyArg)
+	var bodyExpr dst.Expr = dst.NewIdent("nil")
+	if bodyArg != "nil" {
+		bodyExpr = &dst.CallExpr{
+			Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
+			Args: []dst.Expr{&dst.BasicLit{Kind: 9, Value: `"{\"dummy\":\"test_string\"}"`}}, // token.STRING is 9
+		}
+	}
+
+	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+		Lhs: []dst.Expr{dst.NewIdent("req"), dst.NewIdent("err")},
+		Tok: 47, // token.DEFINE (:=)
+		Rhs: []dst.Expr{
+			&dst.CallExpr{
+				Fun: &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("NewRequest")},
+				Args: []dst.Expr{
+					&dst.BasicLit{Kind: 9, Value: `"` + strings.ToUpper(method) + `"`},
+					&dst.BasicLit{Kind: 9, Value: `"` + urlStr + `"`},
+					bodyExpr,
+				},
+			},
+		},
+	})
+
+	// if err != nil { t.Fatal(err) }
+	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+		Cond: &dst.BinaryExpr{
+			X:  dst.NewIdent("err"),
+			Op: 40, // token.NEQ (!=)
+			Y:  dst.NewIdent("nil"),
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.ExprStmt{
+					X: &dst.CallExpr{
+						Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
+						Args: []dst.Expr{dst.NewIdent("err")},
+					},
+				},
+			},
+		},
+	})
+
+	// client := &http.Client{}
+	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+		Lhs: []dst.Expr{dst.NewIdent("client")},
+		Tok: 47, // :=
+		Rhs: []dst.Expr{
+			&dst.UnaryExpr{
+				Op: 17, // token.AND (&)
+				X: &dst.CompositeLit{
+					Type: &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("Client")},
+				},
+			},
+		},
+	})
+
+	// resp, err := client.Do(req)
+	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+		Lhs: []dst.Expr{dst.NewIdent("resp"), dst.NewIdent("err")},
+		Tok: 47, // :=
+		Rhs: []dst.Expr{
+			&dst.CallExpr{
+				Fun:  &dst.SelectorExpr{X: dst.NewIdent("client"), Sel: dst.NewIdent("Do")},
+				Args: []dst.Expr{dst.NewIdent("req")},
+			},
+		},
+	})
+
+	// if err != nil { t.Fatal(err) }
+	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+		Cond: &dst.BinaryExpr{
+			X:  dst.NewIdent("err"),
+			Op: 40, // token.NEQ (!=)
+			Y:  dst.NewIdent("nil"),
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.ExprStmt{
+					X: &dst.CallExpr{
+						Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
+						Args: []dst.Expr{dst.NewIdent("err")},
+					},
+				},
+			},
+		},
+	})
+
+	// defer resp.Body.Close()
+	fd.Body.List = append(fd.Body.List, &dst.DeferStmt{
+		Call: &dst.CallExpr{
+			Fun: &dst.SelectorExpr{
+				X:   &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("Body")},
+				Sel: dst.NewIdent("Close"),
+			},
+		},
+	})
 
 	return fd, nil
 }

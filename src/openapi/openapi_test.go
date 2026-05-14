@@ -2,9 +2,40 @@ package openapi
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
+
+type failingReader struct{}
+
+func (f failingReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("simulated read error")
+}
+
+func TestParseYAML(t *testing.T) {
+	input := `
+openapi: 3.2.0
+info:
+  title: Example API YAML
+  version: 1.0.1
+`
+	r := strings.NewReader(input)
+	oa, err := Parse(r)
+	if err != nil {
+		t.Fatalf("expected no error for yaml, got %v", err)
+	}
+	if oa.OpenAPI != "3.2.0" {
+		t.Errorf("expected 3.2.0, got %v", oa.OpenAPI)
+	}
+}
+
+func TestParseReadAllError(t *testing.T) {
+	_, err := Parse(failingReader{})
+	if err == nil {
+		t.Fatalf("expected error from Parse, got nil")
+	}
+}
 
 func TestParseAndEmit(t *testing.T) {
 	input := `{
@@ -46,7 +77,7 @@ func TestParseAndEmit(t *testing.T) {
 }
 
 func TestParseError(t *testing.T) {
-	input := "{invalid_json}"
+	input := "{invalid_json: "
 	r := strings.NewReader(input)
 	_, err := Parse(r)
 	if err == nil {
