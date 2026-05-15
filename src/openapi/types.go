@@ -7,13 +7,39 @@ import "encoding/json"
 // OpenAPI is the root object of the OpenAPI Description.
 type OpenAPI struct {
 	// OpenAPI is the version number of the OpenAPI Specification that the OpenAPI document uses.
-	OpenAPI string `json:"openapi"`
+	OpenAPI string `json:"openapi,omitempty"`
+	// Swagger is the version number of the OpenAPI Specification that the Swagger document uses.
+	Swagger string `json:"swagger,omitempty"`
 
 	// Self provides the self-assigned URI of this document.
 	Self string `json:"$self,omitempty"`
 
 	// Info provides metadata about the API.
 	Info Info `json:"info"`
+
+	// Host is the host serving the API for Swagger 2.0.
+	Host string `json:"host,omitempty"`
+
+	// BasePath is the base path on which the API is served for Swagger 2.0.
+	BasePath string `json:"basePath,omitempty"`
+
+	// Schemes is the transfer protocol of the API for Swagger 2.0.
+	Schemes []string `json:"schemes,omitempty"`
+
+	// Consumes is a list of MIME types the APIs can consume for Swagger 2.0.
+	Consumes []string `json:"consumes,omitempty"`
+
+	// Produces is a list of MIME types the APIs can produce for Swagger 2.0.
+	Produces []string `json:"produces,omitempty"`
+
+	// Parameters is an object to hold parameters that can be used across operations for Swagger 2.0.
+	Parameters map[string]Parameter `json:"parameters,omitempty"`
+
+	// Responses is an object to hold responses that can be used across operations for Swagger 2.0.
+	Responses map[string]Response `json:"responses,omitempty"`
+
+	// SecurityDefinitions holds security scheme definitions for Swagger 2.0.
+	SecurityDefinitions map[string]SecurityScheme `json:"securityDefinitions,omitempty"`
 
 	// JSONSchemaDialect is the default value for the $schema keyword within Schema Objects.
 	JSONSchemaDialect string `json:"jsonSchemaDialect,omitempty"`
@@ -234,6 +260,15 @@ type Operation struct {
 	// Callbacks is a map of possible out-of band callbacks related to the parent operation.
 	Callbacks map[string]Callback `json:"callbacks,omitempty"`
 
+	// Consumes is a list of MIME types the operation can consume for Swagger 2.0.
+	Consumes []string `json:"consumes,omitempty"`
+
+	// Produces is a list of MIME types the operation can produce for Swagger 2.0.
+	Produces []string `json:"produces,omitempty"`
+
+	// Schemes is the transfer protocol for the operation for Swagger 2.0.
+	Schemes []string `json:"schemes,omitempty"`
+
 	// Deprecated declares this operation to be deprecated.
 	Deprecated bool `json:"deprecated,omitempty"`
 
@@ -293,6 +328,57 @@ type Parameter struct {
 
 	// Schema is the schema defining the type used for the parameter.
 	Schema *Schema `json:"schema,omitempty"`
+
+	// Type is the type of the parameter for Swagger 2.0.
+	Type string `json:"type,omitempty"`
+
+	// Format is the extending format for the type for Swagger 2.0.
+	Format string `json:"format,omitempty"`
+
+	// Items describes the type of items in the array for Swagger 2.0.
+	Items *Items `json:"items,omitempty"`
+
+	// CollectionFormat determines the format of the array for Swagger 2.0.
+	CollectionFormat string `json:"collectionFormat,omitempty"`
+
+	// Default declares the value of the parameter that the server will use if none is provided for Swagger 2.0.
+	Default json.RawMessage `json:"default,omitempty"`
+
+	// Maximum is the maximum value for Swagger 2.0.
+	Maximum *float64 `json:"maximum,omitempty"`
+
+	// ExclusiveMaximum specifies if the maximum is exclusive for Swagger 2.0.
+	ExclusiveMaximum *bool `json:"exclusiveMaximum,omitempty"`
+
+	// Minimum is the minimum value for Swagger 2.0.
+	Minimum *float64 `json:"minimum,omitempty"`
+
+	// ExclusiveMinimum specifies if the minimum is exclusive for Swagger 2.0.
+	ExclusiveMinimum *bool `json:"exclusiveMinimum,omitempty"`
+
+	// MaxLength is the maximum length of a string for Swagger 2.0.
+	MaxLength *int `json:"maxLength,omitempty"`
+
+	// MinLength is the minimum length of a string for Swagger 2.0.
+	MinLength *int `json:"minLength,omitempty"`
+
+	// Pattern specifies a regular expression pattern the string must match for Swagger 2.0.
+	Pattern string `json:"pattern,omitempty"`
+
+	// MaxItems specifies the maximum number of items in an array for Swagger 2.0.
+	MaxItems *int `json:"maxItems,omitempty"`
+
+	// MinItems specifies the minimum number of items in an array for Swagger 2.0.
+	MinItems *int `json:"minItems,omitempty"`
+
+	// UniqueItems specifies if items in an array must be unique for Swagger 2.0.
+	UniqueItems *bool `json:"uniqueItems,omitempty"`
+
+	// Enum specifies the possible values for Swagger 2.0.
+	Enum []json.RawMessage `json:"enum,omitempty"`
+
+	// MultipleOf specifies a multiple of which the value must be for Swagger 2.0.
+	MultipleOf *float64 `json:"multipleOf,omitempty"`
 
 	// Content is a map containing the representations for the parameter.
 	Content map[string]MediaType `json:"content,omitempty"`
@@ -466,6 +552,10 @@ type Response struct {
 	Description string `json:"description,omitempty"`
 	// Content contains the possible payload media types.
 	Content map[string]MediaType `json:"content,omitempty"`
+	// Schema is a definition of the response structure for Swagger 2.0.
+	Schema *Schema `json:"schema,omitempty"`
+	// Examples is an example of the response message for Swagger 2.0.
+	Examples map[string]json.RawMessage `json:"examples,omitempty"`
 	// Headers expected for this response.
 	Headers map[string]Header `json:"headers,omitempty"`
 }
@@ -509,6 +599,57 @@ type Header struct {
 	Schema *Schema `json:"schema,omitempty"`
 	// Content is a map containing the representations for the header.
 	Content map[string]MediaType `json:"content,omitempty"`
+	// Type is the type of the header for Swagger 2.0.
+	Type string `json:"type,omitempty"`
+
+	// Format is the extending format for the type for Swagger 2.0.
+	Format string `json:"format,omitempty"`
+
+	// Items describes the type of items in the array for Swagger 2.0.
+	Items *Items `json:"items,omitempty"`
+
+	// CollectionFormat determines the format of the array for Swagger 2.0.
+	CollectionFormat string `json:"collectionFormat,omitempty"`
+
+	// Default declares the value of the header that the server will use if none is provided for Swagger 2.0.
+	Default json.RawMessage `json:"default,omitempty"`
+
+	// Maximum is the maximum value for Swagger 2.0.
+	Maximum *float64 `json:"maximum,omitempty"`
+
+	// ExclusiveMaximum specifies if the maximum is exclusive for Swagger 2.0.
+	ExclusiveMaximum *bool `json:"exclusiveMaximum,omitempty"`
+
+	// Minimum is the minimum value for Swagger 2.0.
+	Minimum *float64 `json:"minimum,omitempty"`
+
+	// ExclusiveMinimum specifies if the minimum is exclusive for Swagger 2.0.
+	ExclusiveMinimum *bool `json:"exclusiveMinimum,omitempty"`
+
+	// MaxLength is the maximum length of a string for Swagger 2.0.
+	MaxLength *int `json:"maxLength,omitempty"`
+
+	// MinLength is the minimum length of a string for Swagger 2.0.
+	MinLength *int `json:"minLength,omitempty"`
+
+	// Pattern specifies a regular expression pattern the string must match for Swagger 2.0.
+	Pattern string `json:"pattern,omitempty"`
+
+	// MaxItems specifies the maximum number of items in an array for Swagger 2.0.
+	MaxItems *int `json:"maxItems,omitempty"`
+
+	// MinItems specifies the minimum number of items in an array for Swagger 2.0.
+	MinItems *int `json:"minItems,omitempty"`
+
+	// UniqueItems specifies if items in an array must be unique for Swagger 2.0.
+	UniqueItems *bool `json:"uniqueItems,omitempty"`
+
+	// Enum specifies the possible values for Swagger 2.0.
+	Enum []json.RawMessage `json:"enum,omitempty"`
+
+	// MultipleOf specifies a multiple of which the value must be for Swagger 2.0.
+	MultipleOf *float64 `json:"multipleOf,omitempty"`
+
 	// Example is an example of the header's potential value.
 	Example json.RawMessage `json:"example,omitempty"`
 	// Examples are examples of the header's potential value.
@@ -533,6 +674,14 @@ type SecurityScheme struct {
 	BearerFormat string `json:"bearerFormat,omitempty"`
 	// Flows contains configuration information for the flow types supported.
 	Flows *OAuthFlows `json:"flows,omitempty"`
+	// Flow is the flow used by the OAuth2 security scheme for Swagger 2.0.
+	Flow string `json:"flow,omitempty"`
+	// AuthorizationURL is the authorization URL to be used for this flow for Swagger 2.0.
+	AuthorizationURL string `json:"authorizationUrl,omitempty"`
+	// TokenURL is the token URL to be used for this flow for Swagger 2.0.
+	TokenURL string `json:"tokenUrl,omitempty"`
+	// Scopes provides the available scopes for the OAuth2 security scheme for Swagger 2.0.
+	Scopes map[string]string `json:"scopes,omitempty"`
 	// OpenIDConnectURL is the URL to discover OAuth2 configuration values.
 	OpenIDConnectURL string `json:"openIdConnectUrl,omitempty"`
 }
@@ -593,4 +742,42 @@ type Tag struct {
 	Description string `json:"description,omitempty"`
 	// ExternalDocs adds additional external documentation for this tag.
 	ExternalDocs *ExternalDocs `json:"externalDocs,omitempty"`
+}
+
+// Items represents a limited subset of JSON-Schema's items object for Swagger 2.0.
+type Items struct {
+	// Type is the internal type of the array.
+	Type string `json:"type,omitempty"`
+	// Format is the extending format for the type.
+	Format string `json:"format,omitempty"`
+	// Items describes the type of items in the array.
+	Items *Items `json:"items,omitempty"`
+	// CollectionFormat determines the format of the array.
+	CollectionFormat string `json:"collectionFormat,omitempty"`
+	// Default declares the value of the item that the server will use if none is provided.
+	Default json.RawMessage `json:"default,omitempty"`
+	// Maximum is the maximum value.
+	Maximum *float64 `json:"maximum,omitempty"`
+	// ExclusiveMaximum specifies if the maximum is exclusive.
+	ExclusiveMaximum *bool `json:"exclusiveMaximum,omitempty"`
+	// Minimum is the minimum value.
+	Minimum *float64 `json:"minimum,omitempty"`
+	// ExclusiveMinimum specifies if the minimum is exclusive.
+	ExclusiveMinimum *bool `json:"exclusiveMinimum,omitempty"`
+	// MaxLength is the maximum length of a string.
+	MaxLength *int `json:"maxLength,omitempty"`
+	// MinLength is the minimum length of a string.
+	MinLength *int `json:"minLength,omitempty"`
+	// Pattern specifies a regular expression pattern the string must match.
+	Pattern string `json:"pattern,omitempty"`
+	// MaxItems specifies the maximum number of items in an array.
+	MaxItems *int `json:"maxItems,omitempty"`
+	// MinItems specifies the minimum number of items in an array.
+	MinItems *int `json:"minItems,omitempty"`
+	// UniqueItems specifies if items in an array must be unique.
+	UniqueItems *bool `json:"uniqueItems,omitempty"`
+	// Enum specifies the possible values.
+	Enum []json.RawMessage `json:"enum,omitempty"`
+	// MultipleOf specifies a multiple of which the value must be.
+	MultipleOf *float64 `json:"multipleOf,omitempty"`
 }
