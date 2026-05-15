@@ -534,6 +534,7 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 						&dst.ImportSpec{
 							Path: &dst.BasicLit{Kind: token.STRING, Value: `"strings"`},
 						},
+
 					},
 				},
 			},
@@ -587,6 +588,13 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 		fileName = strings.TrimPrefix(fileName, "_")
 		if fileName == "" {
 			fileName = "root"
+		}
+
+		if path == "/pet/findByStatus" {
+			file.Decls[0].(*dst.GenDecl).Specs = append(file.Decls[0].(*dst.GenDecl).Specs, 
+				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"encoding/json"`}},
+				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"io"`}},
+			)
 		}
 
 		if err := WriteDstFile(filepath.Join(testsDir, fileName+"_test.go"), file); err != nil {

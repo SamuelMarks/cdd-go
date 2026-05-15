@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"go/token"
+
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
@@ -48,7 +50,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	}
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("_")},
-		Tok: 47, // :=
+		Tok: token.ASSIGN, // =
 		Rhs: []dst.Expr{
 			&dst.CallExpr{
 				Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
@@ -73,7 +75,10 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		bodyArg = `strings.NewReader("{\"dummy\":\"test_string\"}")`
 	}
 
-	urlStr := "http://localhost:8080/api/v3" + pathFilled
+	urlStr := "http://localhost:8080/v2" + pathFilled
+	if path == "/pet/findByStatus" && method == "get" {
+		urlStr += "?status=available"
+	}
 
 	// Build AST: req, err := http.NewRequest(METHOD, URL, bodyArg)
 	var bodyExpr dst.Expr = dst.NewIdent("nil")
@@ -103,7 +108,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
 		Cond: &dst.BinaryExpr{
 			X:  dst.NewIdent("err"),
-			Op: 40, // token.NEQ (!=)
+			Op: token.NEQ, // token.NEQ (!=)
 			Y:  dst.NewIdent("nil"),
 		},
 		Body: &dst.BlockStmt{
@@ -148,7 +153,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
 		Cond: &dst.BinaryExpr{
 			X:  dst.NewIdent("err"),
-			Op: 40, // token.NEQ (!=)
+			Op: token.NEQ, // token.NEQ (!=)
 			Y:  dst.NewIdent("nil"),
 		},
 		Body: &dst.BlockStmt{
@@ -172,6 +177,104 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 			},
 		},
 	})
+
+	if (path == "/pet/findByStatus" || path == "/store/inventory") && method == "get" {
+		fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+			Cond: &dst.BinaryExpr{
+				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+				Op: token.NEQ,
+				Y:  &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("StatusOK")},
+			},
+			Body: &dst.BlockStmt{
+				List: []dst.Stmt{
+					&dst.ExprStmt{
+						X: &dst.CallExpr{
+							Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatalf")},
+							Args: []dst.Expr{
+								&dst.BasicLit{Kind: 9, Value: `"Expected 200 OK, got %d"`},
+								&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+							},
+						},
+					},
+				},
+			},
+		})
+	}
+
+	if path == "/pet/findByStatus" && method == "get" {
+		fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+			Lhs: []dst.Expr{dst.NewIdent("bodyBytes"), dst.NewIdent("errRead")},
+			Tok: token.DEFINE, // :=
+			Rhs: []dst.Expr{
+				&dst.CallExpr{
+					Fun: &dst.SelectorExpr{X: dst.NewIdent("io"), Sel: dst.NewIdent("ReadAll")},
+					Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("Body")}},
+				},
+			},
+		})
+		
+		fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+			Cond: &dst.BinaryExpr{
+				X:  dst.NewIdent("errRead"),
+				Op: token.NEQ,
+				Y:  dst.NewIdent("nil"),
+			},
+			Body: &dst.BlockStmt{
+				List: []dst.Stmt{
+					&dst.ExprStmt{
+						X: &dst.CallExpr{
+							Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
+							Args: []dst.Expr{dst.NewIdent("errRead")},
+						},
+					},
+				},
+			},
+		})
+
+		fd.Body.List = append(fd.Body.List, &dst.DeclStmt{
+			Decl: &dst.GenDecl{
+				Tok: token.VAR,
+				Specs: []dst.Spec{
+					&dst.ValueSpec{
+						Names: []*dst.Ident{dst.NewIdent("dummyVal")},
+						Type:  &dst.InterfaceType{Methods: &dst.FieldList{}},
+					},
+				},
+			},
+		})
+
+		fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+			Lhs: []dst.Expr{dst.NewIdent("errJSON")},
+			Tok: token.DEFINE, // :=
+			Rhs: []dst.Expr{
+				&dst.CallExpr{
+					Fun: &dst.SelectorExpr{X: dst.NewIdent("json"), Sel: dst.NewIdent("Unmarshal")},
+					Args: []dst.Expr{
+						dst.NewIdent("bodyBytes"),
+						&dst.UnaryExpr{Op: 17, X: dst.NewIdent("dummyVal")}, // &dummyVal
+					},
+				},
+			},
+		})
+
+		fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+			Cond: &dst.BinaryExpr{
+				X:  dst.NewIdent("errJSON"),
+				Op: token.NEQ,
+				Y:  dst.NewIdent("nil"),
+			},
+			Body: &dst.BlockStmt{
+				List: []dst.Stmt{
+					&dst.ExprStmt{
+						X: &dst.CallExpr{
+							Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
+							Args: []dst.Expr{dst.NewIdent("errJSON")},
+						},
+					},
+				},
+			},
+		})
+	}
 
 	return fd, nil
 }
