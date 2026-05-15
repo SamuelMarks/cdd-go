@@ -63,7 +63,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	pathFilled := path
 	for _, param := range op.Parameters {
 		if param.In == "path" {
-			pathFilled = strings.ReplaceAll(pathFilled, "{"+param.Name+"}", "dummy")
+			pathFilled = strings.ReplaceAll(pathFilled, "{"+param.Name+"}", "1")
 		}
 	}
 	// fallback for any remaining braces
@@ -71,8 +71,41 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	pathFilled = strings.ReplaceAll(pathFilled, "}", "")
 
 	bodyArg := "nil"
+	hasBody := op.RequestBody != nil
+	if !hasBody && (method == "post" || method == "put" || method == "patch") {
+		hasBody = true
+	}
+	if !hasBody {
+		for _, param := range op.Parameters {
+			if param.In == "body" {
+				hasBody = true
+				break
+			}
+		}
+	}
+
+	isArray := false
 	if op.RequestBody != nil {
-		bodyArg = `strings.NewReader("{\"dummy\":\"test_string\"}")`
+		if mt, ok := op.RequestBody.Content["application/json"]; ok && mt.Schema != nil {
+			if mt.Schema.Type == "array" {
+				isArray = true
+			}
+		}
+	}
+	for _, param := range op.Parameters {
+		if param.In == "body" && param.Schema != nil {
+			if param.Schema.Type == "array" {
+				isArray = true
+			}
+		}
+	}
+
+	if hasBody {
+		if isArray {
+			bodyArg = `strings.NewReader("[{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\",\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"complete\":true,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}]")`
+		} else {
+			bodyArg = `strings.NewReader("{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\",\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"complete\":true,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}")`
+		}
 	}
 
 	urlStr := "http://localhost:8080/v2" + pathFilled
@@ -83,9 +116,13 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	// Build AST: req, err := http.NewRequest(METHOD, URL, bodyArg)
 	var bodyExpr dst.Expr = dst.NewIdent("nil")
 	if bodyArg != "nil" {
+		jsonStr := `"{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\",\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"complete\":true,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}"`
+		if isArray {
+			jsonStr = `"[{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\",\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"complete\":true,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}]"`
+		}
 		bodyExpr = &dst.CallExpr{
 			Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
-			Args: []dst.Expr{&dst.BasicLit{Kind: 9, Value: `"{\"dummy\":\"test_string\"}"`}}, // token.STRING is 9
+			Args: []dst.Expr{&dst.BasicLit{Kind: 9, Value: jsonStr}}, // token.STRING is 9
 		}
 	}
 
@@ -178,103 +215,111 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	if (path == "/pet/findByStatus" || path == "/store/inventory") && method == "get" {
-		fd.Body.List = append(fd.Body.List, &dst.IfStmt{
-			Cond: &dst.BinaryExpr{
-				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-				Op: token.NEQ,
-				Y:  &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("StatusOK")},
+	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+		Cond: &dst.BinaryExpr{
+			X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+			Op: token.GEQ,
+			Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.ExprStmt{
+					X: &dst.CallExpr{
+						Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatalf")},
+						Args: []dst.Expr{
+							&dst.BasicLit{Kind: 9, Value: `"Expected status < 400, got %d"`},
+							&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+						},
+					},
+				},
 			},
-			Body: &dst.BlockStmt{
-				List: []dst.Stmt{
-					&dst.ExprStmt{
-						X: &dst.CallExpr{
-							Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatalf")},
+		},
+	})
+
+	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+		Lhs: []dst.Expr{dst.NewIdent("bodyBytes"), dst.NewIdent("errRead")},
+		Tok: token.DEFINE, // :=
+		Rhs: []dst.Expr{
+			&dst.CallExpr{
+				Fun: &dst.SelectorExpr{X: dst.NewIdent("io"), Sel: dst.NewIdent("ReadAll")},
+				Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("Body")}},
+			},
+		},
+	})
+
+	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+		Cond: &dst.BinaryExpr{
+			X:  dst.NewIdent("errRead"),
+			Op: token.NEQ,
+			Y:  dst.NewIdent("nil"),
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.ExprStmt{
+					X: &dst.CallExpr{
+						Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
+						Args: []dst.Expr{dst.NewIdent("errRead")},
+					},
+				},
+			},
+		},
+	})
+
+	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+		Cond: &dst.BinaryExpr{
+			X: &dst.CallExpr{
+				Fun:  dst.NewIdent("len"),
+				Args: []dst.Expr{dst.NewIdent("bodyBytes")},
+			},
+			Op: token.GTR,
+			Y:  &dst.BasicLit{Kind: token.INT, Value: "0"},
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.DeclStmt{
+					Decl: &dst.GenDecl{
+						Tok: token.VAR,
+						Specs: []dst.Spec{
+							&dst.ValueSpec{
+								Names: []*dst.Ident{dst.NewIdent("dummyVal")},
+								Type:  &dst.InterfaceType{Methods: &dst.FieldList{}},
+							},
+						},
+					},
+				},
+				&dst.AssignStmt{
+					Lhs: []dst.Expr{dst.NewIdent("errJSON")},
+					Tok: token.DEFINE, // :=
+					Rhs: []dst.Expr{
+						&dst.CallExpr{
+							Fun: &dst.SelectorExpr{X: dst.NewIdent("json"), Sel: dst.NewIdent("Unmarshal")},
 							Args: []dst.Expr{
-								&dst.BasicLit{Kind: 9, Value: `"Expected 200 OK, got %d"`},
-								&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+								dst.NewIdent("bodyBytes"),
+								&dst.UnaryExpr{Op: 17, X: dst.NewIdent("dummyVal")}, // &dummyVal
+							},
+						},
+					},
+				},
+				&dst.IfStmt{
+					Cond: &dst.BinaryExpr{
+						X:  dst.NewIdent("errJSON"),
+						Op: token.NEQ,
+						Y:  dst.NewIdent("nil"),
+					},
+					Body: &dst.BlockStmt{
+						List: []dst.Stmt{
+							&dst.ExprStmt{
+								X: &dst.CallExpr{
+									Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
+									Args: []dst.Expr{dst.NewIdent("errJSON")},
+								},
 							},
 						},
 					},
 				},
 			},
-		})
-	}
-
-	if path == "/pet/findByStatus" && method == "get" {
-		fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
-			Lhs: []dst.Expr{dst.NewIdent("bodyBytes"), dst.NewIdent("errRead")},
-			Tok: token.DEFINE, // :=
-			Rhs: []dst.Expr{
-				&dst.CallExpr{
-					Fun: &dst.SelectorExpr{X: dst.NewIdent("io"), Sel: dst.NewIdent("ReadAll")},
-					Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("Body")}},
-				},
-			},
-		})
-		
-		fd.Body.List = append(fd.Body.List, &dst.IfStmt{
-			Cond: &dst.BinaryExpr{
-				X:  dst.NewIdent("errRead"),
-				Op: token.NEQ,
-				Y:  dst.NewIdent("nil"),
-			},
-			Body: &dst.BlockStmt{
-				List: []dst.Stmt{
-					&dst.ExprStmt{
-						X: &dst.CallExpr{
-							Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
-							Args: []dst.Expr{dst.NewIdent("errRead")},
-						},
-					},
-				},
-			},
-		})
-
-		fd.Body.List = append(fd.Body.List, &dst.DeclStmt{
-			Decl: &dst.GenDecl{
-				Tok: token.VAR,
-				Specs: []dst.Spec{
-					&dst.ValueSpec{
-						Names: []*dst.Ident{dst.NewIdent("dummyVal")},
-						Type:  &dst.InterfaceType{Methods: &dst.FieldList{}},
-					},
-				},
-			},
-		})
-
-		fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
-			Lhs: []dst.Expr{dst.NewIdent("errJSON")},
-			Tok: token.DEFINE, // :=
-			Rhs: []dst.Expr{
-				&dst.CallExpr{
-					Fun: &dst.SelectorExpr{X: dst.NewIdent("json"), Sel: dst.NewIdent("Unmarshal")},
-					Args: []dst.Expr{
-						dst.NewIdent("bodyBytes"),
-						&dst.UnaryExpr{Op: 17, X: dst.NewIdent("dummyVal")}, // &dummyVal
-					},
-				},
-			},
-		})
-
-		fd.Body.List = append(fd.Body.List, &dst.IfStmt{
-			Cond: &dst.BinaryExpr{
-				X:  dst.NewIdent("errJSON"),
-				Op: token.NEQ,
-				Y:  dst.NewIdent("nil"),
-			},
-			Body: &dst.BlockStmt{
-				List: []dst.Stmt{
-					&dst.ExprStmt{
-						X: &dst.CallExpr{
-							Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
-							Args: []dst.Expr{dst.NewIdent("errJSON")},
-						},
-					},
-				},
-			},
-		})
-	}
+		},
+	})
 
 	return fd, nil
 }
