@@ -152,3 +152,92 @@ func TestFullSchemaCoverage(t *testing.T) {
 		t.Errorf("expected output to contain discriminator")
 	}
 }
+
+func TestParseJSONDefinitions(t *testing.T) {
+	input := `{
+  "swagger": "2.0",
+  "definitions": {
+    "Pet": {
+      "type": "object"
+    }
+  }
+}`
+	r := strings.NewReader(input)
+	oa, err := Parse(r)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if oa.Components == nil || len(oa.Components.Schemas) == 0 {
+		t.Errorf("expected components.schemas to be populated from definitions")
+	}
+}
+
+func TestParseYAMLDefinitions(t *testing.T) {
+	input := `
+swagger: "2.0"
+definitions:
+  Pet:
+    type: object
+`
+	r := strings.NewReader(input)
+	oa, err := Parse(r)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if oa.Components == nil || len(oa.Components.Schemas) == 0 {
+		t.Errorf("expected components.schemas to be populated from definitions")
+	}
+}
+
+func TestParseYAMLDefinitionsWithExistingComponents(t *testing.T) {
+	input := `
+swagger: "2.0"
+components:
+  responses:
+    Success:
+      description: "OK"
+definitions:
+  Pet:
+    type: object
+`
+	r := strings.NewReader(input)
+	oa, err := Parse(r)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if oa.Components == nil || len(oa.Components.Schemas) == 0 {
+		t.Errorf("expected components.schemas to be populated from definitions")
+	}
+	if len(oa.Components.Responses) == 0 {
+		t.Errorf("expected components.responses to be preserved")
+	}
+}
+
+func TestParseJSONDefinitionsWithExistingComponents(t *testing.T) {
+	input := `{
+  "swagger": "2.0",
+  "components": {
+    "responses": {
+      "Success": {
+        "description": "OK"
+      }
+    }
+  },
+  "definitions": {
+    "Pet": {
+      "type": "object"
+    }
+  }
+}`
+	r := strings.NewReader(input)
+	oa, err := Parse(r)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if oa.Components == nil || len(oa.Components.Schemas) == 0 {
+		t.Errorf("expected components.schemas to be populated from definitions")
+	}
+	if len(oa.Components.Responses) == 0 {
+		t.Errorf("expected components.responses to be preserved")
+	}
+}
