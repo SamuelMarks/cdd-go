@@ -33,20 +33,30 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 		if len(field.Names) == 0 {
 			continue // Embedded interface
 		}
+
 		methodName := field.Names[0].Name
 		op := &openapi.Operation{
-			OperationID: methodName,
+			OperationID: methodName, Responses: make(openapi.Responses),
 		}
 
+		parsedMethod := ""
 		if len(field.Decs.Start) > 0 {
 			desc := ""
 			for _, doc := range field.Decs.Start {
-				desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
+				if strings.HasPrefix(doc, "// METHOD: ") {
+					parsedMethod = strings.TrimSpace(strings.TrimPrefix(doc, "// METHOD: "))
+				} else {
+					desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
+				}
 			}
 			op.Summary = strings.TrimSpace(desc)
 		}
 
-		nameLower := strings.ToLower(methodName)
+		nameLower := strings.ToLower(parsedMethod)
+		if nameLower == "" {
+			nameLower = strings.ToLower(methodName)
+		}
+
 		if strings.HasPrefix(nameLower, "get") {
 			pathItem.Get = op
 		} else if strings.HasPrefix(nameLower, "post") {

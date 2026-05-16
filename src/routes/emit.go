@@ -82,11 +82,13 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 		},
 		Results: &dst.FieldList{},
 	}
+
 	f := &dst.Field{
 		Names: []*dst.Ident{dst.NewIdent(name)},
 		Type:  fType,
 	}
 
+	f.Decs.Start.Append(fmt.Sprintf("// METHOD: %s", method))
 	if op.Summary != "" {
 		f.Decs.Start.Append(fmt.Sprintf("// %s", op.Summary))
 	}

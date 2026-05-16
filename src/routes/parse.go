@@ -35,7 +35,7 @@ func ParseHandlerInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 		}
 		methodName := field.Names[0].Name
 		op := &openapi.Operation{
-			OperationID: methodName,
+			OperationID: methodName, Responses: make(openapi.Responses, 0),
 		}
 
 		if len(field.Decs.Start) > 0 {

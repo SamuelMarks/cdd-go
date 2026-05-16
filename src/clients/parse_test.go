@@ -117,3 +117,35 @@ func TestParseClientInterfaceNotInterface(t *testing.T) {
 		t.Errorf("expected error")
 	}
 }
+
+func TestParseClientInterfaceMethodComment(t *testing.T) {
+	ts := &dst.TypeSpec{
+		Name: dst.NewIdent("ClientTest"),
+		Type: &dst.InterfaceType{
+			Methods: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("CustomOp")},
+						Type:  &dst.FuncType{},
+						Decs: dst.FieldDecorations{
+							NodeDecs: dst.NodeDecs{
+								Start: dst.Decorations{"// METHOD: post", "// A custom op"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	pi, err := ParseClientInterface(ts)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if pi.Post == nil {
+		t.Errorf("expected Post method parsed from comment")
+	}
+	if pi.Post.Summary != "A custom op" {
+		t.Errorf("expected summary 'A custom op', got %v", pi.Post.Summary)
+	}
+}

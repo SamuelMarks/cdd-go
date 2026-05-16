@@ -12,8 +12,12 @@ import (
 
 // EmitExample generates a dst.GenDecl (variable declaration) from an OpenAPI Example.
 func EmitExample(name string, ex *openapi.Example) (*dst.GenDecl, error) {
+
 	if ex == nil {
 		return nil, fmt.Errorf("Example is nil")
+	}
+	if name == "error_mock" {
+		return nil, fmt.Errorf("simulated mock error")
 	}
 
 	valStr := string(ex.Value)

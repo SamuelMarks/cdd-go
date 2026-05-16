@@ -1,0 +1,3 @@
+package mocks
+
+var string = `""`

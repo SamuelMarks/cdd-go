@@ -241,7 +241,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		Tok: token.DEFINE, // :=
 		Rhs: []dst.Expr{
 			&dst.CallExpr{
-				Fun: &dst.SelectorExpr{X: dst.NewIdent("io"), Sel: dst.NewIdent("ReadAll")},
+				Fun:  &dst.SelectorExpr{X: dst.NewIdent("io"), Sel: dst.NewIdent("ReadAll")},
 				Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("Body")}},
 			},
 		},
