@@ -26,3 +26,10 @@ __pycache__/
 target/
 .idea/
 temp-*
+
+# Test and fix scripts
+*.py
+!scripts/*.py
+!setup.py
+*.out
+!coverage.out
