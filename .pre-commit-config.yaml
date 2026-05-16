@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -9,25 +9,36 @@ repos:
 
   - repo: local
     hooks:
-      - id: go-test
-        name: Run go tests
-        entry: go test -v ./...
+      - id: go-fmt
+        name: Go Format (auto-fix)
+        entry: gofmt -w
+        language: system
+        files: \.go$
+
+      - id: go-build
+        name: Go Build
+        entry: go build ./...
         language: system
         pass_filenames: false
         files: \.go$
 
-      - id: update-shields
+      - id: go-test
+        name: Go Test
+        entry: go test ./...
+        language: system
+        pass_filenames: false
+        files: \.go$
+
+      - id: go-vet
+        name: Go Lint (vet)
+        entry: go vet ./...
+        language: system
+        pass_filenames: false
+        files: \.go$
+
+      - id: update-badges
         name: Update README shields
-        entry: bash scripts/update-shields.sh
+        entry: python3 scripts/update_badges.py
         language: system
         pass_filenames: false
         files: \.go$|^README\.md$
-
-  - repo: local
-    hooks:
-      - id: update-badges
-        name: Update Badges
-        entry: python3 scripts/update_badges.py
-        language: system
-        files: ^README\.md$
-        pass_filenames: false

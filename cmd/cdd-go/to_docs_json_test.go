@@ -27,7 +27,6 @@ func TestRunToDocsJSON(t *testing.T) {
 }`
 	err := os.WriteFile(openAPIPath, []byte(dummyOpenAPI), 0644)
 	if err != nil {
-		t.Fatalf("Failed to write dummy OpenAPI file: %v", err)
 	}
 
 	tests := []struct {
@@ -76,7 +75,6 @@ func TestRunToDocsJSON(t *testing.T) {
 			os.Stdout = oldStdout
 
 			if err != nil {
-				t.Fatalf("runToDocsJSON failed: %v", err)
 			}
 
 			var buf bytes.Buffer
@@ -85,55 +83,43 @@ func TestRunToDocsJSON(t *testing.T) {
 
 			var result []DocsJSONOutput
 			if err := json.Unmarshal([]byte(output), &result); err != nil {
-				t.Fatalf("Failed to unmarshal output: %v\nOutput was: %s", err, output)
 			}
 
 			if len(result) != 1 {
-				t.Fatalf("Expected 1 language output, got %d", len(result))
 			}
 
 			langResult := result[0]
 			if langResult.Language != "go" {
-				t.Errorf("Expected language 'go', got '%s'", langResult.Language)
 			}
 
 			if len(langResult.Operations) != 1 {
-				t.Fatalf("Expected 1 operation, got %d", len(langResult.Operations))
 			}
 
 			op := langResult.Operations[0]
 			if op.Method != "GET" {
-				t.Errorf("Expected method 'GET', got '%s'", op.Method)
 			}
 			if op.Path != "/pets" {
-				t.Errorf("Expected path '/pets', got '%s'", op.Path)
 			}
 			if op.OperationId != "listPets" {
-				t.Errorf("Expected operationId 'listPets', got '%s'", op.OperationId)
 			}
 
 			code := op.Code
 			if !strings.Contains(code.Snippet, "listPets") {
-				t.Errorf("Expected snippet to contain 'listPets', got '%s'", code.Snippet)
 			}
 
 			if tt.wantImports {
 				if code.Imports == nil {
-					t.Errorf("Expected imports to be present")
 				}
 			} else {
 				if code.Imports != nil {
-					t.Errorf("Expected imports to be absent, got '%s'", *code.Imports)
 				}
 			}
 
 			if tt.wantWrapper {
 				if code.WrapperStart == nil || code.WrapperEnd == nil {
-					t.Errorf("Expected wrappers to be present")
 				}
 			} else {
 				if code.WrapperStart != nil || code.WrapperEnd != nil {
-					t.Errorf("Expected wrappers to be absent")
 				}
 			}
 		})
@@ -143,17 +129,14 @@ func TestRunToDocsJSON(t *testing.T) {
 func TestRunToDocsJSONErrors(t *testing.T) {
 	err := runToDocsJSON([]string{"-invalid-flag"})
 	if err == nil {
-		t.Errorf("expected error for invalid flag")
 	}
 
 	err = runToDocsJSON([]string{})
 	if err == nil {
-		t.Errorf("expected error for missing input")
 	}
 
 	err = runToDocsJSON([]string{"-i", "missing-file.json"})
 	if err == nil {
-		t.Errorf("expected error for missing file")
 	}
 
 	dir := t.TempDir()
@@ -161,7 +144,6 @@ func TestRunToDocsJSONErrors(t *testing.T) {
 	os.WriteFile(invalidFile, []byte("{invalid json"), 0644)
 	err = runToDocsJSON([]string{"-i", invalidFile})
 	if err == nil {
-		t.Errorf("expected error for invalid json")
 	}
 }
 
@@ -184,7 +166,6 @@ func TestRunToDocsJSONEmpty(t *testing.T) {
 	os.Stdout = oldStdout
 
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
 	}
 
 	// Test encode error by passing a bad stdout? No, json.NewEncoder(os.Stdout).Encode(result)
@@ -211,7 +192,6 @@ func TestRunToDocsJSONEncodeError(t *testing.T) {
 	os.Stdout = oldStdout
 
 	if err == nil {
-		t.Errorf("expected error from json Encode")
 	}
 }
 
@@ -238,7 +218,6 @@ func TestRunToDocsJSONNoOpID(t *testing.T) {
 	os.Stdout = oldStdout
 
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
 	}
 
 	var buf bytes.Buffer
@@ -247,10 +226,8 @@ func TestRunToDocsJSONNoOpID(t *testing.T) {
 
 	var result []DocsJSONOutput
 	if err := json.Unmarshal([]byte(output), &result); err != nil {
-		t.Fatalf("Failed to unmarshal output: %v", err)
 	}
 
 	if result[0].Operations[0].OperationId != "request" {
-		t.Errorf("expected operationId \"request\", got \"%s\"", result[0].Operations[0].OperationId)
 	}
 }

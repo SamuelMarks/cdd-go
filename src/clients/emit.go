@@ -102,6 +102,7 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 		Type:  fType,
 	}
 
+	f.Decs.Start.Append(fmt.Sprintf("// METHOD: %s", method))
 	if op.Summary != "" {
 		f.Decs.Start.Append(fmt.Sprintf("// %s", op.Summary))
 	}

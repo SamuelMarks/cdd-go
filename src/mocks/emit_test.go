@@ -57,3 +57,10 @@ func TestEmitExampleNil(t *testing.T) {
 		t.Errorf("expected error")
 	}
 }
+
+func TestEmitExampleErrorMock(t *testing.T) {
+	_, err := EmitExample("error_mock", &openapi.Example{})
+	if err == nil || err.Error() != "simulated mock error" {
+		t.Errorf("expected simulated mock error, got %v", err)
+	}
+}

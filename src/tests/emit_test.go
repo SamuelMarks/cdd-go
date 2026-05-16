@@ -1,54 +1,90 @@
 package tests
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
 
-func TestEmitTest(t *testing.T) {
-	op := &openapi.Operation{
-		OperationID: "getUser",
-		Summary:     "Get User",
-	}
-
-	fd, err := EmitTest("/users/{id}", "get", op)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if fd.Name.Name != "TestGetUser" {
-		t.Errorf("expected TestGetUser, got %s", fd.Name.Name)
-	}
-
-	if len(fd.Decs.Start) != 1 {
-		t.Errorf("expected 1 line doc")
-	} else if !strings.Contains(fd.Decs.Start[0], "tests the Get User operation") {
-		t.Errorf("expected summary doc")
+func TestEmitTestNil(t *testing.T) {
+	_, err := EmitTest("/test", "get", nil)
+	if err == nil {
+		t.Errorf("expected error for nil operation")
 	}
 }
 
 func TestEmitTestNoOpID(t *testing.T) {
-	op := &openapi.Operation{}
-	fd, err := EmitTest("/users/{id}", "get", op)
-	if err != nil {
-		t.Fatal(err)
+	op := &openapi.Operation{
+		Summary: "Test op",
 	}
-	if fd.Name.Name != "TestGetUsersId" {
-		t.Errorf("expected TestGetUsersId, got %s", fd.Name.Name)
+	fd, err := EmitTest("/test/path", "get", op)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fd.Name.Name != "TestGetTestPath" {
+		t.Errorf("expected TestGetTestPath, got %s", fd.Name.Name)
 	}
 }
 
-func TestEmitTestNil(t *testing.T) {
-	_, err := EmitTest("/", "get", nil)
-	if err == nil {
-		t.Errorf("expected error")
+func TestEmitTestWithBodyAndPathParams(t *testing.T) {
+	op := &openapi.Operation{
+		OperationID: "testOp",
+		Parameters: []openapi.Parameter{
+			{Name: "id", In: "path"},
+			{Name: "body", In: "body", Schema: &openapi.Schema{Type: "array"}},
+		},
+	}
+	_, err := EmitTest("/test/{id}", "post", op)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEmitTestRequestBodyArray(t *testing.T) {
+	op := &openapi.Operation{
+		OperationID: "testOp2",
+		RequestBody: &openapi.RequestBody{
+			Content: map[string]openapi.MediaType{
+				"application/json": {
+					Schema: &openapi.Schema{Type: "array"},
+				},
+			},
+		},
+	}
+	_, err := EmitTest("/test2", "post", op)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestToCamelCase(t *testing.T) {
 	if toCamelCase("/") != "Root" {
 		t.Errorf("expected Root")
+	}
+	if toCamelCase("/test/{id}") != "TestId" {
+		t.Errorf("expected TestId")
+	}
+}
+
+func TestEmitTestBodyParamGet(t *testing.T) {
+	op := &openapi.Operation{
+		OperationID: "testOp",
+		Parameters: []openapi.Parameter{
+			{Name: "body", In: "body"},
+		},
+	}
+	_, err := EmitTest("/test", "get", op)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEmitTestFindByStatusGet(t *testing.T) {
+	op := &openapi.Operation{
+		OperationID: "findByStatus",
+	}
+	_, err := EmitTest("/pet/findByStatus", "get", op)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

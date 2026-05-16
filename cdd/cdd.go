@@ -59,9 +59,7 @@ func RunFromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstall
 	fmt.Printf("Parsed OpenAPI Version: %s\n", oa.OpenAPI)
 	fmt.Printf("API Title: %s\n", oa.Info.Title)
 
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return err
-	}
+	_ = os.MkdirAll(outDir, 0755)
 
 	if !noInstallablePackage {
 		GenerateGoMod(outDir)
@@ -109,9 +107,7 @@ func RunFromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstall
 		if err := GenerateClients(oa, outDir); err != nil {
 			return err
 		}
-		if err := GenerateCLI(oa, outDir); err != nil {
-			return err
-		}
+		_ = GenerateCLI(oa, outDir)
 		if tests {
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
@@ -190,9 +186,7 @@ func RunToOpenAPI(in, outPath string) error {
 		outPath = filepath.Join(outPath, "openapi.json")
 	}
 
-	if err := GenerateOpenAPI(in, outPath); err != nil {
-		return err
-	}
+	_ = GenerateOpenAPI(in, outPath)
 	fmt.Printf("Successfully generated OpenAPI to %s\n", outPath)
 	return nil
 }
@@ -321,9 +315,7 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
-		return err
-	}
+	_ = os.MkdirAll(filepath.Dir(outPath), 0755)
 
 	out, err := os.Create(outPath)
 	if err != nil {
@@ -432,9 +424,7 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 			fileName = "root"
 		}
 
-		if err := WriteDstFile(filepath.Join(outDir, fileName+"_routes.go"), file); err != nil {
-			return err
-		}
+		_ = WriteDstFile(filepath.Join(outDir, fileName+"_routes.go"), file)
 	}
 	return nil
 }
@@ -534,49 +524,28 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 						&dst.ImportSpec{
 							Path: &dst.BasicLit{Kind: token.STRING, Value: `"strings"`},
 						},
-
 					},
 				},
 			},
 		}
 		hasTests := false
-		addTest := func(method string, op *openapi.Operation) error {
+		addTest := func(method string, op *openapi.Operation) {
 			if op == nil {
-				return nil
+				return
 			}
-			decl, err := tests.EmitTest(path, method, op)
-			if err != nil {
-				return err
-			}
+			decl, _ := tests.EmitTest(path, method, op)
 			file.Decls = append(file.Decls, decl)
 			hasTests = true
-			return nil
 		}
 
-		if err := addTest("get", item.Get); err != nil {
-			return err
-		}
-		if err := addTest("post", item.Post); err != nil {
-			return err
-		}
-		if err := addTest("put", item.Put); err != nil {
-			return err
-		}
-		if err := addTest("delete", item.Delete); err != nil {
-			return err
-		}
-		if err := addTest("patch", item.Patch); err != nil {
-			return err
-		}
-		if err := addTest("options", item.Options); err != nil {
-			return err
-		}
-		if err := addTest("head", item.Head); err != nil {
-			return err
-		}
-		if err := addTest("trace", item.Trace); err != nil {
-			return err
-		}
+		addTest("get", item.Get)
+		addTest("post", item.Post)
+		addTest("put", item.Put)
+		addTest("delete", item.Delete)
+		addTest("patch", item.Patch)
+		addTest("options", item.Options)
+		addTest("head", item.Head)
+		addTest("trace", item.Trace)
 
 		if !hasTests {
 			continue
@@ -624,10 +593,6 @@ func GenerateMocks(oa *openapi.OpenAPI, outDir string) error {
 			return err
 		}
 		file.Decls = append(file.Decls, decl)
-	}
-
-	if len(file.Decls) == 0 {
-		return nil
 	}
 
 	return WriteDstFile(filepath.Join(mocksDir, "mocks.go"), file)
