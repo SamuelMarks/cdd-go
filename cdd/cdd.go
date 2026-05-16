@@ -107,7 +107,9 @@ func RunFromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstall
 		if err := GenerateClients(oa, outDir); err != nil {
 			return err
 		}
-		_ = GenerateCLI(oa, outDir)
+		if err := GenerateCLI(oa, outDir); err != nil {
+			return err
+		}
 		if tests {
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
@@ -186,7 +188,9 @@ func RunToOpenAPI(in, outPath string) error {
 		outPath = filepath.Join(outPath, "openapi.json")
 	}
 
-	_ = GenerateOpenAPI(in, outPath)
+	if err := GenerateOpenAPI(in, outPath); err != nil {
+		return err
+	}
 	fmt.Printf("Successfully generated OpenAPI to %s\n", outPath)
 	return nil
 }
@@ -424,7 +428,9 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 			fileName = "root"
 		}
 
-		_ = WriteDstFile(filepath.Join(outDir, fileName+"_routes.go"), file)
+		if err := WriteDstFile(filepath.Join(outDir, fileName+"_routes.go"), file); err != nil {
+			return err
+		}
 	}
 	return nil
 }

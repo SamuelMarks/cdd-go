@@ -12,8 +12,8 @@ import (
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
 
-func TestRun_Skip(t *testing.T) { t.Skip() }
-func origTestRun(t *testing.T) {
+
+func TestRun(t *testing.T) {
 	err := run([]string{})
 	if err == nil {
 		t.Errorf("expected error for missing subcommands")
@@ -127,21 +127,23 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 
 	// Make out directory read-only to force write errors
 	readonlyDir := filepath.Join(dir, "readonly")
-	os.MkdirAll(readonlyDir, 0555)
+	os.MkdirAll(readonlyDir, 0755)
+	os.MkdirAll(filepath.Join(readonlyDir, "models"), 0755)
+	os.MkdirAll(filepath.Join(readonlyDir, "models", "test.go"), 0755)
+	os.MkdirAll(filepath.Join(readonlyDir, "test_routes.go"), 0755)
 
 	// Test writeDstFile errors
 	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "string"}}}}`), 0644)
 	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", readonlyDir})
 	if err == nil {
-		t.Errorf("expected error writing file")
+	        t.Errorf("expected error writing file")
 	}
 
 	os.WriteFile(path, []byte(`{"paths": {"/test": {"get": {}}}}`), 0644)
 	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", readonlyDir})
 	if err == nil {
-		t.Errorf("expected error writing file")
+	        t.Errorf("expected error writing file")
 	}
-
 	// Test emit error inside generateClasses
 	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "unknown-error"}}}}`), 0644)
 	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", filepath.Join(dir, "error_gen")})
@@ -181,8 +183,8 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	}
 }
 
-func TestGenerateOpenAPIWriteError_Skip(t *testing.T) { t.Skip() }
-func origTestGenerateOpenAPIWriteError(t *testing.T) {
+
+func TestGenerateOpenAPIWriteError(t *testing.T) {
 	dir := t.TempDir()
 	goFile := filepath.Join(dir, "input.go")
 	os.WriteFile(goFile, []byte(`package main`), 0644)
@@ -197,8 +199,8 @@ func origTestGenerateOpenAPIWriteError(t *testing.T) {
 	}
 }
 
-func TestGenerateOpenAPIMkdirError_Skip(t *testing.T) { t.Skip() }
-func origTestGenerateOpenAPIMkdirError(t *testing.T) {
+
+func TestGenerateOpenAPIMkdirError(t *testing.T) {
 	dir := t.TempDir()
 	goFile := filepath.Join(dir, "input.go")
 	os.WriteFile(goFile, []byte(`package main`), 0644)
@@ -215,8 +217,8 @@ func origTestGenerateOpenAPIMkdirError(t *testing.T) {
 	}
 }
 
-func TestGenerateOpenAPIReadDirError_Skip(t *testing.T) { t.Skip() }
-func origTestGenerateOpenAPIReadDirError(t *testing.T) {
+
+func TestGenerateOpenAPIReadDirError(t *testing.T) {
 	dir := t.TempDir()
 
 	// mock ReadDir error by taking away permissions (might not work reliably on all OS, but works on Linux)
@@ -349,8 +351,9 @@ func TestGenerateClientsWriteError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
 	os.WriteFile(path, []byte(`{"paths": {"/client-only": {"get": {}}}}`), 0644)
-	readonlyDir := filepath.Join(dir, "readonly")
-	os.MkdirAll(readonlyDir, 0555)
+        readonlyDir := filepath.Join(dir, "readonly")
+        os.MkdirAll(readonlyDir, 0755)
+        os.MkdirAll(filepath.Join(readonlyDir, "client", "client-only_client.go"), 0755)
 
 	err := run([]string{"from_openapi", "to_sdk", "-i", path, "-o", readonlyDir})
 	if err == nil {
@@ -378,13 +381,14 @@ func TestGenerateCLI(t *testing.T) {
 	}
 }
 
-func TestGenerateCLIError_Skip(t *testing.T) { t.Skip() }
-func origTestGenerateCLIError(t *testing.T) {
+
+func TestGenerateCLIError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
 	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
 	readonlyDir := filepath.Join(dir, "readonly")
-	os.MkdirAll(readonlyDir, 0555)
+	os.MkdirAll(readonlyDir, 0755)
+	os.MkdirAll(filepath.Join(readonlyDir, "sdk_cli.go"), 0755)
 
 	err := run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", readonlyDir})
 	if err == nil {
@@ -392,8 +396,8 @@ func origTestGenerateCLIError(t *testing.T) {
 	}
 }
 
-func TestCoverageExtras_Skip(t *testing.T) { t.Skip() }
-func origTestCoverageExtras(t *testing.T) {
+
+func TestCoverageExtras(t *testing.T) {
 	// from_openapi with --input-dir
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
@@ -415,7 +419,8 @@ func origTestCoverageExtras(t *testing.T) {
 	errCLI := filepath.Join(dir, "cli_err.json")
 	os.WriteFile(errCLI, []byte(`{"openapi": "3.2.0"}`), 0644)
 	readonlyDir := filepath.Join(dir, "readonly2")
-	os.MkdirAll(readonlyDir, 0555)
+	os.MkdirAll(readonlyDir, 0755)
+	os.MkdirAll(filepath.Join(readonlyDir, "sdk_cli.go"), 0755)
 	err = run([]string{"from_openapi", "to_sdk_cli", "-i", errCLI, "-o", readonlyDir})
 	if err == nil {
 		t.Errorf("expected error writing CLI file")
@@ -545,14 +550,16 @@ func TestGetwdErr(t *testing.T) {
 	}
 }
 
-func TestGenerateCLIErr2_Skip(t *testing.T) { t.Skip() }
-func origTestGenerateCLIErr2(t *testing.T) {
+
+func TestGenerateCLIErr2(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
 	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
 
 	outDir := filepath.Join(dir, "readonly")
-	os.MkdirAll(outDir, 0555)
+	os.MkdirAll(outDir, 0755)
+	os.MkdirAll(filepath.Join(outDir, "models", "components.go"), 0755)
+	os.MkdirAll(filepath.Join(outDir, "sdk_cli.go"), 0755)
 
 	err := run([]string{"from_openapi", "to_sdk_cli", "-i", path, "-o", outDir})
 	if err == nil {
@@ -641,7 +648,9 @@ func TestGenerateClassesComponentGoErr(t *testing.T) {
 	path := filepath.Join(dir, "openapi.json")
 	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "components": {"securitySchemes": {"basic": {"type": "http"}}}}`), 0644)
 	outDir := filepath.Join(dir, "readonly")
-	os.MkdirAll(outDir, 0555)
+	os.MkdirAll(outDir, 0755)
+	os.MkdirAll(filepath.Join(outDir, "models", "components.go"), 0755)
+	os.MkdirAll(filepath.Join(outDir, "sdk_cli.go"), 0755)
 
 	err := cdd.GenerateClasses(&openapi.OpenAPI{Components: &openapi.Components{SecuritySchemes: map[string]openapi.SecurityScheme{"b": {Type: "http"}}}}, outDir)
 	if err == nil {
