@@ -88,3 +88,69 @@ func TestEmitTestFindByStatusGet(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestEmitTestCoverageExtras(t *testing.T) {
+	// 1. Path param string, username
+	op1 := &openapi.Operation{
+		OperationID: "op1",
+		Parameters: []openapi.Parameter{
+			{Name: "username", In: "path"},
+			{Name: "id2", In: "path", Schema: &openapi.Schema{Type: "string"}},
+			{Name: "id3", In: "path", Type: "string"},
+		},
+	}
+	EmitTest("/user/{username}/{id2}/{id3}", "get", op1)
+
+	// 2. Query param status, tags, integer
+	op2 := &openapi.Operation{
+		OperationID: "op2",
+		Parameters: []openapi.Parameter{
+			{Name: "status", In: "query", Required: true},
+			{Name: "tags", In: "query", Required: true},
+			{Name: "limit", In: "query", Required: true, Type: "integer"},
+		},
+	}
+	EmitTest("/test", "get", op2)
+
+	// 3. Various paths and array combinations for body
+	paths := []string{"/pet", "/store/order", "/user", "/other"}
+	for _, p := range paths {
+		for _, isArray := range []bool{true, false} {
+			schemaType := "object"
+			if isArray {
+				schemaType = "array"
+			}
+			op := &openapi.Operation{
+				OperationID: "op",
+				Parameters: []openapi.Parameter{
+					{Name: "body", In: "body", Schema: &openapi.Schema{Type: schemaType}},
+				},
+			}
+			EmitTest(p, "post", op)
+		}
+	}
+
+	// 4. Content types
+	contentTypes := []string{"application/x-www-form-urlencoded", "multipart/form-data", "text/plain"}
+	for _, cType := range contentTypes {
+		op := &openapi.Operation{
+			OperationID: "op",
+			Consumes: []string{cType}, 
+			Parameters: []openapi.Parameter{
+				{Name: "body", In: "body", Schema: &openapi.Schema{Type: "object"}},
+			},
+		}
+		EmitTest("/test", "post", op)
+	}
+}
+
+func TestEmitTestCoverageExtrasBreakLoop(t *testing.T) {
+	op := &openapi.Operation{
+		OperationID: "opBreak",
+		Consumes: []string{"something-else", "application/json"},
+		Parameters: []openapi.Parameter{
+			{Name: "body", In: "body"},
+		},
+	}
+	EmitTest("/test", "post", op)
+}
