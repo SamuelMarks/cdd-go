@@ -172,6 +172,12 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 		t.Errorf("expected error for missing file")
 	}
 
+	// osGetwd error
+	osGetwdErr := osGetwd
+	osGetwd = func() (string, error) { return "", os.ErrNotExist }
+	run([]string{"from_openapi", "to_server", "-i", path})
+	osGetwd = osGetwdErr
+
 	// generate composable tests and mocks test
 	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "paths": {"/test": {"get": {"summary": "test operation"}}}, "components": {"examples": {"testEx": {"value": "some-val"}}}}`), 0644)
 	compDir := filepath.Join(dir, "composable")

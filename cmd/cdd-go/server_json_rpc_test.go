@@ -17,7 +17,6 @@ func TestRunServerJSONRPC_Flags(t *testing.T) {
 	}
 }
 
-
 func TestRunServerJSONRPC_Handler(t *testing.T) {
 	// Start server on a specific address to test the Handler.
 	// But it's easier to just call http.DefaultServeMux

@@ -528,3 +528,178 @@ func TestGenerateOpenAPIMissingLoops(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "components.go"), []byte(compCode), 0644)
 	_ = GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
 }
+func TestRunFromOpenAPIMkdirErrors(t *testing.T) {
+	dir := t.TempDir()
+
+	writeSpec := func(oa *openapi.OpenAPI) string {
+		b, _ := json.Marshal(oa)
+		p := filepath.Join(dir, "openapi.json")
+		os.WriteFile(p, b, 0644)
+		return p
+	}
+
+	validOA := &openapi.OpenAPI{
+		Paths: openapi.Paths{"/test": openapi.PathItem{
+			Get: &openapi.Operation{OperationID: "getTest"},
+		}},
+		Components: &openapi.Components{
+			Schemas:  map[string]openapi.Schema{"Valid": {Type: "string"}},
+			Examples: map[string]openapi.Example{"testEx": {Value: []byte(`"val"`)}},
+		},
+	}
+	specPath := writeSpec(validOA)
+
+	// Block GenerateTests (needs "tests" dir) for to_sdk
+	outTestsDir := filepath.Join(dir, "out_tests")
+	os.MkdirAll(outTestsDir, 0755)
+	os.WriteFile(filepath.Join(outTestsDir, "tests"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_sdk", specPath, outTestsDir, false, false, true)
+
+	// Block GenerateMocks (needs "mocks" dir) for to_sdk
+	outMocksDir := filepath.Join(dir, "out_mocks")
+	os.MkdirAll(outMocksDir, 0755)
+	os.WriteFile(filepath.Join(outMocksDir, "mocks"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_sdk", specPath, outMocksDir, false, false, true)
+
+	// to_server
+	// block GenerateClasses
+	outClassesDir := filepath.Join(dir, "out_classes_srv")
+	os.MkdirAll(outClassesDir, 0755)
+	os.WriteFile(filepath.Join(outClassesDir, "models"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_server", specPath, outClassesDir, false, false, false)
+
+	// block GenerateTests
+	outTestsDirSrv := filepath.Join(dir, "out_tests_srv")
+	os.MkdirAll(outTestsDirSrv, 0755)
+	os.WriteFile(filepath.Join(outTestsDirSrv, "tests"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_server", specPath, outTestsDirSrv, false, false, true)
+
+	// block GenerateMocks
+	outMocksDirSrv := filepath.Join(dir, "out_mocks_srv")
+	os.MkdirAll(outMocksDirSrv, 0755)
+	os.WriteFile(filepath.Join(outMocksDirSrv, "mocks"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_server", specPath, outMocksDirSrv, false, false, true)
+
+	// to_sdk_cli
+	// block GenerateClasses
+	outClassesDirCli := filepath.Join(dir, "out_classes_cli")
+	os.MkdirAll(outClassesDirCli, 0755)
+	os.WriteFile(filepath.Join(outClassesDirCli, "models"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_sdk_cli", specPath, outClassesDirCli, false, false, false)
+
+	// block GenerateClients
+	outClientsDirCli := filepath.Join(dir, "out_clients_cli")
+	os.MkdirAll(outClientsDirCli, 0755)
+	os.WriteFile(filepath.Join(outClientsDirCli, "client"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_sdk_cli", specPath, outClientsDirCli, false, false, false)
+
+	// block GenerateCLI
+	outCliDir := filepath.Join(dir, "out_cli")
+	os.MkdirAll(outCliDir, 0755)
+	// To block WriteDstFile, we can make the file a directory
+	os.MkdirAll(filepath.Join(outCliDir, "sdk_cli.go"), 0755)
+	_ = RunFromOpenAPI("to_sdk_cli", specPath, outCliDir, false, false, false)
+
+	// block GenerateTests
+	outTestsDirCli := filepath.Join(dir, "out_tests_cli")
+	os.MkdirAll(outTestsDirCli, 0755)
+	os.WriteFile(filepath.Join(outTestsDirCli, "tests"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_sdk_cli", specPath, outTestsDirCli, false, false, true)
+
+	// block GenerateMocks
+	outMocksDirCli := filepath.Join(dir, "out_mocks_cli")
+	os.MkdirAll(outMocksDirCli, 0755)
+	os.WriteFile(filepath.Join(outMocksDirCli, "mocks"), []byte("file"), 0644)
+	_ = RunFromOpenAPI("to_sdk_cli", specPath, outMocksDirCli, false, false, true)
+}
+func TestRunToOpenAPIError(t *testing.T) {
+	err := RunToOpenAPI("nonexistent", "out.json")
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestGenerateOpenAPIComponentsInit2(t *testing.T) {
+	dir := t.TempDir()
+	compCode := `package models
+import "github.com/SamuelMarks/cdd-go/src/openapi"
+var HeaderTest openapi.Header
+var ParamTest openapi.Parameter
+var ReqBodyTest openapi.RequestBody
+var RespTest openapi.Response
+var SecSchemeTest openapi.SecurityScheme
+type SomeSchema struct{}
+`
+	os.WriteFile(filepath.Join(dir, "components.go"), []byte(compCode), 0644)
+	err := GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGenerateOpenAPIComponentsInit3(t *testing.T) {
+	dir := t.TempDir()
+	compCode := `package models
+import "github.com/SamuelMarks/cdd-go/src/openapi"
+var HeaderTest int
+var ParamTest int
+type RequestBodyTest int
+type ResponseTest struct{}
+var SecuritySchemeTest = openapi.SecurityScheme{Type: "http"}
+type SomeSchema struct{}
+`
+	os.WriteFile(filepath.Join(dir, "components.go"), []byte(compCode), 0644)
+	err := GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGenerateOpenAPIComponentsInit4(t *testing.T) {
+	dir := t.TempDir()
+	compCode := `package models
+import "github.com/SamuelMarks/cdd-go/src/openapi"
+type ResponseTest struct{ Data string }
+`
+	os.WriteFile(filepath.Join(dir, "components.go"), []byte(compCode), 0644)
+	err := GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGenerateFileWriteErrors(t *testing.T) {
+	dir := t.TempDir()
+
+	oa := &openapi.OpenAPI{
+		Paths: openapi.Paths{"/test": openapi.PathItem{
+			Get: &openapi.Operation{OperationID: "getTest"},
+		}},
+		Components: &openapi.Components{
+			Schemas:  map[string]openapi.Schema{"Valid": {Type: "string"}},
+			Examples: map[string]openapi.Example{"testEx": {Value: []byte(`"val"`)}},
+		},
+	}
+
+	oa.Components.Headers = map[string]openapi.Header{"TestHeader": {}}
+	oa.Components.Examples["error_mock"] = openapi.Example{}
+
+	os.MkdirAll(filepath.Join(dir, "models", "components.go"), 0755)
+	_ = GenerateClasses(oa, dir)
+
+	os.RemoveAll(filepath.Join(dir, "models"))
+	os.MkdirAll(filepath.Join(dir, "models", "valid.go"), 0755)
+	_ = GenerateClasses(oa, dir)
+
+	os.MkdirAll(filepath.Join(dir, "test_routes.go"), 0755)
+	_ = GenerateRoutes(oa, dir)
+
+	os.MkdirAll(filepath.Join(dir, "client", "test_client.go"), 0755)
+	_ = GenerateClients(oa, dir)
+
+	os.MkdirAll(filepath.Join(dir, "tests", "test_test.go"), 0755)
+	_ = GenerateTests(oa, dir)
+
+	os.MkdirAll(filepath.Join(dir, "mocks", "mocks.go"), 0755)
+	_ = GenerateMocks(oa, dir)
+}
