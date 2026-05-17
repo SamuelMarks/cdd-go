@@ -76,7 +76,7 @@ The Backend's responsibility is to take the universal IR and generate valid targ
   * A **Server Emitter** creates routing controllers and request-validation logic using `gin-gonic`.
   * A **Client Emitter** creates API wrappers, fetch functions, and response-parsing logic using `net/http`.
 * **Database & CLI Generation**: Emitters can also target ORM models (via struct tags for `gorm`) or command-line parsers (via `cobra` commands) by mapping IR properties to database columns or CLI arguments.
-* **Specification Generation**: Emitters translating back to OpenAPI serialize the IR into standard OpenAPI 3.2.0 JSON or YAML, rigorously formatting descriptions, type constraints, and endpoint schemas based on what was parsed from the source code.
+* **Specification Generation**: Emitters translating back to OpenAPI serialize the IR into standard Swagger 2.0 and OpenAPI 3.2.0 JSON or YAML, rigorously formatting descriptions, type constraints, and endpoint schemas based on what was parsed from the source code.
 
 ## 🔄 Extensibility
 

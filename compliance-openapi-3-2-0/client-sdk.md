@@ -1,4 +1,4 @@
-# Client SDK Compliance OpenAPI 3.2.0
+# Client SDK Compliance Swagger 2.0 and OpenAPI 3.2.0
 
 | Feature | Support |
 | :--- | :--- |

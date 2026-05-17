@@ -1,4 +1,4 @@
-# Servers Compliance OpenAPI 3.2.0
+# Servers Compliance Swagger 2.0 and OpenAPI 3.2.0
 
 | Feature | Support |
 | :--- | :--- |
