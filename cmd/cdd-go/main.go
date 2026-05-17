@@ -84,7 +84,7 @@ func run(args []string) error {
 		if out == "" {
 			pwd, err := osGetwd()
 			if err != nil {
-				return err
+				pwd = "."
 			}
 			out = pwd
 		}

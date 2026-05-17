@@ -4,14 +4,12 @@ import (
 	"github.com/SamuelMarks/cdd-go/cdd"
 
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
-
 
 func TestRun(t *testing.T) {
 	err := run([]string{})
@@ -136,13 +134,13 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "string"}}}}`), 0644)
 	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", readonlyDir})
 	if err == nil {
-	        t.Errorf("expected error writing file")
+		t.Errorf("expected error writing file")
 	}
 
 	os.WriteFile(path, []byte(`{"paths": {"/test": {"get": {}}}}`), 0644)
 	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", readonlyDir})
 	if err == nil {
-	        t.Errorf("expected error writing file")
+		t.Errorf("expected error writing file")
 	}
 	// Test emit error inside generateClasses
 	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "unknown-error"}}}}`), 0644)
@@ -183,7 +181,6 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	}
 }
 
-
 func TestGenerateOpenAPIWriteError(t *testing.T) {
 	dir := t.TempDir()
 	goFile := filepath.Join(dir, "input.go")
@@ -198,7 +195,6 @@ func TestGenerateOpenAPIWriteError(t *testing.T) {
 		t.Errorf("expected error opening file that is a dir")
 	}
 }
-
 
 func TestGenerateOpenAPIMkdirError(t *testing.T) {
 	dir := t.TempDir()
@@ -216,7 +212,6 @@ func TestGenerateOpenAPIMkdirError(t *testing.T) {
 		t.Errorf("expected error when mkdir fails")
 	}
 }
-
 
 func TestGenerateOpenAPIReadDirError(t *testing.T) {
 	dir := t.TempDir()
@@ -351,9 +346,9 @@ func TestGenerateClientsWriteError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
 	os.WriteFile(path, []byte(`{"paths": {"/client-only": {"get": {}}}}`), 0644)
-        readonlyDir := filepath.Join(dir, "readonly")
-        os.MkdirAll(readonlyDir, 0755)
-        os.MkdirAll(filepath.Join(readonlyDir, "client", "client-only_client.go"), 0755)
+	readonlyDir := filepath.Join(dir, "readonly")
+	os.MkdirAll(readonlyDir, 0755)
+	os.MkdirAll(filepath.Join(readonlyDir, "client", "client-only_client.go"), 0755)
 
 	err := run([]string{"from_openapi", "to_sdk", "-i", path, "-o", readonlyDir})
 	if err == nil {
@@ -381,7 +376,6 @@ func TestGenerateCLI(t *testing.T) {
 	}
 }
 
-
 func TestGenerateCLIError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
@@ -395,7 +389,6 @@ func TestGenerateCLIError(t *testing.T) {
 		t.Errorf("expected error writing CLI file")
 	}
 }
-
 
 func TestCoverageExtras(t *testing.T) {
 	// from_openapi with --input-dir
@@ -535,21 +528,6 @@ func TestCoverageLeftovers(t *testing.T) {
 		t.Errorf("unexpected err: %v", err)
 	}
 }
-
-func TestGetwdErr(t *testing.T) {
-	orig := osGetwd
-	osGetwd = func() (string, error) { return "", fmt.Errorf("simulated getwd err") }
-	defer func() { osGetwd = orig }()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, "openapi.json")
-	os.WriteFile(path, []byte(`{"openapi": "3.2.0"}`), 0644)
-	err := run([]string{"from_openapi", "to_sdk", "-i", path})
-	if err == nil {
-		t.Errorf("expected err")
-	}
-}
-
 
 func TestGenerateCLIErr2(t *testing.T) {
 	dir := t.TempDir()
