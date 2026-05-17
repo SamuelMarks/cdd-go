@@ -49,3 +49,4 @@ my_generated_sdk_petstore/
 patch.go
 query_test.go
 test_main.go
+*.bak
