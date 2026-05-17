@@ -50,3 +50,5 @@ patch.go
 query_test.go
 test_main.go
 *.bak
+my_generated_sdk_swagger/
+my_generated_sdk_oas3/
