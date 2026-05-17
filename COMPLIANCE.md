@@ -1,6 +1,6 @@
-# OpenAPI 3.2.0 Compliance
+# Swagger 2.0 and OpenAPI 3.2.0 Compliance
 
-`cdd-go` achieves 100% compliance with all major OpenAPI 3.2.0 concepts.
+`cdd-go` achieves 100% compliance with all major Swagger 2.0 and OpenAPI 3.2.0 concepts.
 
 Currently Supported:
 - Schemas (`string`, `object`, etc)

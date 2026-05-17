@@ -1,4 +1,4 @@
-# CLI Compliance OpenAPI 3.2.0
+# CLI Compliance Swagger 2.0 and OpenAPI 3.2.0
 
 | Feature | Support |
 | :--- | :--- |
