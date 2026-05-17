@@ -12,11 +12,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v4
+
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v5
       with:
         go-version: '1.25'
+
+    - name: Check Go Format
+      run: |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "The following files are not formatted properly:"
+          echo "$unformatted"
+          exit 1
+        fi
 
     - name: Install Dependencies
       run: make install_deps
@@ -24,8 +34,30 @@ jobs:
     - name: Build
       run: make build
 
+    - name: Go Lint (vet)
+      run: go vet ./...
+
     - name: Test
       run: make test
+
+    - name: Check README Coverage Badges
+      run: |
+        python3 scripts/update_badges.py
+        if ! git diff --exit-code README.md; then
+          echo "Coverage badges in README.md are out of date. Please run pre-commit or scripts/update_badges.py locally and commit the changes."
+          exit 1
+        fi
+
+    - name: Download Petstore Specs for Validation
+      run: |
+        curl -sL https://raw.githubusercontent.com/SamuelMarks/cdd-openapi-test-harness/master/petstore.json -o ../petstore.json
+        curl -sL https://raw.githubusercontent.com/SamuelMarks/cdd-openapi-test-harness/master/petstore_oas3.json -o ../petstore_oas3.json
+
+    - name: Swagger 2.0 Petstore test
+      run: ./bin/cdd-go from_openapi to_sdk -i ../petstore.json -o my_generated_sdk_swagger
+
+    - name: OpenAPI 3.2.0 Petstore test
+      run: ./bin/cdd-go from_openapi to_sdk -i ../petstore_oas3.json -o my_generated_sdk_oas3
 
     - name: Build WASM
       run: make build_wasm
