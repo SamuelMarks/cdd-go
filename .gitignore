@@ -33,7 +33,6 @@ temp-*
 !setup.py
 *.out
 
-
 # Go specific
 *.exe
 *.exe~
@@ -44,11 +43,8 @@ temp-*
 vendor/
 
 # Generated SDKs and test files
-my_generated_sdk/
-my_generated_sdk_petstore/
+my_generated_sdk*/
 patch.go
 query_test.go
 test_main.go
 *.bak
-my_generated_sdk_swagger/
-my_generated_sdk_oas3/
