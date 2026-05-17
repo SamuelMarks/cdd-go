@@ -1,13 +1,13 @@
 package tests
 
 import (
-        "fmt"
-        "strings"
-        "time"
+	"fmt"
+	"strings"
+	"time"
 
-        "go/token"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
+	"go/token"
 )
 
 // EmitTest generates a dst.FuncDecl for testing an OpenAPI operation.
@@ -46,9 +46,9 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	}
 
 	if op.Summary != "" {
-	        fd.Decs.Start.Append(fmt.Sprintf("// %s tests the %s operation. %d", name, op.Summary, time.Now().UnixNano()))
+		fd.Decs.Start.Append(fmt.Sprintf("// %s tests the %s operation. %d", name, op.Summary, time.Now().UnixNano()))
 	} else {
-	        fd.Decs.Start.Append(fmt.Sprintf("// %s tests the operation. %d", name, time.Now().UnixNano()))
+		fd.Decs.Start.Append(fmt.Sprintf("// %s tests the operation. %d", name, time.Now().UnixNano()))
 	}
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("_")},
@@ -219,37 +219,37 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 
 	// if err != nil { t.Fatal(err) }
 	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
-	        Cond: &dst.BinaryExpr{
-	                X:  dst.NewIdent("err"),
-	                Op: token.NEQ, // token.NEQ (!=)
-	                Y:  dst.NewIdent("nil"),
-	        },
-	        Body: &dst.BlockStmt{
-	                List: []dst.Stmt{
-	                        &dst.ExprStmt{
-	                                X: &dst.CallExpr{
-	                                        Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
-	                                        Args: []dst.Expr{dst.NewIdent("err")},
-	                                },
-	                        },
-	                },
-	        },
+		Cond: &dst.BinaryExpr{
+			X:  dst.NewIdent("err"),
+			Op: token.NEQ, // token.NEQ (!=)
+			Y:  dst.NewIdent("nil"),
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.ExprStmt{
+					X: &dst.CallExpr{
+						Fun:  &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")},
+						Args: []dst.Expr{dst.NewIdent("err")},
+					},
+				},
+			},
+		},
 	})
 
 	// add required headers for testing
 	if bodyArg != "nil" {
-	        fd.Body.List = append(fd.Body.List, &dst.ExprStmt{
-	                X: &dst.CallExpr{
-	                        Fun: &dst.SelectorExpr{
-	                                X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
-	                                Sel: dst.NewIdent("Set"),
-	                        },
-	                        Args: []dst.Expr{
-	                                &dst.BasicLit{Kind: token.STRING, Value: `"Content-Type"`},
-	                                &dst.BasicLit{Kind: token.STRING, Value: `"` + contentType + `"`},
-	                        },
-	                },
-	        })
+		fd.Body.List = append(fd.Body.List, &dst.ExprStmt{
+			X: &dst.CallExpr{
+				Fun: &dst.SelectorExpr{
+					X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
+					Sel: dst.NewIdent("Set"),
+				},
+				Args: []dst.Expr{
+					&dst.BasicLit{Kind: token.STRING, Value: `"Content-Type"`},
+					&dst.BasicLit{Kind: token.STRING, Value: `"` + contentType + `"`},
+				},
+			},
+		})
 	}
 	fd.Body.List = append(fd.Body.List, &dst.ExprStmt{
 		X: &dst.CallExpr{
@@ -265,28 +265,28 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	})
 
 	fd.Body.List = append(fd.Body.List, &dst.ExprStmt{
-	        X: &dst.CallExpr{
-	                Fun: &dst.SelectorExpr{
-	                        X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
-	                        Sel: dst.NewIdent("Set"),
-	                },
-	                Args: []dst.Expr{
-	                        &dst.BasicLit{Kind: token.STRING, Value: `"api_key"`},
-	                        &dst.BasicLit{Kind: token.STRING, Value: `"special-key"`},
-	                },
-	        },
+		X: &dst.CallExpr{
+			Fun: &dst.SelectorExpr{
+				X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
+				Sel: dst.NewIdent("Set"),
+			},
+			Args: []dst.Expr{
+				&dst.BasicLit{Kind: token.STRING, Value: `"api_key"`},
+				&dst.BasicLit{Kind: token.STRING, Value: `"special-key"`},
+			},
+		},
 	})
 	fd.Body.List = append(fd.Body.List, &dst.ExprStmt{
-	        X: &dst.CallExpr{
-	                Fun: &dst.SelectorExpr{
-	                        X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
-	                        Sel: dst.NewIdent("Set"),
-	                },
-	                Args: []dst.Expr{
-	                        &dst.BasicLit{Kind: token.STRING, Value: `"Authorization"`},
-	                        &dst.BasicLit{Kind: token.STRING, Value: `"Bearer special-key"`},
-	                },
-	        },
+		X: &dst.CallExpr{
+			Fun: &dst.SelectorExpr{
+				X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
+				Sel: dst.NewIdent("Set"),
+			},
+			Args: []dst.Expr{
+				&dst.BasicLit{Kind: token.STRING, Value: `"Authorization"`},
+				&dst.BasicLit{Kind: token.STRING, Value: `"Bearer special-key"`},
+			},
+		},
 	})
 
 	// client := &http.Client{}
@@ -473,19 +473,20 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	})
 
 	fd.Body.List = append(fd.Body.List, &dst.ExprStmt{
-	        X: &dst.CallExpr{
-	                Fun: &dst.SelectorExpr{
-	                        X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
-	                        Sel: dst.NewIdent("Set"),
-	                },
-	                Args: []dst.Expr{
-	                        &dst.BasicLit{Kind: token.STRING, Value: `"X-Random-Cache-Buster"`},
-	                        &dst.BasicLit{Kind: token.STRING, Value: `"` + fmt.Sprintf("%d", time.Now().UnixNano()) + `"`},
-	                },
-	        },
+		X: &dst.CallExpr{
+			Fun: &dst.SelectorExpr{
+				X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
+				Sel: dst.NewIdent("Set"),
+			},
+			Args: []dst.Expr{
+				&dst.BasicLit{Kind: token.STRING, Value: `"X-Random-Cache-Buster"`},
+				&dst.BasicLit{Kind: token.STRING, Value: `"` + fmt.Sprintf("%d", time.Now().UnixNano()) + `"`},
+			},
+		},
 	})
 
-	return fd, nil}
+	return fd, nil
+}
 
 func toCamelCase(s string) string {
 	parts := strings.Split(s, "/")

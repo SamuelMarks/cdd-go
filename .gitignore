@@ -48,3 +48,10 @@ patch.go
 query_test.go
 test_main.go
 *.bak
+
+# IDEs and Editors
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
