@@ -32,7 +32,7 @@ temp-*
 !scripts/*.py
 !setup.py
 *.out
-!coverage.out
+
 
 # Go specific
 *.exe

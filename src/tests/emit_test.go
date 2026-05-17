@@ -135,7 +135,7 @@ func TestEmitTestCoverageExtras(t *testing.T) {
 	for _, cType := range contentTypes {
 		op := &openapi.Operation{
 			OperationID: "op",
-			Consumes: []string{cType}, 
+			Consumes:    []string{cType},
 			Parameters: []openapi.Parameter{
 				{Name: "body", In: "body", Schema: &openapi.Schema{Type: "object"}},
 			},
@@ -147,7 +147,7 @@ func TestEmitTestCoverageExtras(t *testing.T) {
 func TestEmitTestCoverageExtrasBreakLoop(t *testing.T) {
 	op := &openapi.Operation{
 		OperationID: "opBreak",
-		Consumes: []string{"something-else", "application/json"},
+		Consumes:    []string{"something-else", "application/json"},
 		Parameters: []openapi.Parameter{
 			{Name: "body", In: "body"},
 		},
