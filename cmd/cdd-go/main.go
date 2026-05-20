@@ -77,6 +77,7 @@ func run(args []string) error {
 		fs.BoolVar(&noGithubActions, "no-github-actions", envOrDefaultBool("CDD_GO_NO_GITHUB_ACTIONS", false), "Do not generate GitHub Actions")
 		fs.BoolVar(&noInstallablePackage, "no-installable-package", envOrDefaultBool("CDD_GO_NO_INSTALLABLE_PACKAGE", false), "Do not generate installable package scaffolding")
 		fs.BoolVar(&tests, "create-composable-tests", envOrDefaultBool("CDD_GO_CREATE_COMPOSABLE_TESTS", false), "Create composable tests & mocks")
+		fs.BoolVar(&tests, "tests", envOrDefaultBool("CDD_GO_CREATE_COMPOSABLE_TESTS", false), "Alias for create-composable-tests")
 
 		if err := fs.Parse(args[2:]); err != nil {
 			return err
