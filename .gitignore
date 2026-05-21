@@ -55,3 +55,13 @@ test_main.go
 *.swo
 *~
 .DS_Store
+
+# Additional ignores for test, generated, and temporary files
+out/
+my_generated_sdk*/
+petstore*.json
+petstore*.yaml
+spec*.json
+test_args.go
+test_exports.js
+temp-*.json
