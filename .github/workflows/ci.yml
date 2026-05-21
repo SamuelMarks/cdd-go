@@ -42,9 +42,9 @@ jobs:
 
     - name: Check README Coverage Badges
       run: |
-        python3 scripts/update_badges.py
+        go run scripts/update_badges/update_badges.go
         if ! git diff --exit-code README.md; then
-          echo "Coverage badges in README.md are out of date. Please run pre-commit or scripts/update_badges.py locally and commit the changes."
+          echo "Coverage badges in README.md are out of date. Please run pre-commit or the update badges script locally and commit the changes."
           exit 1
         fi
 
