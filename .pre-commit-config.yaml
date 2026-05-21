@@ -6,6 +6,9 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+        exclude: \.(bat|cmd|ps1)$
 
   - repo: local
     hooks:
@@ -38,28 +41,28 @@ repos:
 
       - id: update-badges
         name: Update README shields
-        entry: python3 scripts/update_badges.py
+        entry: go run scripts/update_badges/update_badges.go
         language: system
         pass_filenames: false
         files: \.go$|^README\.md$
 
       - id: test-swagger-petstore
         name: Swagger 2.0 Petstore test
-        entry: bash -c './bin/cdd-go from_openapi to_sdk -i ../petstore.json -o my_generated_sdk_swagger'
+        entry: go run ./cmd/cdd-go from_openapi to_sdk -i ../petstore.json -o my_generated_sdk_swagger
         language: system
         pass_filenames: false
         files: \.go$
 
       - id: test-openapi-petstore
         name: OpenAPI 3.2.0 Petstore test
-        entry: bash -c './bin/cdd-go from_openapi to_sdk -i ../petstore_oas3.json -o my_generated_sdk_oas3'
+        entry: go run ./cmd/cdd-go from_openapi to_sdk -i ../petstore_oas3.json -o my_generated_sdk_oas3
         language: system
         pass_filenames: false
         files: \.go$
 
       - id: test-build-wasm
         name: Build WASM
-        entry: make build_wasm
+        entry: go run scripts/build_wasm/build_wasm.go
         language: system
         pass_filenames: false
         files: \.go$
