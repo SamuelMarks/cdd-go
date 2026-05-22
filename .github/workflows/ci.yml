@@ -8,6 +8,9 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -62,16 +65,39 @@ jobs:
     - name: Build WASM
       run: make build_wasm
 
+    - name: Install binaryen
+      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      run: sudo apt-get update && sudo apt-get install -y binaryen
+
+    - name: Optimize WASM
+      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      run: |
+        for f in bin/*.wasm; do
+          if [ -f "$f" ]; then
+            wasm-opt -O3 "$f" -o "$f" || true
+          fi
+        done
+
     - name: Build Docker Alpine
       run: docker build -t cdd-go:alpine -f alpine.Dockerfile .
 
     - name: Build Docker Debian
       run: docker build -t cdd-go:debian -f debian.Dockerfile .
 
+    - name: Update latest tag
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git tag -f latest
+        git push origin -f latest
+
     - name: Upload Artifacts
-      if: startsWith(github.ref, 'refs/tags/')
+      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
         files: |
           bin/cdd-go
           bin/cdd-go.wasm
+        prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
