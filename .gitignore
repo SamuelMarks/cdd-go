@@ -6,7 +6,6 @@ bin/
 
 # Coverage
 *coverage.html
-coverage.out
 *.tmp
 
 # Temporary debug/fix scripts
@@ -70,3 +69,5 @@ temp-*.json
 **/generated
 **/.github
 !/.github/
+
+coverage.out
