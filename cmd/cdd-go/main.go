@@ -56,7 +56,7 @@ func run(args []string) error {
 		fmt.Println("  -v, --version    Show version information")
 		return nil
 	case "-v", "--version", "version":
-		fmt.Println("cdd-go version 0.0.1")
+		fmt.Println("0.0.1")
 		return nil
 	case "server_json_rpc":
 		return runServerJSONRPC(args[1:])

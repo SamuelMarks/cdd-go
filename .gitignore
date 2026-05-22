@@ -65,3 +65,8 @@ spec*.json
 test_args.go
 test_exports.js
 temp-*.json
+
+# Ignore nested generated and github folders
+**/generated
+**/.github
+!/.github/

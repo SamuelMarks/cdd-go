@@ -138,7 +138,7 @@ func GenerateGithubActions(outDir string) {
 	ciPath := filepath.Join(outDir, ".github", "workflows", "ci.yml")
 	os.MkdirAll(filepath.Dir(ciPath), 0755)
 	if _, err := os.Stat(ciPath); os.IsNotExist(err) {
-		content := "name: CI\n\non:\n  push:\n    branches: [ main ]\n  pull_request:\n    branches: [ main ]\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n    - uses: actions/checkout@v4\n    - name: Set up Go\n      uses: actions/setup-go@v5\n      with:\n        go-version: '1.25'\n    - name: Build\n      run: go build -v ./...\n    - name: Test\n      run: go test -v ./...\n"
+		content := "name: CI\n\non:\n  push:\n    branches: [ main ]\n  pull_request:\n    branches: [ main ]\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n    - uses: actions/checkout@v6\n    - name: Set up Go\n      uses: actions/setup-go@v5\n      with:\n        go-version: '1.25'\n    - name: Build\n      run: go build -v ./...\n    - name: Test\n      run: go test -v ./...\n"
 		os.WriteFile(ciPath, []byte(content), 0644)
 	}
 }
