@@ -36,7 +36,7 @@ func main() {
 	}
 
 	testCov := 0.0
-	cmd := exec.Command("go", "test", "-coverprofile=coverage.out", "./...")
+	cmd := exec.Command("go", "test", "-coverprofile=coverage.out", "./cmd/...", "./src/...", "./cdd/...")
 	cmd.Run() // Ignore error, tests might fail
 
 	cmd = exec.Command("go", "tool", "cover", "-func=coverage.out")

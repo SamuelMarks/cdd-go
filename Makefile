@@ -35,9 +35,8 @@ build: install_deps
 	go build -o $(BIN_DIR)/cdd-go ./cmd/cdd-go
 
 test:
-	go test -v -coverprofile=coverage.out ./cmd/... ./src/...
+	go test -v -coverprofile=coverage.out ./cmd/... ./src/... ./cdd/...
 	go tool cover -func=coverage.out
-
 run: build
 	./$(BIN_DIR)/cdd-go $(ARGS)
 
