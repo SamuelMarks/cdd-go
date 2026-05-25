@@ -7,6 +7,7 @@ if "%1" == "all" goto help
 if "%1" == "install_base" goto install_base
 if "%1" == "install_deps" goto install_deps
 if "%1" == "build_docs" goto build_docs
+if "%1" == "docs" goto docs
 if "%1" == "build" goto build
 if "%1" == "test" goto test
 if "%1" == "run" goto run
@@ -19,6 +20,7 @@ echo Available tasks:
 echo   install_base   Install language runtime & tools
 echo   install_deps   Install dependencies
 echo   build_docs     Build the API docs
+echo   docs           Generate Go API docs into docs/html
 echo   build          Build the CLI binary
 echo   test           Run tests locally
 echo   run            Run the CLI
@@ -45,6 +47,16 @@ goto end
 if not exist "docs" mkdir "docs"
 call :build
 bin\cdd-go.exe to_docs_json -i spec.json -o docs\docs.json
+goto end
+
+:docs
+if exist "docs\cdd-go" rmdir /s /q "docs\cdd-go"
+if exist "docs\html" rmdir /s /q "docs\html"
+if exist "docs\html" del /q "docs\html"
+go run go101.org/golds@latest -gen -dir=docs\cdd-go -nouses -wdpkgs-listing=solo .\...
+cd docs
+mklink /J html cdd-go
+cd ..
 goto end
 
 :build

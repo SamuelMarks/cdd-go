@@ -1,4 +1,4 @@
-.PHONY: all default help install_base install_deps build_docs build test run build_wasm build_docker run_docker
+.PHONY: all default help install_base install_deps build_docs docs build test run build_wasm build_docker run_docker
 
 default: all
 
@@ -9,6 +9,7 @@ help:
 	@echo "  install_base   Install language runtime & tools"
 	@echo "  install_deps   Install dependencies"
 	@echo "  build_docs     Build the API docs (specify DOCS_DIR=... for alternative)"
+	@echo "  docs           Generate Go API docs into docs/html"
 	@echo "  build          Build the CLI binary (specify BIN_DIR=... for alternative)"
 	@echo "  test           Run tests locally"
 	@echo "  run            Run the CLI (builds if not built, pass args via ARGS=\"...\")"
@@ -28,6 +29,11 @@ DOCS_DIR ?= docs
 build_docs: build
 	mkdir -p $(DOCS_DIR)
 	./bin/cdd-go to_docs_json -i spec.json -o $(DOCS_DIR)/docs.json || true
+
+docs:
+	rm -rf docs/cdd-go docs/html
+	go run go101.org/golds@latest -gen -dir=docs/cdd-go -nouses -wdpkgs-listing=solo ./...
+	cd docs && ln -sf cdd-go html
 
 BIN_DIR ?= bin
 build: install_deps
