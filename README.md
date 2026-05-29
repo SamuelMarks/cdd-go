@@ -3,7 +3,7 @@ cdd-go
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![interactive WASM web demo](https://img.shields.io/badge/interactive-WASM_web_demo-blue.svg)](https://offscale.io/wasm_web_demo)
 [![CI](https://github.com/SamuelMarks/cdd-go/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/cdd-go/actions)
-[![Test Coverage](https://img.shields.io/badge/test_coverage-100%25-brightgreen.svg)](#)
+[![Test Coverage](https://img.shields.io/badge/test_coverage-97.5%25-brightgreen.svg)](#)
 [![Doc Coverage](https://img.shields.io/badge/doc_coverage-100%25-brightgreen.svg)](#)
 
 ----
@@ -21,7 +21,7 @@ The CLI—at a minimum—has:
 - `cdd-go from_openapi to_sdk_cli -i spec.json`
 - `cdd-go from_openapi to_sdk -i spec.json`
 - `cdd-go from_openapi to_server -i spec.json`
-- `cdd-go to_openapi -f path/to/code`
+- `cdd-go to_openapi -i path/to/code`
 - `cdd-go to_docs_json --no-imports --no-wrapping -i spec.json`
 - `cdd-go serve_json_rpc --port 8080 --listen 0.0.0.0`
 

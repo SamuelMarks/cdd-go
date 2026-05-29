@@ -9,6 +9,21 @@ import (
 	"github.com/dave/dst"
 )
 
+// toSnakeCase converts PascalCase or camelCase to snake_case.
+func toSnakeCase(s string) string {
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	for i, c := range s {
+		if i > 0 && c >= 'A' && c <= 'Z' {
+			b.WriteRune('_')
+		}
+		b.WriteRune(c)
+	}
+	return strings.ToLower(b.String())
+}
+
 // Emit formats an OpenAPI Operation object into a Cobra command AST representation.
 func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 	if op == nil {
@@ -22,8 +37,7 @@ func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 		opID = strings.ReplaceAll(opID, "}", "")
 	}
 
-	useName := strings.ToLower(opID)
-
+	useName := toSnakeCase(opID)
 	cl := &dst.CompositeLit{
 		Type: &dst.SelectorExpr{
 			X:   dst.NewIdent("cobra"),

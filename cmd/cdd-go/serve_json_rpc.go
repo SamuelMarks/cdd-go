@@ -23,16 +23,17 @@ type RPCResponse struct {
 	ID     interface{} `json:"id"`
 }
 
-func runServerJSONRPC(args []string) error {
-	fs := flag.NewFlagSet("server_json_rpc", flag.ContinueOnError)
+func runServeJSONRPC(args []string) error {
+	fs := flag.NewFlagSet("serve_json_rpc", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
 	var port int
 	var listen string
 
-	fs.IntVar(&port, "port", 8080, "Port to listen on")
-	fs.StringVar(&listen, "listen", "0.0.0.0", "Address to listen on")
-
+	fs.IntVar(&port, "port", envOrDefaultInt("CDD_PORT", 8080), "Port to listen on")
+	fs.IntVar(&port, "p", envOrDefaultInt("CDD_PORT", 8080), "Port to listen on (shorthand)")
+	fs.StringVar(&listen, "listen", envOrDefault("CDD_LISTEN", "127.0.0.1"), "Address to listen on")
+	fs.StringVar(&listen, "l", envOrDefault("CDD_LISTEN", "127.0.0.1"), "Address to listen on (shorthand)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -118,19 +119,19 @@ func runServerJSONRPC(args []string) error {
 					args = append(args, "-i", in)
 				}
 				if inDir, ok := mapParams["input_dir"].(string); ok && inDir != "" {
-					args = append(args, "-input-dir", inDir)
+					args = append(args, "--input-dir", inDir)
 				}
 				if out, ok := mapParams["output"].(string); ok && out != "" {
 					args = append(args, "-o", out)
 				}
 				if noGithub, ok := mapParams["no_github_actions"].(bool); ok && noGithub {
-					args = append(args, "-no-github-actions")
+					args = append(args, "--no-github-actions")
 				}
 				if noInstall, ok := mapParams["no_installable_package"].(bool); ok && noInstall {
-					args = append(args, "-no-installable-package")
+					args = append(args, "--no-installable-package")
 				}
 				if createTests, ok := mapParams["tests"].(bool); ok && createTests {
-					args = append(args, "-create-composable-tests")
+					args = append(args, "--tests")
 				}
 				err := run(args)
 				if err != nil {

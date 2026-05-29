@@ -181,7 +181,7 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	// generate composable tests and mocks test
 	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "paths": {"/test": {"get": {"summary": "test operation"}}}, "components": {"examples": {"testEx": {"value": "some-val"}}}}`), 0644)
 	compDir := filepath.Join(dir, "composable")
-	err = run([]string{"from_openapi", "to_sdk", "-i", path, "-o", compDir, "-create-composable-tests"})
+	err = run([]string{"from_openapi", "to_sdk", "-i", path, "-o", compDir, "--tests"})
 	if err != nil {
 		t.Errorf("unexpected error creating composable tests: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestCoverageExtras(t *testing.T) {
 	}
 
 	// from_openapi unknown subsubcommand
-	err = run([]string{"from_openapi", "unknown", "-i", path, "-no-installable-package", "-no-github-actions"})
+	err = run([]string{"from_openapi", "unknown", "-i", path, "--no-installable-package", "--no-github-actions"})
 	if err == nil {
 		t.Errorf("expected error for unknown subsubcommand")
 	}
@@ -584,9 +584,9 @@ func TestGenerateOpenAPIParseErr(t *testing.T) {
 	cdd.GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
 }
 
-func TestRunServerJSONRPCPortErr(t *testing.T) {
+func TestRunServeJSONRPCPortErr(t *testing.T) {
 	// Don't test port -1 if it causes http handle func panics because of conflicting registrations, test invalid flag instead for basic coverage
-	err := run([]string{"server_json_rpc", "-invalid_port_flag"})
+	err := run([]string{"serve_json_rpc", "-invalid_port_flag"})
 	if err == nil {
 		t.Errorf("expected err")
 	}

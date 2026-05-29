@@ -72,7 +72,7 @@ func TestGenerateSDK(t *testing.T) {
 	}
 }
 
-func TestRunFromOpenAPI(t *testing.T) {
+func TestGenerateFromOpenApi(t *testing.T) {
 	dir := t.TempDir()
 
 	oa := &openapi.OpenAPI{
@@ -96,38 +96,38 @@ func TestRunFromOpenAPI(t *testing.T) {
 	specPath := filepath.Join(dir, "openapi.json")
 	os.WriteFile(specPath, b, 0644)
 
-	err := RunFromOpenAPI("to_sdk", specPath, filepath.Join(dir, "sdk"), false, false, true)
+	err := GenerateFromOpenApi("to_sdk", specPath, filepath.Join(dir, "sdk"), false, false, true)
 	if err != nil {
 		t.Errorf("to_sdk error: %v", err)
 	}
 
-	err = RunFromOpenAPI("to_server", specPath, filepath.Join(dir, "server"), false, false, true)
+	err = GenerateFromOpenApi("to_server", specPath, filepath.Join(dir, "server"), false, false, true)
 	if err != nil {
 		t.Errorf("to_server error: %v", err)
 	}
 
-	err = RunFromOpenAPI("to_sdk_cli", specPath, filepath.Join(dir, "cli"), false, false, true)
+	err = GenerateFromOpenApi("to_sdk_cli", specPath, filepath.Join(dir, "cli"), false, false, true)
 	if err != nil {
 		t.Errorf("to_sdk_cli error: %v", err)
 	}
 
-	err = RunFromOpenAPI("invalid", specPath, dir, true, true, false)
+	err = GenerateFromOpenApi("invalid", specPath, dir, true, true, false)
 	if err == nil {
 		t.Error("expected error for invalid subsubcommand")
 	}
 
-	err = RunFromOpenAPI("to_sdk", "", dir, true, true, false)
+	err = GenerateFromOpenApi("to_sdk", "", dir, true, true, false)
 	if err == nil {
 		t.Error("expected error for empty input")
 	}
 
-	err = RunFromOpenAPI("to_sdk", "nonexistent.json", dir, true, true, false)
+	err = GenerateFromOpenApi("to_sdk", "nonexistent.json", dir, true, true, false)
 	if err == nil {
 		t.Error("expected error for nonexistent input")
 	}
 }
 
-func TestRunToOpenAPI(t *testing.T) {
+func TestGenerateToOpenApi(t *testing.T) {
 	dir := t.TempDir()
 
 	goCode := `package models
@@ -136,12 +136,12 @@ type ClientTest interface { GetTest() }
 `
 	os.WriteFile(filepath.Join(dir, "models.go"), []byte(goCode), 0644)
 
-	err := RunToOpenAPI(dir, filepath.Join(dir, "out"))
+	err := GenerateToOpenApi(dir, filepath.Join(dir, "out"))
 	if err != nil {
-		t.Errorf("RunToOpenAPI error: %v", err)
+		t.Errorf("GenerateToOpenApi error: %v", err)
 	}
 
-	err = RunToOpenAPI("", filepath.Join(dir, "out"))
+	err = GenerateToOpenApi("", filepath.Join(dir, "out"))
 	if err == nil {
 		t.Error("expected error for empty input")
 	}
@@ -235,7 +235,7 @@ func TestGenerateCLIEmptyPaths(t *testing.T) {
 	}
 }
 
-func TestRunToOpenAPIDir(t *testing.T) {
+func TestGenerateToOpenApiDir(t *testing.T) {
 	dir := t.TempDir()
 	outDir := filepath.Join(dir, "out")
 	os.MkdirAll(outDir, 0755)
@@ -244,9 +244,9 @@ func TestRunToOpenAPIDir(t *testing.T) {
 `
 	os.WriteFile(filepath.Join(dir, "models.go"), []byte(goCode), 0644)
 
-	err := RunToOpenAPI(dir, outDir)
+	err := GenerateToOpenApi(dir, outDir)
 	if err != nil {
-		t.Errorf("RunToOpenAPI error: %v", err)
+		t.Errorf("GenerateToOpenApi error: %v", err)
 	}
 }
 
@@ -335,11 +335,11 @@ func TestGenerateTestsNoTests(t *testing.T) {
 	}
 }
 
-func TestRunFromOpenAPIParseError(t *testing.T) {
+func TestGenerateFromOpenApiParseError(t *testing.T) {
 	dir := t.TempDir()
 	specPath := filepath.Join(dir, "bad.json")
 	os.WriteFile(specPath, []byte("{"), 0644)
-	err := RunFromOpenAPI("to_sdk", specPath, dir, false, false, false)
+	err := GenerateFromOpenApi("to_sdk", specPath, dir, false, false, false)
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -479,7 +479,7 @@ func TestGenerateClassesErrorWrite(t *testing.T) {
 	}
 }
 
-func TestRunFromOpenAPIAllErrors(t *testing.T) {
+func TestGenerateFromOpenApiAllErrors(t *testing.T) {
 	dir := t.TempDir()
 
 	writeSpec := func(oa *openapi.OpenAPI) string {
@@ -496,7 +496,7 @@ func TestRunFromOpenAPIAllErrors(t *testing.T) {
 		},
 	}
 	specPath := writeSpec(oaClassesErr)
-	_ = RunFromOpenAPI("to_sdk", specPath, dir, false, false, true)
+	_ = GenerateFromOpenApi("to_sdk", specPath, dir, false, false, true)
 
 	// 2. GenerateRoutes error
 	oaRoutesErr := &openapi.OpenAPI{
@@ -505,7 +505,7 @@ func TestRunFromOpenAPIAllErrors(t *testing.T) {
 		}},
 	}
 	specPath = writeSpec(oaRoutesErr)
-	_ = RunFromOpenAPI("to_server", specPath, dir, false, false, false)
+	_ = GenerateFromOpenApi("to_server", specPath, dir, false, false, false)
 
 	// 3. GenerateClients error
 	oaClientsErr := &openapi.OpenAPI{
@@ -514,7 +514,7 @@ func TestRunFromOpenAPIAllErrors(t *testing.T) {
 		}},
 	}
 	specPath = writeSpec(oaClientsErr)
-	_ = RunFromOpenAPI("to_sdk", specPath, dir, false, false, false)
+	_ = GenerateFromOpenApi("to_sdk", specPath, dir, false, false, false)
 
 }
 
@@ -528,7 +528,7 @@ func TestGenerateOpenAPIMissingLoops(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "components.go"), []byte(compCode), 0644)
 	_ = GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
 }
-func TestRunFromOpenAPIMkdirErrors(t *testing.T) {
+func TestGenerateFromOpenApiMkdirErrors(t *testing.T) {
 	dir := t.TempDir()
 
 	writeSpec := func(oa *openapi.OpenAPI) string {
@@ -553,67 +553,67 @@ func TestRunFromOpenAPIMkdirErrors(t *testing.T) {
 	outTestsDir := filepath.Join(dir, "out_tests")
 	os.MkdirAll(outTestsDir, 0755)
 	os.WriteFile(filepath.Join(outTestsDir, "tests"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_sdk", specPath, outTestsDir, false, false, true)
+	_ = GenerateFromOpenApi("to_sdk", specPath, outTestsDir, false, false, true)
 
 	// Block GenerateMocks (needs "mocks" dir) for to_sdk
 	outMocksDir := filepath.Join(dir, "out_mocks")
 	os.MkdirAll(outMocksDir, 0755)
 	os.WriteFile(filepath.Join(outMocksDir, "mocks"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_sdk", specPath, outMocksDir, false, false, true)
+	_ = GenerateFromOpenApi("to_sdk", specPath, outMocksDir, false, false, true)
 
 	// to_server
 	// block GenerateClasses
 	outClassesDir := filepath.Join(dir, "out_classes_srv")
 	os.MkdirAll(outClassesDir, 0755)
 	os.WriteFile(filepath.Join(outClassesDir, "models"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_server", specPath, outClassesDir, false, false, false)
+	_ = GenerateFromOpenApi("to_server", specPath, outClassesDir, false, false, false)
 
 	// block GenerateTests
 	outTestsDirSrv := filepath.Join(dir, "out_tests_srv")
 	os.MkdirAll(outTestsDirSrv, 0755)
 	os.WriteFile(filepath.Join(outTestsDirSrv, "tests"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_server", specPath, outTestsDirSrv, false, false, true)
+	_ = GenerateFromOpenApi("to_server", specPath, outTestsDirSrv, false, false, true)
 
 	// block GenerateMocks
 	outMocksDirSrv := filepath.Join(dir, "out_mocks_srv")
 	os.MkdirAll(outMocksDirSrv, 0755)
 	os.WriteFile(filepath.Join(outMocksDirSrv, "mocks"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_server", specPath, outMocksDirSrv, false, false, true)
+	_ = GenerateFromOpenApi("to_server", specPath, outMocksDirSrv, false, false, true)
 
 	// to_sdk_cli
 	// block GenerateClasses
 	outClassesDirCli := filepath.Join(dir, "out_classes_cli")
 	os.MkdirAll(outClassesDirCli, 0755)
 	os.WriteFile(filepath.Join(outClassesDirCli, "models"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_sdk_cli", specPath, outClassesDirCli, false, false, false)
+	_ = GenerateFromOpenApi("to_sdk_cli", specPath, outClassesDirCli, false, false, false)
 
 	// block GenerateClients
 	outClientsDirCli := filepath.Join(dir, "out_clients_cli")
 	os.MkdirAll(outClientsDirCli, 0755)
 	os.WriteFile(filepath.Join(outClientsDirCli, "client"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_sdk_cli", specPath, outClientsDirCli, false, false, false)
+	_ = GenerateFromOpenApi("to_sdk_cli", specPath, outClientsDirCli, false, false, false)
 
 	// block GenerateCLI
 	outCliDir := filepath.Join(dir, "out_cli")
 	os.MkdirAll(outCliDir, 0755)
 	// To block WriteDstFile, we can make the file a directory
 	os.MkdirAll(filepath.Join(outCliDir, "sdk_cli.go"), 0755)
-	_ = RunFromOpenAPI("to_sdk_cli", specPath, outCliDir, false, false, false)
+	_ = GenerateFromOpenApi("to_sdk_cli", specPath, outCliDir, false, false, false)
 
 	// block GenerateTests
 	outTestsDirCli := filepath.Join(dir, "out_tests_cli")
 	os.MkdirAll(outTestsDirCli, 0755)
 	os.WriteFile(filepath.Join(outTestsDirCli, "tests"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_sdk_cli", specPath, outTestsDirCli, false, false, true)
+	_ = GenerateFromOpenApi("to_sdk_cli", specPath, outTestsDirCli, false, false, true)
 
 	// block GenerateMocks
 	outMocksDirCli := filepath.Join(dir, "out_mocks_cli")
 	os.MkdirAll(outMocksDirCli, 0755)
 	os.WriteFile(filepath.Join(outMocksDirCli, "mocks"), []byte("file"), 0644)
-	_ = RunFromOpenAPI("to_sdk_cli", specPath, outMocksDirCli, false, false, true)
+	_ = GenerateFromOpenApi("to_sdk_cli", specPath, outMocksDirCli, false, false, true)
 }
-func TestRunToOpenAPIError(t *testing.T) {
-	err := RunToOpenAPI("nonexistent", "out.json")
+func TestGenerateToOpenApiError(t *testing.T) {
+	err := GenerateToOpenApi("nonexistent", "out.json")
 	if err == nil {
 		t.Error("expected error")
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/SamuelMarks/cdd-go/cdd"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,7 +82,7 @@ func TestRunToDocsJSON(t *testing.T) {
 			buf.ReadFrom(r)
 			output := buf.String()
 
-			var result []DocsJSONOutput
+			var result []cdd.DocsJSONOutput
 			if err := json.Unmarshal([]byte(output), &result); err != nil {
 			}
 
@@ -224,7 +225,7 @@ func TestRunToDocsJSONNoOpID(t *testing.T) {
 	buf.ReadFrom(r)
 	output := buf.String()
 
-	var result []DocsJSONOutput
+	var result []cdd.DocsJSONOutput
 	if err := json.Unmarshal([]byte(output), &result); err != nil {
 	}
 

@@ -49,7 +49,7 @@ func TestEmitCommand(t *testing.T) {
 	if !strings.Contains(out, "var GetUserCmd = &cobra.Command{") {
 		t.Errorf("missing command var, got %s", out)
 	}
-	if !strings.Contains(out, `Use: "getuser"`) {
+	if !strings.Contains(out, `Use: "get_user"`) {
 		t.Errorf("missing use")
 	}
 	if !strings.Contains(out, `Short: "Get user"`) {

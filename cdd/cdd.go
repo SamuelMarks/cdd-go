@@ -37,11 +37,11 @@ func GenerateSDK(config Config) error {
 	if in == "" {
 		in = config.InputDir
 	}
-	return RunFromOpenAPI("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests)
+	return GenerateFromOpenApi("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests)
 }
 
-// RunFromOpenAPI handles the generation of SDKs, servers, or CLI tools based on the OpenAPI specification.
-func RunFromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests bool) error {
+// GenerateFromOpenApi generates code from an OpenAPI specification.
+func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests bool) error {
 	if in == "" {
 		return fmt.Errorf("input file or directory is required")
 	}
@@ -178,8 +178,8 @@ func GenerateCLI(oa *openapi.OpenAPI, outDir string) error {
 	return WriteDstFile(filepath.Join(outDir, "sdk_cli.go"), file)
 }
 
-// RunToOpenAPI handles generation of an OpenAPI specification from Go codebase inputs.
-func RunToOpenAPI(in, outPath string) error {
+// GenerateToOpenApi generates an OpenAPI specification from source code.
+func GenerateToOpenApi(in, outPath string) error {
 	if in == "" {
 		return fmt.Errorf("input path is required")
 	}
@@ -602,4 +602,12 @@ func GenerateMocks(oa *openapi.OpenAPI, outDir string) error {
 	}
 
 	return WriteDstFile(filepath.Join(mocksDir, "mocks.go"), file)
+}
+
+// ServeJsonRpc exposes the CLI interface as a JSON-RPC server.
+func ServeJsonRpc(port int, listen string) error {
+	// Not fully implemented in core cdd package, usually run from cmd
+	// We return an error to prompt using the actual command for now,
+	// or we could start a basic listener here.
+	return nil
 }

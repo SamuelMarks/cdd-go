@@ -16,5 +16,5 @@ cdd-go from_openapi to_sdk_cli -i spec.json -o ./cli
 cdd-go from_openapi to_server -i spec.json -o ./server
 
 # Generate OpenAPI Spec from a Go Package
-cdd-go to_openapi -f ./my-package -o ./openapi.json
+cdd-go to_openapi -i ./my-package -o ./openapi.json
 ```

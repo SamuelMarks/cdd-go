@@ -14,7 +14,7 @@ var stderr = os.Stderr
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
+		fmt.Fprintln(stderr, err.Error())
 		osExit(1)
 	}
 }
@@ -33,9 +33,19 @@ func envOrDefaultBool(key string, def bool) bool {
 	return def
 }
 
+func envOrDefaultInt(key string, def int) int {
+	if val := os.Getenv(key); val != "" {
+		var i int
+		if _, err := fmt.Sscanf(val, "%d", &i); err == nil {
+			return i
+		}
+	}
+	return def
+}
+
 func run(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("expected 'from_openapi', 'to_openapi', 'to_docs_json', or 'server_json_rpc' subcommands")
+		return fmt.Errorf("Error: Unknown or incomplete command: ")
 	}
 
 	subcommand := args[0]
@@ -47,10 +57,10 @@ func run(args []string) error {
 		fmt.Println("\nUsage:")
 		fmt.Println("  cdd-go [subcommand] [flags]")
 		fmt.Println("\nSubcommands:")
-		fmt.Println("  from_openapi     Generate code from OpenAPI spec")
-		fmt.Println("  to_openapi       Generate OpenAPI spec from code")
-		fmt.Println("  to_docs_json     Generate documentation JSON from OpenAPI spec")
-		fmt.Println("  server_json_rpc  Run a JSON-RPC server exposing the CLI")
+		fmt.Println("  from_openapi    Generate code from an OpenAPI specification.")
+		fmt.Println("  to_openapi      Generate an OpenAPI specification from source code.")
+		fmt.Println("  to_docs_json    Generate JSON documentation with code snippets for an OpenAPI specification.")
+		fmt.Println("  serve_json_rpc  Expose CLI interface as a JSON-RPC server.")
 		fmt.Println("\nFlags:")
 		fmt.Println("  -h, --help       Show this help message")
 		fmt.Println("  -v, --version    Show version information")
@@ -58,8 +68,8 @@ func run(args []string) error {
 	case "-v", "--version", "version":
 		fmt.Println("0.0.1")
 		return nil
-	case "server_json_rpc":
-		return runServerJSONRPC(args[1:])
+	case "serve_json_rpc":
+		return runServeJSONRPC(args[1:])
 	case "from_openapi":
 		if len(args) < 2 {
 			return fmt.Errorf("expected 'to_sdk', 'to_sdk_cli', or 'to_server' subcommands for from_openapi")
@@ -68,16 +78,17 @@ func run(args []string) error {
 		fs := flag.NewFlagSet("from_openapi "+subsubcommand, flag.ContinueOnError)
 		fs.SetOutput(stderr)
 
-		fs.StringVar(&in, "i", envOrDefault("CDD_GO_INPUT", ""), "Input file path")
+		fs.StringVar(&in, "i", envOrDefault("CDD_INPUT", ""), "Path or URL to the OpenAPI specification.")
+		fs.StringVar(&in, "input", envOrDefault("CDD_INPUT", ""), "Path or URL to the OpenAPI specification.")
 		var inputDir string
-		fs.StringVar(&inputDir, "input-dir", envOrDefault("CDD_GO_INPUT_DIR", ""), "Input directory path")
-		fs.StringVar(&out, "o", envOrDefault("CDD_GO_OUTPUT", ""), "Output directory path")
+		fs.StringVar(&inputDir, "input-dir", envOrDefault("CDD_INPUT_DIR", ""), "Directory containing OpenAPI specifications.")
+		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", ""), "Output file or directory path.")
+		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", ""), "Output file or directory path.")
 
 		var noGithubActions, noInstallablePackage, tests bool
-		fs.BoolVar(&noGithubActions, "no-github-actions", envOrDefaultBool("CDD_GO_NO_GITHUB_ACTIONS", false), "Do not generate GitHub Actions")
-		fs.BoolVar(&noInstallablePackage, "no-installable-package", envOrDefaultBool("CDD_GO_NO_INSTALLABLE_PACKAGE", false), "Do not generate installable package scaffolding")
-		fs.BoolVar(&tests, "create-composable-tests", envOrDefaultBool("CDD_GO_CREATE_COMPOSABLE_TESTS", false), "Create composable tests & mocks")
-		fs.BoolVar(&tests, "tests", envOrDefaultBool("CDD_GO_CREATE_COMPOSABLE_TESTS", false), "Alias for create-composable-tests")
+		fs.BoolVar(&noGithubActions, "no-github-actions", envOrDefaultBool("CDD_NO_GITHUB_ACTIONS", false), "Do not generate GitHub Actions scaffolding.")
+		fs.BoolVar(&noInstallablePackage, "no-installable-package", envOrDefaultBool("CDD_NO_INSTALLABLE_PACKAGE", false), "Do not generate installable package scaffolding.")
+		fs.BoolVar(&tests, "tests", envOrDefaultBool("CDD_TESTS", false), "Generate integration tests and mocks.")
 
 		if err := fs.Parse(args[2:]); err != nil {
 			return err
@@ -93,21 +104,22 @@ func run(args []string) error {
 		if inputTarget == "" {
 			inputTarget = inputDir
 		}
-		return cdd.RunFromOpenAPI(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage, tests)
+		return cdd.GenerateFromOpenApi(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage, tests)
 	case "to_openapi":
 		fs := flag.NewFlagSet("to_openapi", flag.ContinueOnError)
 		fs.SetOutput(stderr)
-		fs.StringVar(&in, "i", envOrDefault("CDD_GO_INPUT", ""), "Input file or directory path")
-		fs.StringVar(&out, "o", envOrDefault("CDD_GO_OUTPUT", "openapi.json"), "Output file path")
-
+		fs.StringVar(&in, "i", envOrDefault("CDD_INPUT", ""), "Path to source code directory or file.")
+		fs.StringVar(&in, "input", envOrDefault("CDD_INPUT", ""), "Path to source code directory or file.")
+		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", "openapi.json"), "Output file or directory path.")
+		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", "openapi.json"), "Output file or directory path.")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 
-		return cdd.RunToOpenAPI(in, out)
+		return cdd.GenerateToOpenApi(in, out)
 	case "to_docs_json":
 		return runToDocsJSON(args[1:])
 	default:
-		return fmt.Errorf("unknown subcommand: %s", subcommand)
+		return fmt.Errorf("Error: Unknown or incomplete command: %s", subcommand)
 	}
 }
