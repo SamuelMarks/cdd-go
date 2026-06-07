@@ -94,6 +94,15 @@ func TestEmitClientInterface(t *testing.T) {
 	if !strings.Contains(out, "Trace(req *http.Request) (*http.Response, error)") {
 		t.Errorf("expected Trace method, got %s", out)
 	}
+	if !strings.Contains(out, "GetTools() ([]string, error)") {
+		t.Errorf("expected GetTools method for MCP integration")
+	}
+	if !strings.Contains(out, "GetResources() ([]string, error)") {
+		t.Errorf("expected GetResources method for MCP integration")
+	}
+	if !strings.Contains(out, "ExecuteTool(toolName string, args map[string]any) (any, error)") {
+		t.Errorf("expected ExecuteTool method for MCP integration")
+	}
 }
 
 func TestEmitClientInterfaceNil(t *testing.T) {

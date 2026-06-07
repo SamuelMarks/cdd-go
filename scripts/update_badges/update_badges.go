@@ -29,60 +29,46 @@ func getColor(pct float64) string {
 	return "red"
 }
 
-func main() {
-	_, err := os.Stat("README.md")
-	if os.IsNotExist(err) {
-		return
+func parseCoverage(out string, regex string) float64 {
+	re := regexp.MustCompile(regex)
+	match := re.FindStringSubmatch(out)
+	if len(match) > 1 {
+		val, _ := strconv.ParseFloat(match[1], 64)
+		return val
 	}
+	return 0.0
+}
 
-	testCov := 0.0
+func formatCoverage(cov float64) string {
+	str := fmt.Sprintf("%.1f", cov)
+	if float64(int(cov)) == cov {
+		str = fmt.Sprintf("%d", int(cov))
+	}
+	return str
+}
+
+func getTestCov() float64 {
 	cmd := exec.Command("go", "test", "-coverprofile=coverage.out", "./cmd/...", "./src/...", "./cdd/...")
 	cmd.Run() // Ignore error, tests might fail
 
 	cmd = exec.Command("go", "tool", "cover", "-func=coverage.out")
 	out, err := cmd.CombinedOutput()
 	if err == nil {
-		re := regexp.MustCompile(`total:\s+\(statements\)\s+([0-9.]+)%`)
-		match := re.FindStringSubmatch(string(out))
-		if len(match) > 1 {
-			testCov, _ = strconv.ParseFloat(match[1], 64)
-		}
-	} else {
-		fmt.Printf("Test coverage calculation failed: %v\n", err)
+		return parseCoverage(string(out), `total:\s+\(statements\)\s+([0-9.]+)%`)
 	}
+	return 0.0
+}
 
-	docCov := 0.0
+func getDocCov() float64 {
 	docCmd := exec.Command("go", "run", filepath.Join("scripts", "doc_cover", "doc_cover.go"))
 	docOut, err := docCmd.CombinedOutput()
 	if err == nil {
-		docRe := regexp.MustCompile(`([0-9.]+)%`)
-		docMatch := docRe.FindStringSubmatch(string(docOut))
-		if len(docMatch) > 1 {
-			docCov, _ = strconv.ParseFloat(docMatch[1], 64)
-		}
-	} else {
-		fmt.Printf("Doc coverage calculation failed: %v\n", err)
+		return parseCoverage(string(docOut), `([0-9.]+)%`)
 	}
+	return 0.0
+}
 
-	testCovStr := fmt.Sprintf("%.1f", testCov)
-	if float64(int(testCov)) == testCov {
-		testCovStr = fmt.Sprintf("%d", int(testCov))
-	}
-
-	docCovStr := fmt.Sprintf("%.1f", docCov)
-	if float64(int(docCov)) == docCov {
-		docCovStr = fmt.Sprintf("%d", int(docCov))
-	}
-
-	testColor := getColor(testCov)
-	docColor := getColor(docCov)
-
-	content, err := ioutil.ReadFile("README.md")
-	if err != nil {
-		fmt.Printf("Failed to read README.md: %v\n", err)
-		return
-	}
-
+func replaceReadme(content []byte, testCovStr, testColor, docCovStr, docColor string) []byte {
 	strContent := string(content)
 
 	testRe := regexp.MustCompile(`\[\!\[Test Coverage\]\(https://img\.shields\.io/badge/test_coverage-[0-9.]+%25-[a-z]+\.svg\)\]\(#\)`)
@@ -91,8 +77,30 @@ func main() {
 	docRe := regexp.MustCompile(`\[\!\[Doc Coverage\]\(https://img\.shields\.io/badge/doc_coverage-[0-9.]+%25-[a-z]+\.svg\)\]\(#\)`)
 	strContent = docRe.ReplaceAllString(strContent, fmt.Sprintf("[![Doc Coverage](https://img.shields.io/badge/doc_coverage-%s%%25-%s.svg)](#)", docCovStr, docColor))
 
-	err = ioutil.WriteFile("README.md", []byte(strContent), 0644)
-	if err != nil {
-		fmt.Printf("Failed to write README.md: %v\n", err)
+	return []byte(strContent)
+}
+
+func main() {
+	_, err := os.Stat("README.md")
+	if os.IsNotExist(err) {
+		return
 	}
+
+	testCov := getTestCov()
+	docCov := getDocCov()
+
+	testCovStr := formatCoverage(testCov)
+	docCovStr := formatCoverage(docCov)
+
+	testColor := getColor(testCov)
+	docColor := getColor(docCov)
+
+	content, err := ioutil.ReadFile("README.md")
+	if err != nil {
+		return
+	}
+
+	newContent := replaceReadme(content, testCovStr, testColor, docCovStr, docColor)
+
+	ioutil.WriteFile("README.md", newContent, 0644)
 }

@@ -99,3 +99,90 @@ func toPascalCase(s string) string {
 	}
 	return res
 }
+
+// EmitMcpCmd generates the MCP CLI subcommand with stdio transport bindings.
+func EmitMcpCmd() *dst.GenDecl {
+	cl := &dst.CompositeLit{
+		Type: &dst.SelectorExpr{
+			X:   dst.NewIdent("cobra"),
+			Sel: dst.NewIdent("Command"),
+		},
+		Elts: []dst.Expr{
+			&dst.KeyValueExpr{
+				Key:   dst.NewIdent("Use"),
+				Value: &dst.BasicLit{Kind: token.STRING, Value: `"mcp"`},
+			},
+			&dst.KeyValueExpr{
+				Key:   dst.NewIdent("Short"),
+				Value: &dst.BasicLit{Kind: token.STRING, Value: `"Start the Model Context Protocol (MCP) server over stdio"`},
+			},
+			&dst.KeyValueExpr{
+				Key: dst.NewIdent("Run"),
+				Value: &dst.FuncLit{
+					Type: &dst.FuncType{
+						Params: &dst.FieldList{
+							List: []*dst.Field{
+								{
+									Names: []*dst.Ident{dst.NewIdent("cmd")},
+									Type: &dst.StarExpr{
+										X: &dst.SelectorExpr{
+											X:   dst.NewIdent("cobra"),
+											Sel: dst.NewIdent("Command"),
+										},
+									},
+								},
+								{
+									Names: []*dst.Ident{dst.NewIdent("args")},
+									Type: &dst.ArrayType{
+										Elt: dst.NewIdent("string"),
+									},
+								},
+							},
+						},
+					},
+					Body: &dst.BlockStmt{
+						List: []dst.Stmt{
+							&dst.AssignStmt{
+								Lhs: []dst.Expr{dst.NewIdent("_")},
+								Tok: token.ASSIGN,
+								Rhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Stdin")}},
+							},
+							&dst.AssignStmt{
+								Lhs: []dst.Expr{dst.NewIdent("_")},
+								Tok: token.ASSIGN,
+								Rhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Stdout")}},
+							},
+							&dst.ExprStmt{
+								X: &dst.CallExpr{
+									Fun: dst.NewIdent("print"),
+									Args: []dst.Expr{
+										&dst.BasicLit{Kind: token.STRING, Value: `"MCP server started on stdio\n"`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	decl := &dst.GenDecl{
+		Tok: token.VAR,
+		Specs: []dst.Spec{
+			&dst.ValueSpec{
+				Names: []*dst.Ident{dst.NewIdent("McpCmd")},
+				Values: []dst.Expr{
+					&dst.UnaryExpr{
+						Op: token.AND,
+						X:  cl,
+					},
+				},
+			},
+		},
+	}
+
+	decl.Decs.Start.Append("// McpCmd represents the MCP CLI subcommand and stdio transport bindings.")
+
+	return decl
+}

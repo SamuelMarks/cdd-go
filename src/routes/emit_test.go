@@ -70,6 +70,18 @@ func TestEmitHandlerInterface(t *testing.T) {
 	if !strings.Contains(out, "Delete(c *gin.Context)") {
 		t.Errorf("expected Delete method, got %s", out)
 	}
+	if !strings.Contains(out, "HandleMcpSse(c *gin.Context)") {
+		t.Errorf("expected HandleMcpSse method for MCP integration")
+	}
+	if !strings.Contains(out, "HandleMcpMessage(c *gin.Context)") {
+		t.Errorf("expected HandleMcpMessage method for MCP integration")
+	}
+	if !strings.Contains(out, "WithMcpAuth() gin.HandlerFunc") {
+		t.Errorf("expected WithMcpAuth method for MCP integration")
+	}
+	if !strings.Contains(out, "MapMcpToolToRoute(toolName string) gin.HandlerFunc") {
+		t.Errorf("expected MapMcpToolToRoute method for MCP integration")
+	}
 }
 
 func TestEmitHandlerInterfaceNil(t *testing.T) {
@@ -115,7 +127,7 @@ func TestEmitHandlerInterfaceExtraVerbs(t *testing.T) {
 
 	ts := decl.Specs[0].(*dst.TypeSpec)
 	iface := ts.Type.(*dst.InterfaceType)
-	if len(iface.Methods.List) != 4 {
-		t.Errorf("expected 4 methods, got %d", len(iface.Methods.List))
+	if len(iface.Methods.List) != 8 {
+		t.Errorf("expected 8 methods, got %d", len(iface.Methods.List))
 	}
 }

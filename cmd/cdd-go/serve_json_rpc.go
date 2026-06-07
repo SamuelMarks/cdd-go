@@ -58,7 +58,7 @@ func runServeJSONRPC(args []string) error {
 
 		switch req.Method {
 		case "version":
-			result = "0.0.1"
+			result = "0.0.2"
 		case "to_docs_json":
 			var params []string
 			if err := json.Unmarshal(req.Params, &params); err == nil {

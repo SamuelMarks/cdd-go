@@ -20,6 +20,7 @@ func ParseHandlerInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 	}
 
 	pathItem := &openapi.PathItem{}
+	var mcpExt map[string]interface{}
 
 	if len(ts.Decs.Start) > 0 {
 		desc := ""
@@ -34,6 +35,24 @@ func ParseHandlerInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 			continue // Embedded interface
 		}
 		methodName := field.Names[0].Name
+
+		// Track MCP server handler methods
+		if methodName == "HandleMcpSse" || methodName == "HandleMcpMessage" || methodName == "WithMcpAuth" || methodName == "MapMcpToolToRoute" {
+			if mcpExt == nil {
+				mcpExt = make(map[string]interface{})
+			}
+			if methodName == "HandleMcpSse" {
+				mcpExt["sse"] = true
+			} else if methodName == "HandleMcpMessage" {
+				mcpExt["message"] = true
+			} else if methodName == "WithMcpAuth" {
+				mcpExt["auth"] = true
+			} else if methodName == "MapMcpToolToRoute" {
+				mcpExt["proxy"] = true
+			}
+			continue
+		}
+
 		op := &openapi.Operation{
 			OperationID: methodName, Responses: make(openapi.Responses, 0),
 		}
@@ -65,6 +84,11 @@ func ParseHandlerInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 		} else if strings.HasPrefix(nameLower, "trace") {
 			pathItem.Trace = op
 		}
+	}
+
+	if mcpExt != nil {
+		pathItem.Extensions = make(map[string]interface{})
+		pathItem.Extensions["x-mcp-server"] = mcpExt
 	}
 
 	return pathItem, nil

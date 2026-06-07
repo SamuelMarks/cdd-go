@@ -163,3 +163,43 @@ func TestParseHandlerInterfaceExtraVerbs(t *testing.T) {
 		t.Errorf("expected Trace")
 	}
 }
+
+func TestParseHandlerInterfaceMCPExt(t *testing.T) {
+	ts := &dst.TypeSpec{
+		Name: dst.NewIdent("HandlerTest"),
+		Type: &dst.InterfaceType{
+			Methods: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("HandleMcpSse")},
+						Type:  &dst.FuncType{},
+					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("HandleMcpMessage")},
+						Type:  &dst.FuncType{},
+					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("WithMcpAuth")},
+						Type:  &dst.FuncType{},
+					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("MapMcpToolToRoute")},
+						Type:  &dst.FuncType{},
+					},
+				},
+			},
+		},
+	}
+
+	pi, err := ParseHandlerInterface(ts)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if pi.Extensions == nil {
+		t.Fatalf("expected extensions for MCP methods")
+	}
+	ext := pi.Extensions["x-mcp-server"].(map[string]interface{})
+	if ext["sse"] != true || ext["message"] != true || ext["auth"] != true || ext["proxy"] != true {
+		t.Errorf("expected MCP server extensions to be set, got %v", ext)
+	}
+}

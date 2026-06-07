@@ -185,6 +185,9 @@ type Paths map[string]PathItem
 
 // PathItem describes the operations available on a single path.
 type PathItem struct {
+	// Extensions provides specification extensions (x-...)
+	Extensions map[string]interface{} `json:"-"`
+
 	// Ref allows for a referenced definition of this path item.
 	Ref string `json:"$ref,omitempty"`
 

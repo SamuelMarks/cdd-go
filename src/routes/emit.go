@@ -45,6 +45,102 @@ func EmitHandlerInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl
 		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Trace", pathItem.Trace))
 	}
 
+	// Native MCP SSE Endpoint Generation Support
+	iface.Methods.List = append(iface.Methods.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("HandleMcpSse")},
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("c")},
+						Type: &dst.StarExpr{
+							X: &dst.SelectorExpr{
+								X:   dst.NewIdent("gin"),
+								Sel: dst.NewIdent("Context"),
+							},
+						},
+					},
+				},
+			},
+			Results: &dst.FieldList{},
+		},
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// HandleMcpSse exposes an SSE endpoint for MCP server integration."},
+			},
+		},
+	})
+	iface.Methods.List = append(iface.Methods.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("HandleMcpMessage")},
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("c")},
+						Type: &dst.StarExpr{
+							X: &dst.SelectorExpr{
+								X:   dst.NewIdent("gin"),
+								Sel: dst.NewIdent("Context"),
+							},
+						},
+					},
+				},
+			},
+			Results: &dst.FieldList{},
+		},
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// HandleMcpMessage handles incoming MCP messages (e.g., tool calls) over HTTP."},
+			},
+		},
+	})
+	iface.Methods.List = append(iface.Methods.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("WithMcpAuth")},
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{},
+			Results: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Type: &dst.SelectorExpr{
+							X:   dst.NewIdent("gin"),
+							Sel: dst.NewIdent("HandlerFunc"),
+						},
+					},
+				},
+			},
+		},
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// WithMcpAuth provides HTTP Request/Auth Bridging to secure MCP endpoints."},
+			},
+		},
+	})
+	iface.Methods.List = append(iface.Methods.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("MapMcpToolToRoute")},
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{
+				List: []*dst.Field{
+					{Names: []*dst.Ident{dst.NewIdent("toolName")}, Type: dst.NewIdent("string")},
+				},
+			},
+			Results: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Type: &dst.SelectorExpr{
+							X:   dst.NewIdent("gin"),
+							Sel: dst.NewIdent("HandlerFunc"),
+						},
+					},
+				},
+			},
+		},
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// MapMcpToolToRoute provides a Dynamic API-to-Tool Proxy for resolving incoming tool calls to backend route handlers."},
+			},
+		},
+	})
+
 	ts := &dst.TypeSpec{
 		Name: dst.NewIdent(interfaceName),
 		Type: iface,

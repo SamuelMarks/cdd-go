@@ -45,6 +45,64 @@ func EmitClientInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl,
 		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Trace", pathItem.Trace))
 	}
 
+	// Native MCP Adapters
+	iface.Methods.List = append(iface.Methods.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("GetTools")},
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{},
+			Results: &dst.FieldList{
+				List: []*dst.Field{
+					{Type: &dst.ArrayType{Elt: dst.NewIdent("string")}},
+					{Type: dst.NewIdent("error")},
+				},
+			},
+		},
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// GetTools returns native MCP tools for this client interface."},
+			},
+		},
+	})
+	iface.Methods.List = append(iface.Methods.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("GetResources")},
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{},
+			Results: &dst.FieldList{
+				List: []*dst.Field{
+					{Type: &dst.ArrayType{Elt: dst.NewIdent("string")}},
+					{Type: dst.NewIdent("error")},
+				},
+			},
+		},
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// GetResources returns native MCP resources for this client interface."},
+			},
+		},
+	})
+	iface.Methods.List = append(iface.Methods.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("ExecuteTool")},
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{
+				List: []*dst.Field{
+					{Names: []*dst.Ident{dst.NewIdent("toolName")}, Type: dst.NewIdent("string")},
+					{Names: []*dst.Ident{dst.NewIdent("args")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("any")}},
+				},
+			},
+			Results: &dst.FieldList{
+				List: []*dst.Field{
+					{Type: dst.NewIdent("any")},
+					{Type: dst.NewIdent("error")},
+				},
+			},
+		},
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// ExecuteTool routes an LLM tool execution request natively to the corresponding client method."},
+			},
+		},
+	})
+
 	ts := &dst.TypeSpec{
 		Name: dst.NewIdent(interfaceName),
 		Type: iface,

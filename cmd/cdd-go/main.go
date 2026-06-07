@@ -66,8 +66,10 @@ func run(args []string) error {
 		fmt.Println("  -v, --version    Show version information")
 		return nil
 	case "-v", "--version", "version":
-		fmt.Println("0.0.1")
+		fmt.Println("0.0.2")
 		return nil
+	case "mcp":
+		return runServeMCPStdio(args[1:])
 	case "serve_json_rpc":
 		return runServeJSONRPC(args[1:])
 	case "from_openapi":

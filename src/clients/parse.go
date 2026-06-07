@@ -20,6 +20,7 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 	}
 
 	pathItem := &openapi.PathItem{}
+	var mcpExt map[string]interface{}
 
 	if len(ts.Decs.Start) > 0 {
 		desc := ""
@@ -35,6 +36,22 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 		}
 
 		methodName := field.Names[0].Name
+
+		// Track MCP adapter methods
+		if methodName == "GetTools" || methodName == "GetResources" || methodName == "ExecuteTool" {
+			if mcpExt == nil {
+				mcpExt = make(map[string]interface{})
+			}
+			if methodName == "GetTools" {
+				mcpExt["tools"] = true
+			} else if methodName == "GetResources" {
+				mcpExt["resources"] = true
+			} else if methodName == "ExecuteTool" {
+				mcpExt["execute"] = true
+			}
+			continue
+		}
+
 		op := &openapi.Operation{
 			OperationID: methodName, Responses: make(openapi.Responses),
 		}
@@ -68,6 +85,11 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 		} else if strings.HasPrefix(nameLower, "patch") {
 			pathItem.Patch = op
 		}
+	}
+
+	if mcpExt != nil {
+		pathItem.Extensions = make(map[string]interface{})
+		pathItem.Extensions["x-mcp"] = mcpExt
 	}
 
 	return pathItem, nil

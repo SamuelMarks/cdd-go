@@ -149,3 +149,39 @@ func TestParseClientInterfaceMethodComment(t *testing.T) {
 		t.Errorf("expected summary 'A custom op', got %v", pi.Post.Summary)
 	}
 }
+
+func TestParseClientInterfaceMCPExt(t *testing.T) {
+	ts := &dst.TypeSpec{
+		Name: dst.NewIdent("ClientTest"),
+		Type: &dst.InterfaceType{
+			Methods: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("GetTools")},
+						Type:  &dst.FuncType{},
+					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("GetResources")},
+						Type:  &dst.FuncType{},
+					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("ExecuteTool")},
+						Type:  &dst.FuncType{},
+					},
+				},
+			},
+		},
+	}
+
+	pi, err := ParseClientInterface(ts)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if pi.Extensions == nil {
+		t.Fatalf("expected extensions for MCP methods")
+	}
+	ext := pi.Extensions["x-mcp"].(map[string]interface{})
+	if ext["tools"] != true || ext["resources"] != true || ext["execute"] != true {
+		t.Errorf("expected MCP extensions to be set, got %v", ext)
+	}
+}

@@ -175,6 +175,7 @@ func GenerateCLI(oa *openapi.OpenAPI, outDir string) error {
 			file.Decls = append(file.Decls, commands.Emit(path, "trace", item.Trace))
 		}
 	}
+	file.Decls = append(file.Decls, commands.EmitMcpCmd())
 	return WriteDstFile(filepath.Join(outDir, "sdk_cli.go"), file)
 }
 
@@ -201,7 +202,7 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 		OpenAPI: "3.2.0",
 		Info: openapi.Info{
 			Title:   "Generated API",
-			Version: "0.0.1",
+			Version: "0.0.2",
 		},
 		Paths: make(openapi.Paths),
 		Components: &openapi.Components{
@@ -610,4 +611,25 @@ func ServeJsonRpc(port int, listen string) error {
 	// We return an error to prompt using the actual command for now,
 	// or we could start a basic listener here.
 	return nil
+}
+
+// GetGeneratorResources returns available in-memory AST and Schema resources to the MCP.
+func GetGeneratorResources() ([]string, error) {
+	return []string{"ast://current", "schema://active"}, nil
+}
+
+// ExecuteGeneratorRouter processes tool calls natively within the generator core via MCP.
+func ExecuteGeneratorRouter(toolName string, args map[string]any) (any, error) {
+	switch toolName {
+	case "cdd_generate_sdk":
+		in, _ := args["input"].(string)
+		out, _ := args["output"].(string)
+		return "SDK Generated", GenerateFromOpenApi("to_sdk", in, out, false, false, false)
+	case "cdd_sync_schema":
+		in, _ := args["input"].(string)
+		out, _ := args["output"].(string)
+		return "Schema Synced", GenerateToOpenApi(in, out)
+	default:
+		return nil, fmt.Errorf("unknown generator tool: %s", toolName)
+	}
 }

@@ -71,3 +71,4 @@ temp-*.json
 !/.github/
 
 coverage.out
+test_out/

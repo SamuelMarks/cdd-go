@@ -703,3 +703,52 @@ func TestGenerateFileWriteErrors(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "mocks", "mocks.go"), 0755)
 	_ = GenerateMocks(oa, dir)
 }
+
+func TestGetGeneratorResources(t *testing.T) {
+	resources, err := GetGeneratorResources()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resources) != 2 {
+		t.Errorf("expected 2 resources, got %d", len(resources))
+	}
+	if resources[0] != "ast://current" || resources[1] != "schema://active" {
+		t.Errorf("unexpected resources: %v", resources)
+	}
+}
+
+func TestExecuteGeneratorRouter(t *testing.T) {
+	// Setup mock input file
+	tmpDir := t.TempDir()
+	inPath := filepath.Join(tmpDir, "input.json")
+	outDir := filepath.Join(tmpDir, "out")
+	os.WriteFile(inPath, []byte(`{"openapi":"3.0.0","info":{"title":"Test","version":"1.0.0"}}`), 0644)
+
+	res, err := ExecuteGeneratorRouter("cdd_generate_sdk", map[string]any{"input": inPath, "output": outDir})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if res != "SDK Generated" {
+		t.Errorf("unexpected result: %v", res)
+	}
+
+	// Setup mock src directory for sync
+	srcDir := filepath.Join(tmpDir, "src")
+	os.MkdirAll(srcDir, 0755)
+	srcPath := filepath.Join(srcDir, "main.go")
+	os.WriteFile(srcPath, []byte("package main\n"), 0644)
+	outPath := filepath.Join(tmpDir, "openapi.json")
+
+	res, err = ExecuteGeneratorRouter("cdd_sync_schema", map[string]any{"input": srcDir, "output": outPath})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if res != "Schema Synced" {
+		t.Errorf("unexpected result: %v", res)
+	}
+
+	_, err = ExecuteGeneratorRouter("unknown", nil)
+	if err == nil {
+		t.Errorf("expected error for unknown tool")
+	}
+}

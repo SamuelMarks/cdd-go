@@ -42,6 +42,18 @@ func TestRun(t *testing.T) {
 		t.Errorf("expected error for missing input path")
 	}
 
+	// test mcp subcommand coverage
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	os.Stdin = r
+	w.Write([]byte("{invalid\n"))
+	w.Close()
+	err = run([]string{"mcp"})
+	if err != nil {
+		t.Errorf("unexpected error for mcp: %v", err)
+	}
+	os.Stdin = oldStdin
+
 	// create dummy file for openapi testing
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
@@ -715,5 +727,19 @@ func TestGenerateClientsWriteErr(t *testing.T) {
 	err := cdd.GenerateClients(&openapi.OpenAPI{Paths: openapi.Paths{"/a": openapi.PathItem{}}}, outDir)
 	if err == nil {
 		t.Errorf("expected write error for client.go")
+	}
+}
+
+func TestEnvOrDefaultInt(t *testing.T) {
+	if envOrDefaultInt("TEST_ENV_INT_XXX", 42) != 42 {
+		t.Error("expected default")
+	}
+	os.Setenv("TEST_ENV_INT_XXX", "100")
+	if envOrDefaultInt("TEST_ENV_INT_XXX", 42) != 100 {
+		t.Error("expected 100")
+	}
+	os.Setenv("TEST_ENV_INT_XXX", "invalid")
+	if envOrDefaultInt("TEST_ENV_INT_XXX", 42) != 42 {
+		t.Error("expected default on invalid")
 	}
 }

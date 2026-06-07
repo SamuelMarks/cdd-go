@@ -86,3 +86,56 @@ func TestToPascalCaseEmpty(t *testing.T) {
 		t.Errorf("expected Test")
 	}
 }
+
+func TestToSnakeCaseEmpty(t *testing.T) {
+	if toSnakeCase("") != "" {
+		t.Errorf("expected empty")
+	}
+	if toSnakeCase("CamelCase") != "camel_case" {
+		t.Errorf("expected camel_case, got %s", toSnakeCase("CamelCase"))
+	}
+}
+
+func TestEmitMcpCmd(t *testing.T) {
+	decl := EmitMcpCmd()
+	if decl == nil {
+		t.Fatalf("expected decl")
+	}
+
+	file := &dst.File{
+		Name:  dst.NewIdent("commands"),
+		Decls: []dst.Decl{decl},
+	}
+
+	restorer := decorator.NewRestorer()
+	var buf bytes.Buffer
+	err := restorer.Fprint(&buf, file)
+	if err != nil {
+		t.Fatalf("unexpected print error: %v", err)
+	}
+
+	out := strings.ReplaceAll(buf.String(), "\t", " ")
+	out = strings.ReplaceAll(out, "\n", " ")
+	for strings.Contains(out, "  ") {
+		out = strings.ReplaceAll(out, "  ", " ")
+	}
+
+	if !strings.Contains(out, "// McpCmd represents the MCP CLI subcommand and stdio transport bindings.") {
+		t.Errorf("missing comment, got %s", out)
+	}
+	if !strings.Contains(out, "var McpCmd = &cobra.Command{") {
+		t.Errorf("missing command var, got %s", out)
+	}
+	if !strings.Contains(out, `Use: "mcp"`) {
+		t.Errorf("missing use")
+	}
+	if !strings.Contains(out, `_ = os.Stdin`) {
+		t.Errorf("missing os.Stdin")
+	}
+	if !strings.Contains(out, `_ = os.Stdout`) {
+		t.Errorf("missing os.Stdout")
+	}
+	if !strings.Contains(out, `print("MCP server started on stdio\n")`) {
+		t.Errorf("missing print statement")
+	}
+}
