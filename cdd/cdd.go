@@ -582,6 +582,7 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 		file.Decls[0].(*dst.GenDecl).Specs = append(file.Decls[0].(*dst.GenDecl).Specs,
 			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"encoding/json"`}},
 			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"io"`}},
+			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"os"`}},
 		)
 
 		if err := WriteDstFile(filepath.Join(testsDir, fileName+"_test.go"), file); err != nil {

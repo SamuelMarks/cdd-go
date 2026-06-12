@@ -126,6 +126,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	}
 	for _, param := range op.Parameters {
 		if param.In == "body" && param.Schema != nil {
+			hasBody = true
 			if param.Schema.Type == "array" {
 				isArray = true
 			}
@@ -160,11 +161,40 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		}
 	}
 
-	urlStr := "http://localhost:8080/v2" + pathFilled
+	urlStr := `"` + pathFilled + `"`
 	if len(queryParams) > 0 {
-		urlStr += "?" + strings.Join(queryParams, "&")
+		urlStr = `"` + pathFilled + "?" + strings.Join(queryParams, "&") + `"`
 	}
-	// Build AST: req, err := http.NewRequest(METHOD, URL, bodyArg)
+
+	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
+		Lhs: []dst.Expr{dst.NewIdent("baseURL")},
+		Tok: token.DEFINE, // :=
+		Rhs: []dst.Expr{
+			&dst.CallExpr{
+				Fun:  &dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Getenv")},
+				Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"BASE_URL"`}},
+			},
+		},
+	})
+
+	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
+		Cond: &dst.BinaryExpr{
+			X:  dst.NewIdent("baseURL"),
+			Op: token.EQL,
+			Y:  &dst.BasicLit{Kind: token.STRING, Value: `""`},
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.AssignStmt{
+					Lhs: []dst.Expr{dst.NewIdent("baseURL")},
+					Tok: token.ASSIGN,
+					Rhs: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"http://localhost:8080/v2"`}},
+				},
+			},
+		},
+	})
+
+	// Build AST: req, err := http.NewRequest(METHOD, baseURL + urlStr, bodyArg)
 	var bodyExpr dst.Expr = dst.NewIdent("nil")
 	if bodyArg != "nil" {
 		var jsonStr string
@@ -210,7 +240,11 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 				Fun: &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("NewRequest")},
 				Args: []dst.Expr{
 					&dst.BasicLit{Kind: 9, Value: `"` + strings.ToUpper(method) + `"`},
-					&dst.BasicLit{Kind: 9, Value: `"` + urlStr + `"`},
+					&dst.BinaryExpr{
+						X:  dst.NewIdent("baseURL"),
+						Op: token.ADD,
+						Y:  &dst.BasicLit{Kind: token.STRING, Value: urlStr},
+					},
 					bodyExpr,
 				},
 			},
@@ -358,15 +392,23 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
 		Cond: &dst.BinaryExpr{
 			X: &dst.BinaryExpr{
-				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-				Op: token.GEQ,
-				Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
+				X: &dst.BinaryExpr{
+					X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+					Op: token.GEQ,
+					Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
+				},
+				Op: token.LAND,
+				Y: &dst.BinaryExpr{
+					X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+					Op: token.NEQ,
+					Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
+				},
 			},
 			Op: token.LAND,
 			Y: &dst.BinaryExpr{
 				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
 				Op: token.NEQ,
-				Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
+				Y:  &dst.BasicLit{Kind: token.INT, Value: "415"},
 			},
 		},
 		Body: &dst.BlockStmt{
@@ -387,9 +429,17 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 
 	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
 		Cond: &dst.BinaryExpr{
-			X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-			Op: token.EQL,
-			Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
+			X: &dst.BinaryExpr{
+				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+				Op: token.EQL,
+				Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
+			},
+			Op: token.LOR,
+			Y: &dst.BinaryExpr{
+				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+				Op: token.EQL,
+				Y:  &dst.BasicLit{Kind: token.INT, Value: "415"},
+			},
 		},
 		Body: &dst.BlockStmt{
 			List: []dst.Stmt{
