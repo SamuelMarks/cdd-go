@@ -87,10 +87,11 @@ func run(args []string) error {
 		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", ""), "Output file or directory path.")
 		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", ""), "Output file or directory path.")
 
-		var noGithubActions, noInstallablePackage, tests bool
+		var noGithubActions, noInstallablePackage, tests, mcp bool
 		fs.BoolVar(&noGithubActions, "no-github-actions", envOrDefaultBool("CDD_NO_GITHUB_ACTIONS", false), "Do not generate GitHub Actions scaffolding.")
 		fs.BoolVar(&noInstallablePackage, "no-installable-package", envOrDefaultBool("CDD_NO_INSTALLABLE_PACKAGE", false), "Do not generate installable package scaffolding.")
 		fs.BoolVar(&tests, "tests", envOrDefaultBool("CDD_TESTS", false), "Generate integration tests and mocks.")
+		fs.BoolVar(&mcp, "mcp", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
 
 		if err := fs.Parse(args[2:]); err != nil {
 			return err
@@ -106,7 +107,7 @@ func run(args []string) error {
 		if inputTarget == "" {
 			inputTarget = inputDir
 		}
-		return cdd.GenerateFromOpenApi(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage, tests)
+		return cdd.GenerateFromOpenApi(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage, tests, mcp)
 	case "to_openapi":
 		fs := flag.NewFlagSet("to_openapi", flag.ContinueOnError)
 		fs.SetOutput(stderr)

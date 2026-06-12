@@ -29,6 +29,7 @@ type Config struct {
 	NoGithubActions       bool
 	NoInstallablePackage  bool
 	CreateComposableTests bool
+	Mcp                   bool
 }
 
 // GenerateSDK generates the SDK based on the provided configuration.
@@ -37,11 +38,11 @@ func GenerateSDK(config Config) error {
 	if in == "" {
 		in = config.InputDir
 	}
-	return GenerateFromOpenApi("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests)
+	return GenerateFromOpenApi("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests, config.Mcp)
 }
 
 // GenerateFromOpenApi generates code from an OpenAPI specification.
-func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests bool) error {
+func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests, mcp bool) error {
 	if in == "" {
 		return fmt.Errorf("input file or directory is required")
 	}
@@ -78,6 +79,10 @@ func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noIn
 			return err
 		}
 		if tests {
+			if mcp {
+				// Generate MCP adapter
+				// (placeholder)
+			}
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
 			}
@@ -93,6 +98,10 @@ func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noIn
 			return err
 		}
 		if tests {
+			if mcp {
+				// Generate MCP adapter
+				// (placeholder)
+			}
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
 			}
@@ -111,6 +120,10 @@ func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noIn
 			return err
 		}
 		if tests {
+			if mcp {
+				// Generate MCP adapter
+				// (placeholder)
+			}
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
 			}
@@ -624,7 +637,7 @@ func ExecuteGeneratorRouter(toolName string, args map[string]any) (any, error) {
 	case "cdd_generate_sdk":
 		in, _ := args["input"].(string)
 		out, _ := args["output"].(string)
-		return "SDK Generated", GenerateFromOpenApi("to_sdk", in, out, false, false, false)
+		return "SDK Generated", GenerateFromOpenApi("to_sdk", in, out, false, false, false, false)
 	case "cdd_sync_schema":
 		in, _ := args["input"].(string)
 		out, _ := args["output"].(string)
