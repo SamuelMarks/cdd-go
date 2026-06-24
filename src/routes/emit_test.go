@@ -131,3 +131,48 @@ func TestEmitHandlerInterfaceExtraVerbs(t *testing.T) {
 		t.Errorf("expected 8 methods, got %d", len(iface.Methods.List))
 	}
 }
+
+func TestEmitHandlerStruct(t *testing.T) {
+	pathItem := &openapi.PathItem{
+		Get:     &openapi.Operation{OperationID: "getUser"},
+		Post:    &openapi.Operation{OperationID: "postUser"},
+		Put:     &openapi.Operation{OperationID: "putUser"},
+		Delete:  &openapi.Operation{OperationID: "deleteUser"},
+		Patch:   &openapi.Operation{OperationID: "patchUser"},
+		Options: &openapi.Operation{OperationID: "optionsUser"},
+		Head:    &openapi.Operation{OperationID: "headUser"},
+		Trace:   &openapi.Operation{OperationID: "traceUser"},
+	}
+	decls, err := EmitHandlerStruct("/users", pathItem)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(decls) == 0 {
+		t.Errorf("expected decls")
+	}
+
+	pathItemEmpty := &openapi.PathItem{
+		Get:     &openapi.Operation{},
+		Post:    &openapi.Operation{},
+		Put:     &openapi.Operation{},
+		Delete:  &openapi.Operation{},
+		Patch:   &openapi.Operation{},
+		Options: &openapi.Operation{},
+		Head:    &openapi.Operation{},
+		Trace:   &openapi.Operation{},
+	}
+	declsEmpty, err := EmitHandlerStruct("/users", pathItemEmpty)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(declsEmpty) == 0 {
+		t.Errorf("expected decls")
+	}
+}
+
+func TestEmitHandlerStructNil(t *testing.T) {
+	_, err := EmitHandlerStruct("/", nil)
+	if err == nil {
+		t.Errorf("expected error for nil PathItem")
+	}
+}

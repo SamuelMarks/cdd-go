@@ -568,6 +568,36 @@ func TestGenerateFromOpenApiMkdirErrors(t *testing.T) {
 	os.WriteFile(filepath.Join(outClassesDir, "models"), []byte("file"), 0644)
 	_ = GenerateFromOpenApi("to_server", specPath, outClassesDir, false, false, false, false)
 
+	// block GenerateMiddlewares
+	outMwDir := filepath.Join(dir, "out_mw_srv")
+	os.MkdirAll(outMwDir, 0755)
+	os.WriteFile(filepath.Join(outMwDir, "middlewares"), []byte("file"), 0644)
+	_ = GenerateFromOpenApi("to_server", specPath, outMwDir, false, false, false, false)
+
+	// block GenerateIdP
+	outIdPDir := filepath.Join(dir, "out_idp_srv")
+	os.MkdirAll(outIdPDir, 0755)
+	os.WriteFile(filepath.Join(outIdPDir, "idp"), []byte("file"), 0644)
+	_ = GenerateFromOpenApi("to_server", specPath, outIdPDir, false, false, false, false)
+
+	// block GenerateDatabase
+	outDbDir := filepath.Join(dir, "out_db_srv")
+	os.MkdirAll(outDbDir, 0755)
+	os.WriteFile(filepath.Join(outDbDir, "database"), []byte("file"), 0644)
+	_ = GenerateFromOpenApi("to_server", specPath, outDbDir, false, false, false, false)
+
+	// block GenerateDAOs
+	outDaosDir := filepath.Join(dir, "out_daos_srv")
+	os.MkdirAll(outDaosDir, 0755)
+	os.WriteFile(filepath.Join(outDaosDir, "daos"), []byte("file"), 0644)
+	_ = GenerateFromOpenApi("to_server", specPath, outDaosDir, false, false, false, false)
+
+	// block GenerateServerMain
+	outMainDir := filepath.Join(dir, "out_main_srv")
+	os.MkdirAll(outMainDir, 0755)
+	os.WriteFile(filepath.Join(outMainDir, "cmd"), []byte("file"), 0644)
+	_ = GenerateFromOpenApi("to_server", specPath, outMainDir, false, false, false, false)
+
 	// block GenerateTests
 	outTestsDirSrv := filepath.Join(dir, "out_tests_srv")
 	os.MkdirAll(outTestsDirSrv, 0755)
@@ -579,6 +609,12 @@ func TestGenerateFromOpenApiMkdirErrors(t *testing.T) {
 	os.MkdirAll(outMocksDirSrv, 0755)
 	os.WriteFile(filepath.Join(outMocksDirSrv, "mocks"), []byte("file"), 0644)
 	_ = GenerateFromOpenApi("to_server", specPath, outMocksDirSrv, false, false, true, false)
+
+	// block GenerateSeeder
+	outSeederDirSrv := filepath.Join(dir, "out_seeder_srv")
+	os.MkdirAll(outSeederDirSrv, 0755)
+	os.WriteFile(filepath.Join(outSeederDirSrv, "seeder"), []byte("file"), 0644)
+	_ = GenerateFromOpenApi("to_server", specPath, outSeederDirSrv, false, false, true, false)
 
 	// to_sdk_cli
 	// block GenerateClasses
@@ -750,5 +786,66 @@ func TestExecuteGeneratorRouter(t *testing.T) {
 	_, err = ExecuteGeneratorRouter("unknown", nil)
 	if err == nil {
 		t.Errorf("expected error for unknown tool")
+	}
+}
+
+func TestGenerateOpenAPICommands(t *testing.T) {
+	dir := t.TempDir()
+	goCode := `package cmds
+
+import "github.com/spf13/cobra"
+
+// Method: GET
+// Path: /cmd-test
+var GetTestCmd = &cobra.Command{
+	Use:   "get-test",
+	Short: "Get test",
+}
+`
+	os.WriteFile(filepath.Join(dir, "cmds.go"), []byte(goCode), 0644)
+	err := GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	if err != nil {
+		t.Errorf("GenerateOpenAPI error: %v", err)
+	}
+}
+
+func TestGenerateOpenAPICommandsOtherMethods(t *testing.T) {
+	dir := t.TempDir()
+	goCode := `package cmds
+
+import "github.com/spf13/cobra"
+
+// Method: POST
+// Path: /cmd-post
+var PostCmd = &cobra.Command{Use: "post"}
+
+// Method: PUT
+// Path: /cmd-put
+var PutCmd = &cobra.Command{Use: "put"}
+
+// Method: DELETE
+// Path: /cmd-delete
+var DeleteCmd = &cobra.Command{Use: "delete"}
+
+// Method: PATCH
+// Path: /cmd-patch
+var PatchCmd = &cobra.Command{Use: "patch"}
+
+// Method: OPTIONS
+// Path: /cmd-options
+var OptionsCmd = &cobra.Command{Use: "options"}
+
+// Method: HEAD
+// Path: /cmd-head
+var HeadCmd = &cobra.Command{Use: "head"}
+
+// Method: TRACE
+// Path: /cmd-trace
+var TraceCmd = &cobra.Command{Use: "trace"}
+`
+	os.WriteFile(filepath.Join(dir, "cmds_other.go"), []byte(goCode), 0644)
+	err := GenerateOpenAPI(dir, filepath.Join(dir, "out2.json"))
+	if err != nil {
+		t.Errorf("GenerateOpenAPI error: %v", err)
 	}
 }

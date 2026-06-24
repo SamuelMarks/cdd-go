@@ -63,8 +63,8 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// 4. version
 	resp, _ = doRequest("version", "[]")
-	if resp.Result != "0.0.2" {
-		t.Errorf("expected 0.0.2, got %v", resp.Result)
+	if resp.Result != "0.0.3" {
+		t.Errorf("expected 0.0.3, got %v", resp.Result)
 	}
 
 	// 5. to_docs_json (invalid params)

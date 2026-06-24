@@ -94,7 +94,22 @@ func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noIn
 		if err := GenerateClasses(oa, outDir); err != nil {
 			return err
 		}
+		if err := GenerateMiddlewares(outDir); err != nil {
+			return err
+		}
+		if err := GenerateIdP(outDir); err != nil {
+			return err
+		}
+		if err := GenerateDatabase(oa, outDir); err != nil {
+			return err
+		}
+		if err := GenerateDAOs(oa, outDir); err != nil {
+			return err
+		}
 		if err := GenerateRoutes(oa, outDir); err != nil {
+			return err
+		}
+		if err := GenerateServerMain(oa, outDir, true, tests, true); err != nil {
 			return err
 		}
 		if tests {
@@ -106,6 +121,9 @@ func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noIn
 				return err
 			}
 			if err := GenerateMocks(oa, outDir); err != nil {
+				return err
+			}
+			if err := GenerateSeeder(oa, outDir); err != nil {
 				return err
 			}
 		}
@@ -215,7 +233,7 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 		OpenAPI: "3.2.0",
 		Info: openapi.Info{
 			Title:   "Generated API",
-			Version: "0.0.2",
+			Version: "0.0.3",
 		},
 		Paths: make(openapi.Paths),
 		Components: &openapi.Components{
@@ -320,6 +338,33 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 						}
 					}
 				} else if d.Tok == token.VAR {
+					method, path, op := commands.Parse(d)
+					if op != nil && method != "" && path != "" {
+						if _, ok := oa.Paths[path]; !ok {
+							oa.Paths[path] = openapi.PathItem{}
+						}
+						pi := oa.Paths[path]
+						switch strings.ToLower(method) {
+						case "get":
+							pi.Get = op
+						case "post":
+							pi.Post = op
+						case "put":
+							pi.Put = op
+						case "delete":
+							pi.Delete = op
+						case "patch":
+							pi.Patch = op
+						case "options":
+							pi.Options = op
+						case "head":
+							pi.Head = op
+						case "trace":
+							pi.Trace = op
+						}
+						oa.Paths[path] = pi
+					}
+
 					for _, spec := range d.Specs {
 						if vs, ok := spec.(*dst.ValueSpec); ok {
 							ex, err := mocks.ParseExample(vs)
@@ -407,11 +452,15 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 
 	for path, item := range oa.Paths {
 		var decl *dst.GenDecl
+		var structDecls []dst.Decl
 		var err error
 		if path == "/error-path" {
 			err = fmt.Errorf("simulated error")
 		} else {
 			decl, err = routes.EmitHandlerInterface(path, &item)
+			if err == nil {
+				structDecls, err = routes.EmitHandlerStruct(path, &item)
+			}
 		}
 		if err != nil {
 			return err
@@ -420,19 +469,25 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 		if path == "/client-only" {
 			continue
 		}
-		file := &dst.File{
-			Name: dst.NewIdent("routes"),
-			Decls: []dst.Decl{
-				&dst.GenDecl{
-					Tok: token.IMPORT,
-					Specs: []dst.Spec{
-						&dst.ImportSpec{
-							Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/gin-gonic/gin"`},
-						},
+		decls := []dst.Decl{
+			&dst.GenDecl{
+				Tok: token.IMPORT,
+				Specs: []dst.Spec{
+					&dst.ImportSpec{
+						Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/gin-gonic/gin"`},
+					},
+					&dst.ImportSpec{
+						Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/daos"`},
 					},
 				},
-				decl,
 			},
+			decl,
+		}
+		decls = append(decls, structDecls...)
+
+		file := &dst.File{
+			Name:  dst.NewIdent("routes"),
+			Decls: decls,
 		}
 		fileName := strings.ReplaceAll(path, "/", "_")
 		fileName = strings.ReplaceAll(fileName, "{", "")

@@ -60,9 +60,30 @@ repos:
         pass_filenames: false
         files: \.go$
 
+      - id: test-swagger-petstore-server
+        name: Swagger 2.0 Petstore server test
+        entry: go run ./cmd/cdd-go from_openapi to_server -i ../petstore.json -o my_generated_server_swagger --tests
+        language: system
+        pass_filenames: false
+        files: \.go$
+
+      - id: test-openapi-petstore-server
+        name: OpenAPI 3.2.0 Petstore server test
+        entry: go run ./cmd/cdd-go from_openapi to_server -i ../petstore_oas3.json -o my_generated_server_oas3 --tests
+        language: system
+        pass_filenames: false
+        files: \.go$
+
       - id: test-sdks-integration
         name: Test Generated SDKs Integration
         entry: go run scripts/test_sdks/test_sdks.go
+        language: system
+        pass_filenames: false
+        files: \.go$
+
+      - id: test-servers-integration
+        name: Test Generated Servers Integration
+        entry: go run scripts/test_servers/test_servers.go
         language: system
         pass_filenames: false
         files: \.go$

@@ -51,7 +51,7 @@ func runServeMCPStdio(args []string) error {
 				},
 				"serverInfo": map[string]interface{}{
 					"name":    "cdd-generator-mcp",
-					"version": "0.0.2",
+					"version": "0.0.3",
 				},
 			}
 		} else if req.Method == "tools/list" {

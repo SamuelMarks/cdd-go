@@ -72,3 +72,6 @@ temp-*.json
 
 coverage.out
 test_out/
+cover.html
+my_generated_server*/
+test_server_out/
