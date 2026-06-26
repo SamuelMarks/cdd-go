@@ -393,22 +393,38 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		Cond: &dst.BinaryExpr{
 			X: &dst.BinaryExpr{
 				X: &dst.BinaryExpr{
-					X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-					Op: token.GEQ,
-					Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
+					X: &dst.BinaryExpr{
+						X: &dst.BinaryExpr{
+							X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+							Op: token.GTR, // changed from GEQ to GTR so 400 is ignored
+							Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
+						},
+						Op: token.LAND,
+						Y: &dst.BinaryExpr{
+							X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+							Op: token.NEQ,
+							Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
+						},
+					},
+					Op: token.LAND,
+					Y: &dst.BinaryExpr{
+						X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+						Op: token.NEQ,
+						Y:  &dst.BasicLit{Kind: token.INT, Value: "405"},
+					},
 				},
 				Op: token.LAND,
 				Y: &dst.BinaryExpr{
 					X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
 					Op: token.NEQ,
-					Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
+					Y:  &dst.BasicLit{Kind: token.INT, Value: "415"},
 				},
 			},
 			Op: token.LAND,
 			Y: &dst.BinaryExpr{
 				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
 				Op: token.NEQ,
-				Y:  &dst.BasicLit{Kind: token.INT, Value: "415"},
+				Y:  &dst.BasicLit{Kind: token.INT, Value: "422"},
 			},
 		},
 		Body: &dst.BlockStmt{

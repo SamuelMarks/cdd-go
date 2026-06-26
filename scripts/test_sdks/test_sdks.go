@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -28,9 +29,35 @@ func startServer(image, name, port string) error {
 
 func startPrism(specPath, name, port string) error {
 	fmt.Printf("Starting Prism for %s...\n", specPath)
-	_ = execCommand("docker", "rm", "-f", name).Run()
+
+	// Check if specPath exists in current directory, if not try parent directory
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		if _, err := os.Stat("../" + specPath); err == nil {
+			specPath = "../" + specPath
+		}
+	}
 	pwd, _ := os.Getwd()
-	cmd := execCommand("docker", "run", "-d", "--name", name, "-p", port+":4010", "-v", pwd+"/"+specPath+":/tmp/spec.json", "stoplight/prism:4", "mock", "-h", "0.0.0.0", "/tmp/spec.json")
+	absSpecPath := pwd + "/" + specPath
+	if _, err := os.Stat(specPath); err == nil {
+		if filepath.IsAbs(specPath) {
+			absSpecPath = specPath
+		} else {
+			absSpecPath, _ = filepath.Abs(specPath)
+		}
+	}
+
+	// Try npx natively first
+	cmd := execCommand("npx", "-y", "@stoplight/prism-cli", "mock", absSpecPath, "-p", port, "-h", "127.0.0.1")
+	if err := cmd.Start(); err == nil {
+		fmt.Println("Started Prism natively via npx")
+		// Wait a bit for it to start
+		timeSleep(2 * time.Second)
+		return nil
+	}
+
+	fmt.Println("Falling back to Docker for Prism")
+	_ = execCommand("docker", "rm", "-f", name).Run()
+	cmd = execCommand("docker", "run", "-d", "--name", name, "-p", port+":4010", "-v", absSpecPath+":/tmp/spec.json", "stoplight/prism:4", "mock", "-h", "0.0.0.0", "/tmp/spec.json")
 	return cmd.Run()
 }
 
@@ -52,6 +79,8 @@ func main() {
 
 var waitTimeout = 60 * time.Second
 var waitTimeoutOAS3 = 90 * time.Second
+
+var osExit = os.Exit
 
 func runMain() {
 	fmt.Println("Testing SDKs against servers...")
@@ -82,8 +111,10 @@ func runMain() {
 	} else {
 		os.Setenv("BASE_URL", "http://127.0.0.1:8080/api")
 	}
+	swaggerFailed := false
 	if err := runCmd("go", "test", "./tests"); err != nil {
 		log.Printf("Swagger tests failed: %v", err)
+		swaggerFailed = true
 	}
 	osChdir("..")
 
@@ -113,12 +144,20 @@ func runMain() {
 	} else {
 		os.Setenv("BASE_URL", "http://127.0.0.1:8081/api/v3")
 	}
+
+	oas3Failed := false
 	if err := runCmd("go", "test", "./tests"); err != nil {
 		log.Printf("OAS3 tests failed: %v", err)
+		oas3Failed = true
 	}
 	osChdir("..")
 
 	fmt.Println("Cleaning up...")
 	execCommand("sh", "-c", "docker ps -aq | xargs docker rm -f").Run()
+
+	if swaggerFailed || oas3Failed {
+		fmt.Println("Some tests failed.")
+		osExit(1)
+	}
 	fmt.Println("All tests passed.")
 }

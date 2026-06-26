@@ -14,6 +14,7 @@ func TestTestSdks(t *testing.T) {
 	oldTimeSleep := timeSleep
 	oldWaitTimeout := waitTimeout
 	oldWaitTimeoutOAS3 := waitTimeoutOAS3
+	oldOsExit := osExit
 	defer func() {
 		execCommand = oldExecCommand
 		runCmd = oldRunCmd
@@ -21,6 +22,7 @@ func TestTestSdks(t *testing.T) {
 		timeSleep = oldTimeSleep
 		waitTimeout = oldWaitTimeout
 		waitTimeoutOAS3 = oldWaitTimeoutOAS3
+		osExit = oldOsExit
 	}()
 
 	oldRunCmd("echo")
@@ -29,6 +31,7 @@ func TestTestSdks(t *testing.T) {
 	timeSleep = func(d time.Duration) {}
 	waitTimeout = 1 * time.Millisecond
 	waitTimeoutOAS3 = 1 * time.Millisecond
+	osExit = func(code int) {}
 
 	execCommand = func(name string, args ...string) *exec.Cmd {
 		return exec.Command("echo") // always succeeds
@@ -66,6 +69,24 @@ func TestTestSdks(t *testing.T) {
 	}
 	runCmd = func(name string, args ...string) error {
 		return exec.Command("false").Run()
+	}
+	runMain()
+
+	// Test npx fallback to docker
+	execCommand = func(name string, args ...string) *exec.Cmd {
+		if name == "docker" && len(args) > 0 && args[0] == "run" && (args[len(args)-1] == "swaggerapi/petstore" || args[len(args)-1] == "openapitools/openapi-petstore") {
+			return exec.Command("false")
+		}
+		if name == "npx" {
+			return exec.Command("this_command_does_not_exist_12345")
+		}
+		if name == "curl" {
+			return exec.Command("true")
+		}
+		return exec.Command("echo")
+	}
+	runCmd = func(name string, args ...string) error {
+		return nil
 	}
 	runMain()
 
