@@ -42,6 +42,21 @@ func TestRun(t *testing.T) {
 		t.Errorf("expected error for missing input path")
 	}
 
+	err = run([]string{"sync", "-invalid"})
+	if err == nil {
+		t.Errorf("expected error for invalid flag in sync")
+	}
+
+	err = run([]string{"sync"})
+	if err == nil {
+		t.Errorf("expected error for missing input path in sync")
+	}
+
+	err = run([]string{"sync", "-t", "invalid_truth_val"})
+	if err == nil {
+		t.Errorf("expected error for invalid truth val in sync")
+	}
+
 	// test mcp subcommand coverage
 	oldStdin := os.Stdin
 	r, w, _ := os.Pipe()

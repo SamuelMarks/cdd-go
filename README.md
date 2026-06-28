@@ -134,6 +134,11 @@ Generate server boilerplate, models, and routing logic from an OpenAPI specifica
 Parse the existing codebase and extract an authoritative OpenAPI specification.
 - `--input, -i <path>` (or `-f <path>`): Path to the source code directory or file to parse.
 
+#### `sync`
+Synchronize between code and OpenAPI specification based on the source of truth.
+- `--input, -i <path>`: Input path (source dir or openapi spec).
+- `--truth, -t <truth>`: Source of truth: 'code' (or 'go'), 'openapi' (or 'spec', 'swagger') (default 'code').
+
 #### `to_docs_json`
 Convert an OpenAPI specification into a localized, documentation-optimized JSON format.
 - `--input, -i <spec>`: Path to the OpenAPI specification file.
@@ -150,9 +155,61 @@ Run the Model Context Protocol server via stdio.
 
 ### Detailed Subcommand Help (Verbatim)
 
-#### `from_openapi` (e.g. `to_sdk`, `to_sdk_cli`, `to_server`)
+#### `from_openapi to_sdk`
 ```text
 Usage of from_openapi to_sdk:
+  -d string
+        Directory containing OpenAPI specifications.
+  -i string
+        Path or URL to the OpenAPI specification.
+  -input string
+        Path or URL to the OpenAPI specification.
+  -input-dir string
+        Directory containing OpenAPI specifications.
+  -mcp
+        Generate Model Context Protocol (MCP) server and adapter.
+  -no-github-actions
+        Do not generate GitHub Actions scaffolding.
+  -no-installable-package
+        Do not generate installable package scaffolding.
+  -o string
+        Output file or directory path.
+  -output string
+        Output file or directory path.
+  -tests
+        Generate integration tests and mocks.
+```
+
+#### `from_openapi to_sdk_cli`
+```text
+Usage of from_openapi to_sdk_cli:
+  -d string
+        Directory containing OpenAPI specifications.
+  -i string
+        Path or URL to the OpenAPI specification.
+  -input string
+        Path or URL to the OpenAPI specification.
+  -input-dir string
+        Directory containing OpenAPI specifications.
+  -mcp
+        Generate Model Context Protocol (MCP) server and adapter.
+  -no-github-actions
+        Do not generate GitHub Actions scaffolding.
+  -no-installable-package
+        Do not generate installable package scaffolding.
+  -o string
+        Output file or directory path.
+  -output string
+        Output file or directory path.
+  -tests
+        Generate integration tests and mocks.
+```
+
+#### `from_openapi to_server`
+```text
+Usage of from_openapi to_server:
+  -d string
+        Directory containing OpenAPI specifications.
   -i string
         Path or URL to the OpenAPI specification.
   -input string
@@ -186,6 +243,23 @@ Usage of to_openapi:
         Output file or directory path. (default "openapi.json")
 ```
 
+#### `sync`
+```text
+Usage of sync:
+  -i string
+        Input path (source dir or openapi spec).
+  -input string
+        Input path (source dir or openapi spec).
+  -o string
+        Output file or directory path. (default "openapi.json")
+  -output string
+        Output file or directory path. (default "openapi.json")
+  -t string
+        Source of truth: 'code' (or 'go'), 'openapi' (or 'spec', 'swagger'). (default "code")
+  -truth string
+        Source of truth: 'code' (or 'go'), 'openapi' (or 'spec', 'swagger'). (default "code")
+```
+
 #### `to_docs_json`
 ```text
 Usage of to_docs_json:
@@ -214,6 +288,11 @@ Usage of serve_json_rpc:
         Port to listen on (shorthand) (default 8080)
   -port int
         Port to listen on (default 8080)
+```
+
+#### `mcp`
+```text
+The mcp subcommand takes no flags. It runs the Model Context Protocol server via stdio.
 ```
 
 ### Detail Features Beyond Common Subset

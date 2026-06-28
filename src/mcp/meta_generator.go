@@ -12,6 +12,6 @@ func QueryASTResource(uri string) (*Resource, error) {
 
 // InMemoryGenerationRouter natively bindings to run the generator core directly.
 func InMemoryGenerationRouter(input map[string]interface{}) (interface{}, error) {
-	// Stub: Natively routes requests to cdd.GenerateFromOpenApi or cdd.GenerateToOpenApi in memory.
+	// Stub: Natively routes requests to cdd.FromOpenAPI or cdd.ToOpenAPI in memory.
 	return map[string]interface{}{"status": "generated in memory"}, nil
 }

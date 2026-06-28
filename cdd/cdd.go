@@ -38,11 +38,11 @@ func GenerateSDK(config Config) error {
 	if in == "" {
 		in = config.InputDir
 	}
-	return GenerateFromOpenApi("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests, config.Mcp)
+	return FromOpenAPI("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests, config.Mcp)
 }
 
-// GenerateFromOpenApi generates code from an OpenAPI specification.
-func GenerateFromOpenApi(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests, mcp bool) error {
+// FromOpenAPI generates code from an OpenAPI specification.
+func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests, mcp bool) error {
 	if in == "" {
 		return fmt.Errorf("input file or directory is required")
 	}
@@ -210,8 +210,8 @@ func GenerateCLI(oa *openapi.OpenAPI, outDir string) error {
 	return WriteDstFile(filepath.Join(outDir, "sdk_cli.go"), file)
 }
 
-// GenerateToOpenApi generates an OpenAPI specification from source code.
-func GenerateToOpenApi(in, outPath string) error {
+// ToOpenAPI generates an OpenAPI specification from source code.
+func ToOpenAPI(in, outPath string) error {
 	if in == "" {
 		return fmt.Errorf("input path is required")
 	}
@@ -674,8 +674,8 @@ func GenerateMocks(oa *openapi.OpenAPI, outDir string) error {
 	return WriteDstFile(filepath.Join(mocksDir, "mocks.go"), file)
 }
 
-// ServeJsonRpc exposes the CLI interface as a JSON-RPC server.
-func ServeJsonRpc(port int, listen string) error {
+// ServeJSONRPC exposes the CLI interface as a JSON-RPC server.
+func ServeJSONRPC(port int, listen string) error {
 	// Not fully implemented in core cdd package, usually run from cmd
 	// We return an error to prompt using the actual command for now,
 	// or we could start a basic listener here.
@@ -693,12 +693,22 @@ func ExecuteGeneratorRouter(toolName string, args map[string]any) (any, error) {
 	case "cdd_generate_sdk":
 		in, _ := args["input"].(string)
 		out, _ := args["output"].(string)
-		return "SDK Generated", GenerateFromOpenApi("to_sdk", in, out, false, false, false, false)
+		return "SDK Generated", FromOpenAPI("to_sdk", in, out, false, false, false, false)
 	case "cdd_sync_schema":
 		in, _ := args["input"].(string)
 		out, _ := args["output"].(string)
-		return "Schema Synced", GenerateToOpenApi(in, out)
+		return "Schema Synced", ToOpenAPI(in, out)
 	default:
 		return nil, fmt.Errorf("unknown generator tool: %s", toolName)
 	}
+}
+
+// Sync synchronizes between code and OpenAPI specification based on the source of truth.
+func Sync(in, outPath, truth string) error {
+	if truth == "openapi" || truth == "spec" || truth == "swagger" {
+		return FromOpenAPI("to_server", in, outPath, false, false, false, false)
+	} else if truth == "code" || truth == "go" {
+		return ToOpenAPI(in, outPath)
+	}
+	return fmt.Errorf("invalid truth value: %s", truth)
 }

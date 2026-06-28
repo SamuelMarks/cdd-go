@@ -27,5 +27,5 @@ func runToDocsJSON(args []string) error {
 		return err
 	}
 
-	return cdd.GenerateDocsJson(in, out, noImports, noWrapping)
+	return cdd.ToDocsJSON(in, out, noImports, noWrapping)
 }

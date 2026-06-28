@@ -85,16 +85,22 @@ var osExit = os.Exit
 func runMain() {
 	fmt.Println("Testing SDKs against servers...")
 
-	err := startServer("swaggerapi/petstore", "petstore_jvm", "8080")
 	usePrismSwagger := false
-	if err != nil {
-		fmt.Println("Failed to start JVM server, falling back to Prism:", err)
-		usePrismSwagger = true
+	startedSwaggerLocally := false
+	if waitForServer("http://127.0.0.1:8080/api/pet/findByStatus?status=available", 2*time.Second) {
+		fmt.Println("JVM server for Swagger already running.")
 	} else {
-		fmt.Println("Waiting for JVM server...")
-		if !waitForServer("http://127.0.0.1:8080/api/pet/findByStatus?status=available", waitTimeout) {
-			fmt.Println("JVM server didn't start in time, falling back to Prism")
+		err := startServer("swaggerapi/petstore", "petstore_jvm", "8080")
+		if err != nil {
+			fmt.Println("Failed to start JVM server, falling back to Prism:", err)
 			usePrismSwagger = true
+		} else {
+			startedSwaggerLocally = true
+			fmt.Println("Waiting for JVM server...")
+			if !waitForServer("http://127.0.0.1:8080/api/pet/findByStatus?status=available", waitTimeout) {
+				fmt.Println("JVM server didn't start in time, falling back to Prism")
+				usePrismSwagger = true
+			}
 		}
 	}
 
@@ -118,16 +124,22 @@ func runMain() {
 	}
 	osChdir("..")
 
-	err = startServer("openapitools/openapi-petstore", "petstore_jvm_oas3", "8081")
 	usePrismOAS3 := false
-	if err != nil {
-		fmt.Println("Failed to start JVM server for OAS3, falling back to Prism:", err)
-		usePrismOAS3 = true
+	startedOAS3Locally := false
+	if waitForServer("http://127.0.0.1:8081/api/v3/pet/findByStatus?status=available", 2*time.Second) {
+		fmt.Println("JVM server for OAS3 already running.")
 	} else {
-		fmt.Println("Waiting for JVM server for OAS3...")
-		if !waitForServer("http://127.0.0.1:8081/api/v3/pet/findByStatus?status=available", waitTimeoutOAS3) {
-			fmt.Println("JVM server for OAS3 didn't start in time, falling back to Prism")
+		err := startServer("openapitools/openapi-petstore", "petstore_jvm_oas3", "8081")
+		if err != nil {
+			fmt.Println("Failed to start JVM server for OAS3, falling back to Prism:", err)
 			usePrismOAS3 = true
+		} else {
+			startedOAS3Locally = true
+			fmt.Println("Waiting for JVM server for OAS3...")
+			if !waitForServer("http://127.0.0.1:8081/api/v3/pet/findByStatus?status=available", waitTimeoutOAS3) {
+				fmt.Println("JVM server for OAS3 didn't start in time, falling back to Prism")
+				usePrismOAS3 = true
+			}
 		}
 	}
 
@@ -152,8 +164,10 @@ func runMain() {
 	}
 	osChdir("..")
 
-	fmt.Println("Cleaning up...")
-	execCommand("sh", "-c", "docker ps -aq | xargs docker rm -f").Run()
+	if startedSwaggerLocally || startedOAS3Locally || usePrismSwagger || usePrismOAS3 {
+		fmt.Println("Cleaning up...")
+		execCommand("sh", "-c", "docker ps -aq | xargs docker rm -f").Run()
+	}
 
 	if swaggerFailed || oas3Failed {
 		fmt.Println("Some tests failed.")

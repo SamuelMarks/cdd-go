@@ -1,4 +1,4 @@
-package main
+package cdd
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ func TestRunServeMCPStdio(t *testing.T) {
 	// Run MCP in background
 	done := make(chan struct{})
 	go func() {
-		runServeMCPStdio([]string{})
+		ServeMCPStdio([]string{})
 		outW.Close()
 		close(done)
 	}()
@@ -63,7 +63,7 @@ func TestRunServeMCPStdioInvalidJSON(t *testing.T) {
 	w.Write([]byte(`{invalid_json` + "\n"))
 	w.Close()
 
-	err := runServeMCPStdio([]string{})
+	err := ServeMCPStdio([]string{})
 	if err != nil {
 		t.Errorf("Did not expect error on invalid json, should just continue to EOF")
 	}
@@ -82,10 +82,10 @@ func TestRunServeMCPStdioToolsCall(t *testing.T) {
 
 	// Write inputs
 	inputs := []string{
-		`{"jsonrpc": "2.0", "method": "tools/call", "id": 1, "params": {"name": "cdd_generate_sdk", "arguments": {"input": "../../test_spec.json", "output": "../../test_out/my_mcp_sdk"}}}`,
-		`{"jsonrpc": "2.0", "method": "tools/call", "id": 2, "params": {"name": "cdd_sync_schema", "arguments": {"input": "../../test_out/my_mcp_sdk", "output": "../../test_out/my_mcp_schema.json"}}}`,
+		`{"jsonrpc": "2.0", "method": "tools/call", "id": 1, "params": {"name": "cdd_generate_sdk", "arguments": {"input": "../test_spec.json", "output": "../test_out/my_mcp_sdk"}}}`,
+		`{"jsonrpc": "2.0", "method": "tools/call", "id": 2, "params": {"name": "cdd_sync_schema", "arguments": {"input": "../test_out/my_mcp_sdk", "output": "../test_out/my_mcp_schema.json"}}}`,
 		`{"jsonrpc": "2.0", "method": "tools/call", "id": 3, "params": {"name": "unknown_tool", "arguments": {}}}`,
-		`{"jsonrpc": "2.0", "method": "tools/call", "id": 4, "params": {"name": "cdd_generate_sdk", "arguments": {"input": "does-not-exist.json", "output": "../../test_out/missing"}}}`,
+		`{"jsonrpc": "2.0", "method": "tools/call", "id": 4, "params": {"name": "cdd_generate_sdk", "arguments": {"input": "does-not-exist.json", "output": "../test_out/missing"}}}`,
 		`{"jsonrpc": "2.0", "method": "tools/call", "id": 5, "params": {"name": "cdd_sync_schema", "arguments": {"input": "", "output": ""}}}`,
 		`{"jsonrpc": "2.0", "method": "tools/call", "id": 6, "params": []}`,
 	}
@@ -96,7 +96,7 @@ func TestRunServeMCPStdioToolsCall(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		runServeMCPStdio([]string{})
+		ServeMCPStdio([]string{})
 		outW.Close()
 		close(done)
 	}()

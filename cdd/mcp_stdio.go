@@ -1,4 +1,4 @@
-package main
+package cdd
 
 import (
 	"encoding/json"
@@ -23,7 +23,8 @@ type MCPResponse struct {
 	Error   interface{} `json:"error,omitempty"`
 }
 
-func runServeMCPStdio(args []string) error {
+// ServeMCPStdio serves the MCP tool interface via standard I/O.
+func ServeMCPStdio(args []string) error {
 	fmt.Fprintf(os.Stderr, "Starting CDD Generator MCP Server on stdio...\n")
 	decoder := json.NewDecoder(os.Stdin)
 
@@ -92,7 +93,7 @@ func runServeMCPStdio(args []string) error {
 				if params.Name == "cdd_generate_sdk" {
 					in, _ := params.Arguments["input"].(string)
 					out, _ := params.Arguments["output"].(string)
-					err := run([]string{"from_openapi", "to_sdk", "-i", in, "-o", out})
+					err := FromOpenAPI("to_sdk", in, out, false, false, false, false)
 					if err != nil {
 						errResp = map[string]interface{}{"code": -32603, "message": err.Error()}
 					} else {
@@ -105,7 +106,7 @@ func runServeMCPStdio(args []string) error {
 				} else if params.Name == "cdd_sync_schema" {
 					in, _ := params.Arguments["input"].(string)
 					out, _ := params.Arguments["output"].(string)
-					err := run([]string{"to_openapi", "-i", in, "-o", out})
+					err := ToOpenAPI(in, out)
 					if err != nil {
 						errResp = map[string]interface{}{"code": -32603, "message": err.Error()}
 					} else {

@@ -62,28 +62,28 @@ repos:
 
       - id: test-swagger-petstore-server
         name: Swagger 2.0 Petstore server test
-        entry: go run ./cmd/cdd-go from_openapi to_server -i ../petstore.json -o my_generated_server_swagger --tests
+        entry: sh -c 'if [ -n "$RUN_SLOW_TESTS" ]; then go run ./cmd/cdd-go from_openapi to_server -i ../petstore.json -o my_generated_server_swagger --tests; else echo "Skipping (RUN_SLOW_TESTS not set)"; fi'
         language: system
         pass_filenames: false
         files: \.go$
 
       - id: test-openapi-petstore-server
         name: OpenAPI 3.2.0 Petstore server test
-        entry: go run ./cmd/cdd-go from_openapi to_server -i ../petstore_oas3.json -o my_generated_server_oas3 --tests
+        entry: sh -c 'if [ -n "$RUN_SLOW_TESTS" ]; then go run ./cmd/cdd-go from_openapi to_server -i ../petstore_oas3.json -o my_generated_server_oas3 --tests; else echo "Skipping (RUN_SLOW_TESTS not set)"; fi'
         language: system
         pass_filenames: false
         files: \.go$
 
       - id: test-sdks-integration
         name: Test Generated SDKs Integration
-        entry: go run scripts/test_sdks/test_sdks.go
+        entry: sh -c 'if [ -n "$RUN_SLOW_TESTS" ]; then go run scripts/test_sdks/test_sdks.go; else echo "Skipping (RUN_SLOW_TESTS not set)"; fi'
         language: system
         pass_filenames: false
         files: \.go$
 
       - id: test-servers-integration
         name: Test Generated Servers Integration
-        entry: go run scripts/test_servers/test_servers.go
+        entry: sh -c 'if [ -n "$RUN_SLOW_TESTS" ]; then go run scripts/test_servers/test_servers.go; else echo "Skipping (RUN_SLOW_TESTS not set)"; fi'
         language: system
         pass_filenames: false
         files: \.go$

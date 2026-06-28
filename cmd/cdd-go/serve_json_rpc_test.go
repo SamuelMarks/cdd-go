@@ -149,7 +149,7 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 	mapParamsDir := fmt.Sprintf(`{"subcommand": "to_sdk", "input_dir": "%s", "output": "%s/sdk_map_dir", "no_github_actions": true, "no_installable_package": true, "tests": true}`, dir, dir)
 	resp, _ = doRequest("from_openapi", mapParamsDir)
 	if resp.Error == nil {
-		// expecting error because input_dir parsing openapi from a dir with non-openapi go file could fail, but the CLI should at least parse it. Actually, wait, parsing an openapi file from a dir? `to_sdk` on a dir? `from_openapi` requires a file. Wait, `GenerateFromOpenApi` accepts dir and tries to read `dir` as a file `os.Open(in)`. That will error "is a directory" which is an error but we just want to hit the mapping logic.
+		// expecting error because input_dir parsing openapi from a dir with non-openapi go file could fail, but the CLI should at least parse it. Actually, wait, parsing an openapi file from a dir? `to_sdk` on a dir? `from_openapi` requires a file. Wait, `FromOpenAPI` accepts dir and tries to read `dir` as a file `os.Open(in)`. That will error "is a directory" which is an error but we just want to hit the mapping logic.
 		// Just to hit the mapping logic we don't care if it's an error.
 	}
 }

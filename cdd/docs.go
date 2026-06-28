@@ -31,8 +31,8 @@ type DocsCode struct {
 	Snippet      string  `json:"snippet"`
 }
 
-// GenerateDocsJson generates JSON documentation with code snippets for an OpenAPI specification.
-func GenerateDocsJson(in string, out string, noImports bool, noWrapping bool) error {
+// ToDocsJSON generates JSON documentation with code snippets for an OpenAPI specification.
+func ToDocsJSON(in string, out string, noImports bool, noWrapping bool) error {
 	if in == "" {
 		return fmt.Errorf("input file is required")
 	}
