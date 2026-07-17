@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunServeJSONRPC_Flags(t *testing.T) {
@@ -29,6 +30,19 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 	// Since we can't easily capture the mux, let's just create an httptest server with DefaultServeMux.
 	ts := httptest.NewServer(http.DefaultServeMux)
 	defer ts.Close()
+
+	// Wait for the handler to be registered by runServeJSONRPC
+	for i := 0; i < 50; i++ {
+		res, _ := http.Get(ts.URL)
+		if res != nil && res.StatusCode == http.StatusMethodNotAllowed {
+			res.Body.Close()
+			break
+		}
+		if res != nil {
+			res.Body.Close()
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// 1. Invalid method (GET)
 	res, _ := http.Get(ts.URL)
