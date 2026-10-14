@@ -1,9 +1,12 @@
+// Package models provides shared domain error and model types for generated code.
 package models
 
 // AppError represents a standard application error with an HTTP status code and a custom message.
 type AppError struct {
+	// Message is the human-readable error message.
 	Message string
-	Code    int
+	// Code is the HTTP status code associated with the error.
+	Code int
 }
 
 // Error returns the custom message, implementing the standard error interface.

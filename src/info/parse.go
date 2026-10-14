@@ -1,3 +1,4 @@
+// Package info provides parsing and emitting of OpenAPI Info metadata to and from Go AST declarations.
 package info
 
 import (
@@ -9,8 +10,9 @@ import (
 )
 
 // Parse extracts an OpenAPI Info object from an AST representation.
+// Parameter decl is the AST generic declaration, and it returns the parsed OpenAPI Info and error.
 func Parse(decl *dst.GenDecl) (*openapi.Info, error) {
-	if decl == nil || decl.Tok != token.CONST {
+	if decl == nil || (decl.Tok != token.VAR && decl.Tok != token.CONST) {
 		return nil, nil
 	}
 

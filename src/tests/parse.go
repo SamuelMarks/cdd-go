@@ -1,3 +1,4 @@
+// Package tests provides parsing and emitting of Go integration test functions to and from OpenAPI operations.
 package tests
 
 import (

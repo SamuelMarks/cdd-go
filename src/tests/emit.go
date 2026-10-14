@@ -1,17 +1,154 @@
+// Package tests provides parsing and emitting of Go integration test functions to and from OpenAPI operations.
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
+	"go/token"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
-	"go/token"
 )
 
+// ResolveSchema dereferences a schema reference against a map of component schemas if present.
+// Parameter s is the schema to resolve, and schemas is the optional map of component schemas.
+func ResolveSchema(s *openapi.Schema, schemas map[string]openapi.Schema) *openapi.Schema {
+	if s == nil {
+		return nil
+	}
+	if s.Ref != "" && schemas != nil {
+		parts := strings.Split(s.Ref, "/")
+		refName := parts[len(parts)-1]
+		if resolved, ok := schemas[refName]; ok {
+			return &resolved
+		}
+	}
+	return s
+}
+
+// SynthesizeParamValue produces a deterministic mock string value for a path or query parameter based on its schema.
+// Parameter param is the OpenAPI Parameter, and schemas is the optional map of component schemas.
+func SynthesizeParamValue(param openapi.Parameter, schemas map[string]openapi.Schema) string {
+	s := ResolveSchema(param.Schema, schemas)
+	if s != nil {
+		if len(s.Enum) > 0 {
+			var strVal string
+			if err := json.Unmarshal(s.Enum[0], &strVal); err == nil && strVal != "" {
+				return strVal
+			}
+		}
+		switch s.Type {
+		case "integer", "number":
+			return "1"
+		case "boolean":
+			return "true"
+		case "array":
+			if s.Items != nil && len(s.Items.Enum) > 0 {
+				var strVal string
+				if err := json.Unmarshal(s.Items.Enum[0], &strVal); err == nil && strVal != "" {
+					return strVal
+				}
+			}
+			return "item1"
+		case "string":
+			return "dummy"
+		}
+	}
+	if param.Items != nil && len(param.Items.Enum) > 0 {
+		var strVal string
+		if err := json.Unmarshal(param.Items.Enum[0], &strVal); err == nil && strVal != "" {
+			return strVal
+		}
+	}
+	switch param.Type {
+	case "integer", "number":
+		return "1"
+	case "boolean":
+		return "true"
+	case "string":
+		return "dummy"
+	}
+	if param.In == "path" {
+		if strings.HasSuffix(strings.ToLower(param.Name), "id") {
+			return "1"
+		}
+	}
+	return "dummy"
+}
+
+// SynthesizeJSONPayload produces a deterministic JSON string payload from an OpenAPI schema.
+// Parameter schema is the target OpenAPI Schema, isArray indicates array wrapping, and schemas is the component schema map.
+func SynthesizeJSONPayload(schema *openapi.Schema, isArray bool, schemas map[string]openapi.Schema) string {
+	resolved := ResolveSchema(schema, schemas)
+	if resolved != nil && resolved.Type == "array" {
+		isArray = true
+		resolved = ResolveSchema(resolved.Items, schemas)
+	}
+	objStr := `{"id":1,"name":"dummy"}`
+	if resolved != nil && len(resolved.Properties) > 0 {
+		keys := make([]string, 0, len(resolved.Properties))
+		for k := range resolved.Properties {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var fields []string
+		for _, k := range keys {
+			prop := resolved.Properties[k]
+			propResolved := ResolveSchema(&prop, schemas)
+			valStr := synthesizePropertyJSON(k, propResolved)
+			fields = append(fields, fmt.Sprintf("%q:%s", k, valStr))
+		}
+		objStr = "{" + strings.Join(fields, ",") + "}"
+	}
+	if isArray {
+		return "[" + objStr + "]"
+	}
+	return objStr
+}
+
+// synthesizePropertyJSON generates a JSON literal string for a single schema property.
+// Parameter name is the property name, and prop is the resolved property schema.
+func synthesizePropertyJSON(name string, prop *openapi.Schema) string {
+	if prop == nil {
+		return `"dummy"`
+	}
+	if len(prop.Enum) > 0 {
+		return string(prop.Enum[0])
+	}
+	switch prop.Type {
+	case "integer", "number":
+		return "1"
+	case "boolean":
+		return "true"
+	case "array":
+		return `["http://dummy.com"]`
+	case "object":
+		return `{}`
+	default:
+		if prop.Format == "date-time" {
+			return `"2023-01-01T00:00:00Z"`
+		}
+		if prop.Format == "email" || strings.Contains(strings.ToLower(name), "email") {
+			return `"dummy@dummy.com"`
+		}
+		return `"dummy"`
+	}
+}
+
 // EmitTest generates a dst.FuncDecl for testing an OpenAPI operation.
+// Parameter path is the URL path, method is the HTTP verb, and op is the OpenAPI Operation.
 func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl, error) {
+	return EmitTestWithSchemas(path, method, op, nil)
+}
+
+// EmitTestWithSchemas generates a dst.FuncDecl for testing an OpenAPI operation with component schema resolution.
+// Parameter path is the URL path, method is the HTTP verb, op is the OpenAPI Operation, and schemas is the component schemas map.
+func EmitTestWithSchemas(path string, method string, op *openapi.Operation, schemas map[string]openapi.Schema) (*dst.FuncDecl, error) {
 	if op == nil {
 		return nil, fmt.Errorf("Operation is nil")
 	}
@@ -20,7 +157,6 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	if op.OperationID != "" {
 		name += strings.ToUpper(op.OperationID[:1]) + op.OperationID[1:]
 	} else {
-		// Use path and method
 		pathCamel := toCamelCase(path)
 		name += strings.ToUpper(method[:1]) + method[1:] + pathCamel
 	}
@@ -52,67 +188,46 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	}
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("_")},
-		Tok: token.ASSIGN, // =
+		Tok: token.ASSIGN,
 		Rhs: []dst.Expr{
 			&dst.CallExpr{
 				Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
-				Args: []dst.Expr{&dst.BasicLit{Kind: 9, Value: `""`}},
+				Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `""`}},
 			},
 		},
 	})
 
-	// path templating {param} -> "dummy"
 	pathFilled := path
 	var queryParams []string
 	for _, param := range op.Parameters {
 		if param.In == "path" {
-			val := "1"
-			if (param.Schema != nil && param.Schema.Type == "string") || param.Type == "string" {
-				val = "dummy"
-			} else if param.Name == "username" {
-				val = "dummy"
-			}
+			val := SynthesizeParamValue(param, schemas)
 			pathFilled = strings.ReplaceAll(pathFilled, "{"+param.Name+"}", val)
 		} else if param.In == "query" && param.Required {
-			val := "dummy"
-			if param.Name == "status" {
-				val = "available"
-			} else if param.Name == "tags" {
-				val = "tag1"
-			} else if param.Type == "integer" {
-				val = "1"
-			}
+			val := SynthesizeParamValue(param, schemas)
 			queryParams = append(queryParams, param.Name+"="+val)
 		}
 	}
-	// fallback for any remaining braces
 	pathFilled = strings.ReplaceAll(pathFilled, "{", "")
 	pathFilled = strings.ReplaceAll(pathFilled, "}", "")
 
-	bodyArg := "nil"
 	hasBody := op.RequestBody != nil
 	if !hasBody && (method == "post" || method == "put" || method == "patch") {
 		hasBody = true
 	}
-	if !hasBody {
-		for _, param := range op.Parameters {
-			if param.In == "body" {
-				hasBody = true
-				break
-			}
-		}
-	}
 
 	contentType := "application/json"
 	isArray := false
+	var bodySchema *openapi.Schema
 	if op.RequestBody != nil {
 		for k, mt := range op.RequestBody.Content {
-			contentType = k // default to first available
+			contentType = k
+			bodySchema = mt.Schema
 			if mt.Schema != nil && mt.Schema.Type == "array" {
 				isArray = true
 			}
 			if k == "application/json" {
-				break // prefer json
+				break
 			}
 		}
 	} else if len(op.Consumes) > 0 {
@@ -125,38 +240,13 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		}
 	}
 	for _, param := range op.Parameters {
-		if param.In == "body" && param.Schema != nil {
+		if param.In == "body" {
 			hasBody = true
-			if param.Schema.Type == "array" {
-				isArray = true
-			}
-		}
-	}
-
-	if hasBody {
-		if strings.Contains(path, "/pet") {
-			if isArray {
-				bodyArg = `strings.NewReader("[{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}]")`
-			} else {
-				bodyArg = `strings.NewReader("{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}")`
-			}
-		} else if strings.Contains(path, "/store/order") {
-			if isArray {
-				bodyArg = `strings.NewReader("[{\"id\":1,\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"status\":\"placed\",\"complete\":true}]")`
-			} else {
-				bodyArg = `strings.NewReader("{\"id\":1,\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"status\":\"placed\",\"complete\":true}")`
-			}
-		} else if strings.Contains(path, "/user") {
-			if isArray {
-				bodyArg = `strings.NewReader("[{\"id\":1,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}]")`
-			} else {
-				bodyArg = `strings.NewReader("{\"id\":1,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}")`
-			}
-		} else {
-			if isArray {
-				bodyArg = `strings.NewReader("[{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}]")`
-			} else {
-				bodyArg = `strings.NewReader("{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}")`
+			if param.Schema != nil {
+				bodySchema = param.Schema
+				if param.Schema.Type == "array" {
+					isArray = true
+				}
 			}
 		}
 	}
@@ -168,7 +258,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("baseURL")},
-		Tok: token.DEFINE, // :=
+		Tok: token.DEFINE,
 		Rhs: []dst.Expr{
 			&dst.CallExpr{
 				Fun:  &dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Getenv")},
@@ -194,52 +284,42 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	// Build AST: req, err := http.NewRequest(METHOD, baseURL + urlStr, bodyArg)
 	var bodyExpr dst.Expr = dst.NewIdent("nil")
-	if bodyArg != "nil" {
-		var jsonStr string
-		if strings.Contains(path, "/pet") {
-			jsonStr = `"{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}"`
-			if isArray {
-				jsonStr = `"[{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}]"`
-			}
-		} else if strings.Contains(path, "/store/order") {
-			jsonStr = `"{\"id\":1,\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"status\":\"placed\",\"complete\":true}"`
-			if isArray {
-				jsonStr = `"[{\"id\":1,\"petId\":1,\"quantity\":1,\"shipDate\":\"2023-01-01T00:00:00Z\",\"status\":\"placed\",\"complete\":true}]"`
-			}
-		} else if strings.Contains(path, "/user") {
-			jsonStr = `"{\"id\":1,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}"`
-			if isArray {
-				jsonStr = `"[{\"id\":1,\"username\":\"dummy\",\"password\":\"password\",\"firstName\":\"dummy\",\"lastName\":\"dummy\",\"email\":\"dummy@dummy.com\",\"phone\":\"12345\",\"userStatus\":1}]"`
-			}
-		} else {
-			jsonStr = `"{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}"`
-			if isArray {
-				jsonStr = `"[{\"id\":1,\"name\":\"dummy\",\"photoUrls\":[\"http://dummy.com\"],\"status\":\"available\"}]"`
-			}
-		}
+	if hasBody {
+		rawPayload := SynthesizeJSONPayload(bodySchema, isArray, schemas)
+		jsonStr := strconv.Quote(rawPayload)
 
 		if contentType == "application/x-www-form-urlencoded" {
 			jsonStr = `"name=dummy&status=available"`
 		} else if contentType == "multipart/form-data" {
 			contentType = "multipart/form-data; boundary=dummyboundary"
-			jsonStr = `"--dummyboundary\r\nContent-Disposition: form-data; name=\"additionalMetadata\"\r\n\r\ndummy\r\n--dummyboundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"dummy.txt\"\r\nContent-Type: application/octet-stream\r\n\r\ndummy\r\n--dummyboundary--\r\n"`
+			jsonStr = `"--dummyboundary
+Content-Disposition: form-data; name="additionalMetadata"
+
+dummy
+--dummyboundary
+Content-Disposition: form-data; name="file"; filename="dummy.txt"
+Content-Type: application/octet-stream
+
+dummy
+--dummyboundary--
+"`
 		}
 
 		bodyExpr = &dst.CallExpr{
 			Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
-			Args: []dst.Expr{&dst.BasicLit{Kind: 9, Value: jsonStr}}, // token.STRING is 9
+			Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: jsonStr}},
 		}
 	}
+
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("req"), dst.NewIdent("err")},
-		Tok: 47, // token.DEFINE (:=)
+		Tok: token.DEFINE,
 		Rhs: []dst.Expr{
 			&dst.CallExpr{
 				Fun: &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("NewRequest")},
 				Args: []dst.Expr{
-					&dst.BasicLit{Kind: 9, Value: `"` + strings.ToUpper(method) + `"`},
+					&dst.BasicLit{Kind: token.STRING, Value: `"` + strings.ToUpper(method) + `"`},
 					&dst.BinaryExpr{
 						X:  dst.NewIdent("baseURL"),
 						Op: token.ADD,
@@ -251,11 +331,10 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	// if err != nil { t.Fatal(err) }
 	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
 		Cond: &dst.BinaryExpr{
 			X:  dst.NewIdent("err"),
-			Op: token.NEQ, // token.NEQ (!=)
+			Op: token.NEQ,
 			Y:  dst.NewIdent("nil"),
 		},
 		Body: &dst.BlockStmt{
@@ -270,8 +349,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	// add required headers for testing
-	if bodyArg != "nil" {
+	if hasBody {
 		fd.Body.List = append(fd.Body.List, &dst.ExprStmt{
 			X: &dst.CallExpr{
 				Fun: &dst.SelectorExpr{
@@ -323,13 +401,12 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	// client := &http.Client{}
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("client")},
-		Tok: 47, // :=
+		Tok: token.DEFINE,
 		Rhs: []dst.Expr{
 			&dst.UnaryExpr{
-				Op: 17, // token.AND (&)
+				Op: token.AND,
 				X: &dst.CompositeLit{
 					Type: &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("Client")},
 				},
@@ -337,10 +414,9 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	// resp, err := client.Do(req)
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("resp"), dst.NewIdent("err")},
-		Tok: 47, // :=
+		Tok: token.DEFINE,
 		Rhs: []dst.Expr{
 			&dst.CallExpr{
 				Fun:  &dst.SelectorExpr{X: dst.NewIdent("client"), Sel: dst.NewIdent("Do")},
@@ -349,11 +425,10 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	// if err != nil { t.Fatal(err) }
 	fd.Body.List = append(fd.Body.List, &dst.IfStmt{
 		Cond: &dst.BinaryExpr{
 			X:  dst.NewIdent("err"),
-			Op: token.NEQ, // token.NEQ (!=)
+			Op: token.NEQ,
 			Y:  dst.NewIdent("nil"),
 		},
 		Body: &dst.BlockStmt{
@@ -368,7 +443,6 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 		},
 	})
 
-	// defer resp.Body.Close()
 	fd.Body.List = append(fd.Body.List, &dst.DeferStmt{
 		Call: &dst.CallExpr{
 			Fun: &dst.SelectorExpr{
@@ -380,7 +454,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 
 	fd.Body.List = append(fd.Body.List, &dst.AssignStmt{
 		Lhs: []dst.Expr{dst.NewIdent("bodyBytes"), dst.NewIdent("errRead")},
-		Tok: token.DEFINE, // :=
+		Tok: token.DEFINE,
 		Rhs: []dst.Expr{
 			&dst.CallExpr{
 				Fun:  &dst.SelectorExpr{X: dst.NewIdent("io"), Sel: dst.NewIdent("ReadAll")},
@@ -396,7 +470,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 					X: &dst.BinaryExpr{
 						X: &dst.BinaryExpr{
 							X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-							Op: token.GTR, // changed from GEQ to GTR so 400 is ignored
+							Op: token.GTR,
 							Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
 						},
 						Op: token.LAND,
@@ -433,7 +507,7 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 					X: &dst.CallExpr{
 						Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatalf")},
 						Args: []dst.Expr{
-							&dst.BasicLit{Kind: 9, Value: `"Expected status < 400, got %d, body: %s"`},
+							&dst.BasicLit{Kind: token.STRING, Value: `"Expected status < 400, got %d, body: %s"`},
 							&dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
 							&dst.CallExpr{Fun: dst.NewIdent("string"), Args: []dst.Expr{dst.NewIdent("bodyBytes")}},
 						},
@@ -506,13 +580,13 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 				},
 				&dst.AssignStmt{
 					Lhs: []dst.Expr{dst.NewIdent("errJSON")},
-					Tok: token.DEFINE, // :=
+					Tok: token.DEFINE,
 					Rhs: []dst.Expr{
 						&dst.CallExpr{
 							Fun: &dst.SelectorExpr{X: dst.NewIdent("json"), Sel: dst.NewIdent("Unmarshal")},
 							Args: []dst.Expr{
 								dst.NewIdent("bodyBytes"),
-								&dst.UnaryExpr{Op: 17, X: dst.NewIdent("dummyVal")}, // &dummyVal
+								&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent("dummyVal")},
 							},
 						},
 					},
@@ -554,18 +628,8 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 	return fd, nil
 }
 
+// toCamelCase delegates URL path to PascalCase conversion to naming.ToCamelCasePath.
+// Parameter s is the OpenAPI URL path, and it returns the PascalCase identifier.
 func toCamelCase(s string) string {
-	parts := strings.Split(s, "/")
-	var res string
-	for _, p := range parts {
-		p = strings.ReplaceAll(p, "{", "")
-		p = strings.ReplaceAll(p, "}", "")
-		if p != "" {
-			res += strings.ToUpper(p[:1]) + p[1:]
-		}
-	}
-	if res == "" {
-		res = "Root"
-	}
-	return res
+	return naming.ToCamelCasePath(s)
 }

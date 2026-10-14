@@ -110,6 +110,10 @@ func TestEmitClientInterfaceNil(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for nil PathItem")
 	}
+	_, err = EmitClientInterface("invalid-path", &openapi.PathItem{})
+	if err == nil {
+		t.Errorf("expected error for path without leading slash")
+	}
 }
 
 func TestToCamelCase(t *testing.T) {

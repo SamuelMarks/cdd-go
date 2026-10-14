@@ -1,3 +1,4 @@
+// Package server provides HTTP and SSE server bridging for Model Context Protocol (MCP) messages.
 package server
 
 import (
@@ -10,6 +11,7 @@ import (
 
 // MCPServer wraps HTTP bridging for MCP.
 type MCPServer struct {
+	// Handler processes incoming JSON-RPC MCP messages and returns a response message.
 	Handler func(req *mcp.Message) (*mcp.Response, error)
 }
 

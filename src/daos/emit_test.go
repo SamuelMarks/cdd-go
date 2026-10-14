@@ -92,12 +92,36 @@ func TestEmitDAONilSchema(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for nil schema")
 	}
+	_, err = EmitDAOInterface("", &openapi.Schema{Type: "object"})
+	if err == nil {
+		t.Error("expected error for empty schema name")
+	}
+	_, err = EmitDAOInterface("User", &openapi.Schema{Type: "invalid-type"})
+	if err == nil {
+		t.Error("expected error for invalid schema type")
+	}
 	_, _, err = EmitStubDAO("User", nil)
 	if err == nil {
 		t.Error("expected error for nil schema")
 	}
+	_, _, err = EmitStubDAO("", &openapi.Schema{Type: "object"})
+	if err == nil {
+		t.Error("expected error for empty schema name")
+	}
+	_, _, err = EmitStubDAO("User", &openapi.Schema{Type: "invalid-type"})
+	if err == nil {
+		t.Error("expected error for invalid schema type")
+	}
 	_, _, err = EmitConcreteDAO("User", nil)
 	if err == nil {
 		t.Error("expected error for nil schema")
+	}
+	_, _, err = EmitConcreteDAO("", &openapi.Schema{Type: "object"})
+	if err == nil {
+		t.Error("expected error for empty schema name")
+	}
+	_, _, err = EmitConcreteDAO("User", &openapi.Schema{Type: "invalid-type"})
+	if err == nil {
+		t.Error("expected error for invalid schema type")
 	}
 }

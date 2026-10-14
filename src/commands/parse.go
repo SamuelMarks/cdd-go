@@ -1,3 +1,4 @@
+// Package commands provides parsing and emitting of Cobra CLI commands to and from OpenAPI Operations.
 package commands
 
 import (

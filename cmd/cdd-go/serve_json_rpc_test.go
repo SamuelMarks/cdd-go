@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestRunServeJSONRPC_Flags(t *testing.T) {
@@ -16,42 +15,42 @@ func TestRunServeJSONRPC_Flags(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for invalid flag")
 	}
+
+	oldListen := httpListenAndServe
+	defer func() { httpListenAndServe = oldListen }()
+	var capturedAddr string
+	httpListenAndServe = func(addr string, handler http.Handler) error {
+		capturedAddr = addr
+		return nil
+	}
+	if err := runServeJSONRPC([]string{"-port", "9091", "-listen", "127.0.0.1"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedAddr != "127.0.0.1:9091" {
+		t.Errorf("expected 127.0.0.1:9091, got %q", capturedAddr)
+	}
 }
 
 func TestRunServeJSONRPC_Handler(t *testing.T) {
-	// Start server on a specific address to test the Handler.
-	// But it's easier to just call http.DefaultServeMux
-	// We run it with a dummy port to start it but then immediately stop or just test the mux.
-	// We'll run it async on an available port.
-	go func() {
-		runServeJSONRPC([]string{"-port", "0"})
-	}()
-
-	// Since we can't easily capture the mux, let's just create an httptest server with DefaultServeMux.
-	ts := httptest.NewServer(http.DefaultServeMux)
+	ts := httptest.NewServer(newJSONRPCHandler())
 	defer ts.Close()
 
-	// Wait for the handler to be registered by runServeJSONRPC
-	for i := 0; i < 50; i++ {
-		res, _ := http.Get(ts.URL)
-		if res != nil && res.StatusCode == http.StatusMethodNotAllowed {
-			res.Body.Close()
-			break
-		}
-		if res != nil {
-			res.Body.Close()
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
 	// 1. Invalid method (GET)
-	res, _ := http.Get(ts.URL)
+	res, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatalf("unexpected GET error: %v", err)
+	}
+	res.Body.Close()
 	if res.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", res.StatusCode)
 	}
 
 	// 2. Invalid JSON body
-	res, _ = http.Post(ts.URL, "application/json", strings.NewReader(`{invalid}`))
+	res, err = http.Post(ts.URL, "application/json", strings.NewReader(`{invalid}`))
+	if err != nil {
+		t.Fatalf("unexpected POST error: %v", err)
+	}
+	res.Body.Close()
 	if res.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", res.StatusCode)
 	}
@@ -65,7 +64,7 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 		}
 		defer res.Body.Close()
 		var rpcResp RPCResponse
-		json.NewDecoder(res.Body).Decode(&rpcResp)
+		_ = json.NewDecoder(res.Body).Decode(&rpcResp)
 		return rpcResp, nil
 	}
 
@@ -77,8 +76,8 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// 4. version
 	resp, _ = doRequest("version", "[]")
-	if resp.Result != "0.0.3" {
-		t.Errorf("expected 0.0.3, got %v", resp.Result)
+	if string(resp.Result) != `"0.0.3"` {
+		t.Errorf("expected %q, got %s", `"0.0.3"`, string(resp.Result))
 	}
 
 	// 5. to_docs_json (invalid params)
@@ -89,81 +88,78 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// 6. to_docs_json (valid params, but missing file)
 	resp, _ = doRequest("to_docs_json", `["-i", "missing.json"]`)
-	if resp.Error == nil {
+	if resp.Error == "" {
 		t.Errorf("expected error for missing file")
 	}
 
 	// 7. to_docs_json (valid params, valid file)
-	// Create a temporary file
 	dir := t.TempDir()
 	specFile := dir + "/spec.json"
-	// just write empty string to fail parsing or valid openapi
 	os.WriteFile(specFile, []byte(`{"openapi": "3.2.0"}`), 0644)
 	resp, _ = doRequest("to_docs_json", fmt.Sprintf(`["-i", "%s"]`, specFile))
-	if resp.Error != nil {
+	if resp.Error != "" {
 		t.Errorf("expected no error for valid file, got: %s", resp.Error)
 	}
 
 	// 8. to_docs_json (valid params, output to file)
 	outFile := dir + "/out.json"
 	resp, _ = doRequest("to_docs_json", fmt.Sprintf(`["-i", "%s", "-o", "%s"]`, specFile, outFile))
-	if resp.Error != nil {
+	if resp.Error != "" {
 		t.Errorf("expected no error for valid file with out, got: %s", resp.Error)
 	}
-	if resp.Result != "" {
-		t.Errorf("expected empty result since it went to file, got %v", resp.Result)
+	if string(resp.Result) != `""` {
+		t.Errorf("expected empty string result since output went to file, got %s", string(resp.Result))
 	}
 
-	// 8. to_openapi (invalid params)
+	// 9. to_openapi (invalid params)
 	resp, _ = doRequest("to_openapi", `{"invalid":"type"}`)
 	if resp.Error != "Invalid params for to_openapi" {
 		t.Errorf("expected invalid params, got %v", resp.Error)
 	}
 
-	// 9. to_openapi (valid params, missing file)
+	// 10. to_openapi (valid params, missing file)
 	resp, _ = doRequest("to_openapi", `["-i", "missing.go"]`)
-	if resp.Error == nil {
+	if resp.Error == "" {
 		t.Errorf("expected error for missing file")
 	}
 
-	// 10. to_openapi (valid params, valid file)
+	// 11. to_openapi (valid params, valid file)
 	goFile := dir + "/main.go"
 	os.WriteFile(goFile, []byte(`package main`), 0644)
 	resp, _ = doRequest("to_openapi", fmt.Sprintf(`["-i", "%s", "-o", "%s/out.json"]`, goFile, dir))
-	if resp.Error != nil {
+	if resp.Error != "" {
 		t.Errorf("expected no error, got %v", resp.Error)
 	}
 
-	// 11. from_openapi (invalid params)
+	// 12. from_openapi (invalid params)
 	resp, _ = doRequest("from_openapi", `123`)
 	if resp.Error != "Invalid params for from_openapi" {
 		t.Errorf("expected invalid params, got %v", resp.Error)
 	}
 
-	// 12. from_openapi (valid params, missing file)
+	// 13. from_openapi (valid params, missing file)
 	resp, _ = doRequest("from_openapi", `["to_sdk", "-i", "missing.json"]`)
-	if resp.Error == nil {
+	if resp.Error == "" {
 		t.Errorf("expected error for missing file")
 	}
 
-	// 13. from_openapi (valid params, valid file)
+	// 14. from_openapi (valid params, valid file)
 	resp, _ = doRequest("from_openapi", fmt.Sprintf(`["to_sdk", "-i", "%s", "-o", "%s/sdk"]`, specFile, dir))
-	if resp.Error != nil {
+	if resp.Error != "" {
 		t.Errorf("expected no error, got %v", resp.Error)
 	}
 
-	// 14. from_openapi (map params, valid file)
+	// 15. from_openapi (map params, valid file)
 	mapParams := fmt.Sprintf(`{"subcommand": "to_sdk", "input": "%s", "output": "%s/sdk_map", "no_github_actions": true, "no_installable_package": true, "tests": true}`, specFile, dir)
 	resp, _ = doRequest("from_openapi", mapParams)
-	if resp.Error != nil {
+	if resp.Error != "" {
 		t.Errorf("expected no error for map params, got %v", resp.Error)
 	}
 
-	// 15. from_openapi (map params, input_dir)
+	// 16. from_openapi (map params, input_dir)
 	mapParamsDir := fmt.Sprintf(`{"subcommand": "to_sdk", "input_dir": "%s", "output": "%s/sdk_map_dir", "no_github_actions": true, "no_installable_package": true, "tests": true}`, dir, dir)
 	resp, _ = doRequest("from_openapi", mapParamsDir)
-	if resp.Error == nil {
-		// expecting error because input_dir parsing openapi from a dir with non-openapi go file could fail, but the CLI should at least parse it. Actually, wait, parsing an openapi file from a dir? `to_sdk` on a dir? `from_openapi` requires a file. Wait, `FromOpenAPI` accepts dir and tries to read `dir` as a file `os.Open(in)`. That will error "is a directory" which is an error but we just want to hit the mapping logic.
-		// Just to hit the mapping logic we don't care if it's an error.
+	if resp.Error == "" {
+		t.Errorf("expected error when passing a directory as OpenAPI input file")
 	}
 }

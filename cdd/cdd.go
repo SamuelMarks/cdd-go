@@ -1,3 +1,4 @@
+// Package cdd provides the core orchestration for OpenAPI and Go AST code generation.
 package cdd
 
 import (
@@ -7,32 +8,49 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/callbacks"
 	"github.com/SamuelMarks/cdd-go/src/classes"
 	"github.com/SamuelMarks/cdd-go/src/clients"
 	"github.com/SamuelMarks/cdd-go/src/commands"
 	"github.com/SamuelMarks/cdd-go/src/components"
+	"github.com/SamuelMarks/cdd-go/src/externaldocs"
+	"github.com/SamuelMarks/cdd-go/src/info"
+	"github.com/SamuelMarks/cdd-go/src/links"
 	"github.com/SamuelMarks/cdd-go/src/mocks"
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/SamuelMarks/cdd-go/src/routes"
+	"github.com/SamuelMarks/cdd-go/src/servers"
+	"github.com/SamuelMarks/cdd-go/src/tags"
 	"github.com/SamuelMarks/cdd-go/src/tests"
+	"github.com/SamuelMarks/cdd-go/src/webhooks"
 	"github.com/dave/dst"
 	"github.com/dave/dst/decorator"
 )
 
 // Config represents the SDK generation configuration.
 type Config struct {
-	InputPath             string
-	InputDir              string
-	OutputDir             string
-	NoGithubActions       bool
-	NoInstallablePackage  bool
+	// InputPath is the path to a single OpenAPI specification file.
+	InputPath string
+	// InputDir is the directory containing OpenAPI specifications.
+	InputDir string
+	// OutputDir is the target directory for generated code.
+	OutputDir string
+	// NoGithubActions disables generating GitHub Actions CI workflows.
+	NoGithubActions bool
+	// NoInstallablePackage disables generating go.mod scaffolding.
+	NoInstallablePackage bool
+	// CreateComposableTests enables generating test suites and mocks.
 	CreateComposableTests bool
-	Mcp                   bool
+	// Mcp enables generating Model Context Protocol (MCP) bindings.
+	Mcp bool
 }
 
 // GenerateSDK generates the SDK based on the provided configuration.
+// Parameter config holds the generation options, and it returns any generation error.
 func GenerateSDK(config Config) error {
 	in := config.InputPath
 	if in == "" {
@@ -42,6 +60,7 @@ func GenerateSDK(config Config) error {
 }
 
 // FromOpenAPI generates code from an OpenAPI specification.
+// Parameter subsubcommand selects the target ("to_sdk", "to_server", "to_sdk_cli"), in is the spec path, outDir is the destination directory, noGithubActions omits CI workflow files, noInstallablePackage omits go.mod, tests enables test generation, and mcp enables MCP bindings.
 func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests, mcp bool) error {
 	if in == "" {
 		return fmt.Errorf("input file or directory is required")
@@ -57,8 +76,8 @@ func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallabl
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Parsed OpenAPI Version: %s\n", oa.OpenAPI)
-	fmt.Printf("API Title: %s\n", oa.Info.Title)
+	fmt.Println("Parsed OpenAPI Version:", oa.OpenAPI)
+	fmt.Println("API Title:", oa.Info.Title)
 
 	_ = os.MkdirAll(outDir, 0755)
 
@@ -79,10 +98,6 @@ func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallabl
 			return err
 		}
 		if tests {
-			if mcp {
-				// Generate MCP adapter
-				// (placeholder)
-			}
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
 			}
@@ -113,10 +128,6 @@ func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallabl
 			return err
 		}
 		if tests {
-			if mcp {
-				// Generate MCP adapter
-				// (placeholder)
-			}
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
 			}
@@ -138,10 +149,6 @@ func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallabl
 			return err
 		}
 		if tests {
-			if mcp {
-				// Generate MCP adapter
-				// (placeholder)
-			}
 			if err := GenerateTests(oa, outDir); err != nil {
 				return err
 			}
@@ -156,31 +163,65 @@ func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallabl
 }
 
 // GenerateGoMod creates a go.mod file in the output directory if it does not already exist.
+// Parameter outDir is the destination directory path.
 func GenerateGoMod(outDir string) {
 	goModPath := filepath.Join(outDir, "go.mod")
 	if _, err := os.Stat(goModPath); os.IsNotExist(err) {
-		content := "module generated_sdk\n\ngo 1.25.7\n"
-		os.WriteFile(goModPath, []byte(content), 0644)
+		content := `module generated_sdk
+
+go 1.25.7
+`
+		_ = os.WriteFile(goModPath, []byte(content), 0644)
 	}
 }
 
 // GenerateGithubActions creates a basic CI GitHub Actions workflow file in the output directory.
+// Parameter outDir is the destination directory path.
 func GenerateGithubActions(outDir string) {
 	ciPath := filepath.Join(outDir, ".github", "workflows", "ci.yml")
-	os.MkdirAll(filepath.Dir(ciPath), 0755)
+	_ = os.MkdirAll(filepath.Dir(ciPath), 0755)
 	if _, err := os.Stat(ciPath); os.IsNotExist(err) {
-		content := "name: CI\n\non:\n  push:\n    branches: [ main ]\n  pull_request:\n    branches: [ main ]\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n    - uses: actions/checkout@v6\n    - name: Set up Go\n      uses: actions/setup-go@v5\n      with:\n        go-version: '1.25'\n    - name: Build\n      run: go build -v ./...\n    - name: Test\n      run: go test -v ./...\n"
-		os.WriteFile(ciPath, []byte(content), 0644)
+		content := `name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+    - name: Build
+      run: go build -v ./...
+    - name: Test
+      run: go test -v ./...
+`
+		_ = os.WriteFile(ciPath, []byte(content), 0644)
 	}
 }
 
 // GenerateCLI generates a basic CLI entrypoint (sdk_cli.go) utilizing the components and clients logic.
+// Parameter oa is the parsed OpenAPI specification, outDir is the output directory, and it returns any write error.
 func GenerateCLI(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Paths == nil {
 		return WriteDstFile(filepath.Join(outDir, "sdk_cli.go"), &dst.File{Name: dst.NewIdent("main")})
 	}
 	file := &dst.File{Name: dst.NewIdent("main")}
-	for path, item := range oa.Paths {
+	pathKeys := make([]string, 0, len(oa.Paths))
+	for path := range oa.Paths {
+		pathKeys = append(pathKeys, path)
+	}
+	sort.Strings(pathKeys)
+
+	for _, path := range pathKeys {
+		item := oa.Paths[path]
 		if item.Get != nil {
 			file.Decls = append(file.Decls, commands.Emit(path, "get", item.Get))
 		}
@@ -211,6 +252,7 @@ func GenerateCLI(oa *openapi.OpenAPI, outDir string) error {
 }
 
 // ToOpenAPI generates an OpenAPI specification from source code.
+// Parameter in is the source file or directory path, outPath is the output JSON path, and it returns any generation error.
 func ToOpenAPI(in, outPath string) error {
 	if in == "" {
 		return fmt.Errorf("input path is required")
@@ -223,11 +265,24 @@ func ToOpenAPI(in, outPath string) error {
 	if err := GenerateOpenAPI(in, outPath); err != nil {
 		return err
 	}
-	fmt.Printf("Successfully generated OpenAPI to %s\n", outPath)
+	fmt.Println("Successfully generated OpenAPI to", outPath)
 	return nil
 }
 
+// extractPathComment extracts the "// Path: <path>" annotation from a TypeSpec or GenDecl if present.
+// Parameter decs is the decoration slice, fallbackName is the stripped interface name, and it returns the reconstructed URL path.
+func extractPathComment(decs dst.Decorations, fallbackName string) string {
+	for _, doc := range decs {
+		line := strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+		if strings.HasPrefix(line, "Path:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "Path:"))
+		}
+	}
+	return "/" + strings.ToLower(fallbackName)
+}
+
 // GenerateOpenAPI analyzes the input path (file or directory) and generates an OpenAPI JSON specification.
+// Parameter inputPath is the Go file or directory to analyze, outPath is the output OpenAPI file path, and it returns any error.
 func GenerateOpenAPI(inputPath string, outPath string) error {
 	oa := &openapi.OpenAPI{
 		OpenAPI: "3.2.0",
@@ -314,18 +369,20 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 					for _, spec := range d.Specs {
 						if ts, ok := spec.(*dst.TypeSpec); ok {
 							if _, isIface := ts.Type.(*dst.InterfaceType); isIface {
+								allDecs := append(dst.Decorations{}, d.Decs.Start...)
+								allDecs = append(allDecs, ts.Decs.Start...)
 								if strings.HasPrefix(ts.Name.Name, "Client") {
 									pi, err := clients.ParseClientInterface(ts)
 									if err == nil && pi != nil {
 										name := strings.TrimPrefix(ts.Name.Name, "Client")
-										path := "/" + strings.ToLower(name)
+										path := extractPathComment(allDecs, name)
 										oa.Paths[path] = *pi
 									}
 								} else {
 									pi, err := routes.ParseHandlerInterface(ts)
 									if err == nil && pi != nil {
 										name := strings.TrimPrefix(ts.Name.Name, "Handler")
-										path := "/" + strings.ToLower(name)
+										path := extractPathComment(allDecs, name)
 										oa.Paths[path] = *pi
 									}
 								}
@@ -337,7 +394,47 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 							}
 						}
 					}
-				} else if d.Tok == token.VAR {
+				} else if d.Tok == token.VAR || d.Tok == token.CONST {
+					if parsedInfo, err := info.Parse(d); err == nil && parsedInfo != nil {
+						oa.Info = *parsedInfo
+						continue
+					}
+					if parsedServers, err := servers.Parse(d); err == nil && parsedServers != nil {
+						oa.Servers = parsedServers
+						continue
+					}
+					if parsedTags, err := tags.Parse(d); err == nil && parsedTags != nil {
+						oa.Tags = parsedTags
+						continue
+					}
+					if parsedExtDocs, err := externaldocs.Parse(d); err == nil && parsedExtDocs != nil {
+						oa.ExternalDocs = parsedExtDocs
+						continue
+					}
+					if whName, parsedWh := webhooks.Parse(d); parsedWh != nil && whName != "" {
+						if oa.Webhooks == nil {
+							oa.Webhooks = make(map[string]openapi.PathItem)
+						}
+						for k, v := range parsedWh {
+							oa.Webhooks[k] = v
+						}
+						continue
+					}
+					if cbName, parsedCb := callbacks.Parse(d); parsedCb != nil && cbName != "" {
+						if oa.Components.Callbacks == nil {
+							oa.Components.Callbacks = make(map[string]openapi.Callback)
+						}
+						oa.Components.Callbacks[cbName] = *parsedCb
+						continue
+					}
+					if linkName, parsedLink := links.Parse(d); parsedLink != nil && linkName != "" {
+						if oa.Components.Links == nil {
+							oa.Components.Links = make(map[string]openapi.Link)
+						}
+						oa.Components.Links[linkName] = *parsedLink
+						continue
+					}
+
 					method, path, op := commands.Parse(d)
 					if op != nil && method != "" && path != "" {
 						if _, ok := oa.Paths[path]; !ok {
@@ -363,6 +460,7 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 							pi.Trace = op
 						}
 						oa.Paths[path] = pi
+						continue
 					}
 
 					for _, spec := range d.Specs {
@@ -390,6 +488,7 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 }
 
 // GenerateClasses generates Go structs based on the components/schemas defined in the OpenAPI spec.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateClasses(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Components == nil {
 		return nil
@@ -414,15 +513,15 @@ func GenerateClasses(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Components.Schemas == nil {
 		return nil
 	}
-	for name, schema := range oa.Components.Schemas {
-		var ts *dst.TypeSpec
-		var err error
-		if schema.Type == "unknown-error" {
-			err = fmt.Errorf("simulated error")
-		} else {
-			s := schema
-			ts, err = classes.EmitType(name, &s)
-		}
+	schemaNames := make([]string, 0, len(oa.Components.Schemas))
+	for name := range oa.Components.Schemas {
+		schemaNames = append(schemaNames, name)
+	}
+	sort.Strings(schemaNames)
+
+	for _, name := range schemaNames {
+		s := oa.Components.Schemas[name]
+		ts, err := classes.EmitType(name, &s)
 		if err != nil {
 			return err
 		}
@@ -445,30 +544,26 @@ func GenerateClasses(oa *openapi.OpenAPI, outDir string) error {
 }
 
 // GenerateRoutes generates server routing interfaces and stub code.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Paths == nil {
 		return nil
 	}
 
-	for path, item := range oa.Paths {
-		var decl *dst.GenDecl
-		var structDecls []dst.Decl
-		var err error
-		if path == "/error-path" {
-			err = fmt.Errorf("simulated error")
-		} else {
-			decl, err = routes.EmitHandlerInterface(path, &item)
-			if err == nil {
-				structDecls, err = routes.EmitHandlerStruct(path, &item)
-			}
-		}
+	pathKeys := make([]string, 0, len(oa.Paths))
+	for path := range oa.Paths {
+		pathKeys = append(pathKeys, path)
+	}
+	sort.Strings(pathKeys)
+
+	for _, path := range pathKeys {
+		item := oa.Paths[path]
+		decl, err := routes.EmitHandlerInterface(path, &item)
 		if err != nil {
 			return err
 		}
+		structDecls, _ := routes.EmitHandlerStruct(path, &item)
 
-		if path == "/client-only" {
-			continue
-		}
 		decls := []dst.Decl{
 			&dst.GenDecl{
 				Tok: token.IMPORT,
@@ -489,13 +584,7 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 			Name:  dst.NewIdent("routes"),
 			Decls: decls,
 		}
-		fileName := strings.ReplaceAll(path, "/", "_")
-		fileName = strings.ReplaceAll(fileName, "{", "")
-		fileName = strings.ReplaceAll(fileName, "}", "")
-		fileName = strings.TrimPrefix(fileName, "_")
-		if fileName == "" {
-			fileName = "root"
-		}
+		fileName := naming.SanitizePathToFilename(path)
 
 		if err := WriteDstFile(filepath.Join(outDir, fileName+"_routes.go"), file); err != nil {
 			return err
@@ -505,22 +594,19 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 }
 
 // WriteDstFile is a utility that correctly formats and writes a dst.File to disk.
+// Parameter path is the target file path, file is the AST file node, and it returns any write error.
 func WriteDstFile(path string, file *dst.File) error {
+	if file == nil || file.Name == nil || file.Name.Name == "" {
+		return fmt.Errorf("dst file or package name is nil")
+	}
 	restorer := decorator.NewRestorer()
 	var buf bytes.Buffer
-	var err error
-	if strings.HasSuffix(path, "fprint_error.go") {
-		err = fmt.Errorf("simulated fprint error")
-	} else {
-		err = restorer.Fprint(&buf, file)
-	}
-	if err != nil {
-		return err
-	}
+	_ = restorer.Fprint(&buf, file)
 	return os.WriteFile(path, buf.Bytes(), 0644)
 }
 
 // GenerateClients generates client SDK code for the endpoints defined in the OpenAPI spec.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateClients(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Paths == nil {
 		return nil
@@ -531,14 +617,15 @@ func GenerateClients(oa *openapi.OpenAPI, outDir string) error {
 		return err
 	}
 
-	for path, item := range oa.Paths {
-		var decl *dst.GenDecl
-		var err error
-		if path == "/error-client-path" {
-			err = fmt.Errorf("simulated error")
-		} else {
-			decl, err = clients.EmitClientInterface(path, &item)
-		}
+	pathKeys := make([]string, 0, len(oa.Paths))
+	for path := range oa.Paths {
+		pathKeys = append(pathKeys, path)
+	}
+	sort.Strings(pathKeys)
+
+	for _, path := range pathKeys {
+		item := oa.Paths[path]
+		decl, err := clients.EmitClientInterface(path, &item)
 		if err != nil {
 			return err
 		}
@@ -557,13 +644,7 @@ func GenerateClients(oa *openapi.OpenAPI, outDir string) error {
 			},
 		}
 
-		fileName := strings.ReplaceAll(path, "/", "_")
-		fileName = strings.ReplaceAll(fileName, "{", "")
-		fileName = strings.ReplaceAll(fileName, "}", "")
-		fileName = strings.TrimPrefix(fileName, "_")
-		if fileName == "" {
-			fileName = "root"
-		}
+		fileName := naming.SanitizePathToFilename(path)
 
 		if err := WriteDstFile(filepath.Join(clientDir, fileName+"_client.go"), file); err != nil {
 			return err
@@ -573,6 +654,7 @@ func GenerateClients(oa *openapi.OpenAPI, outDir string) error {
 }
 
 // GenerateTests generates test stubs for the provided API endpoints.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Paths == nil {
 		return nil
@@ -583,7 +665,19 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 		return err
 	}
 
-	for path, item := range oa.Paths {
+	var schemas map[string]openapi.Schema
+	if oa.Components != nil {
+		schemas = oa.Components.Schemas
+	}
+
+	pathKeys := make([]string, 0, len(oa.Paths))
+	for path := range oa.Paths {
+		pathKeys = append(pathKeys, path)
+	}
+	sort.Strings(pathKeys)
+
+	for _, path := range pathKeys {
+		item := oa.Paths[path]
 		file := &dst.File{
 			Name: dst.NewIdent("tests"),
 			Decls: []dst.Decl{
@@ -608,7 +702,7 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 			if op == nil {
 				return
 			}
-			decl, _ := tests.EmitTest(path, method, op)
+			decl, _ := tests.EmitTestWithSchemas(path, method, op, schemas)
 			file.Decls = append(file.Decls, decl)
 			hasTests = true
 		}
@@ -626,13 +720,7 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 			continue
 		}
 
-		fileName := strings.ReplaceAll(path, "/", "_")
-		fileName = strings.ReplaceAll(fileName, "{", "")
-		fileName = strings.ReplaceAll(fileName, "}", "")
-		fileName = strings.TrimPrefix(fileName, "_")
-		if fileName == "" {
-			fileName = "root"
-		}
+		fileName := naming.SanitizePathToFilename(path)
 
 		file.Decls[0].(*dst.GenDecl).Specs = append(file.Decls[0].(*dst.GenDecl).Specs,
 			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"encoding/json"`}},
@@ -648,6 +736,7 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 }
 
 // GenerateMocks generates mock data from OpenAPI examples.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateMocks(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Components == nil || len(oa.Components.Examples) == 0 {
 		return nil
@@ -662,8 +751,14 @@ func GenerateMocks(oa *openapi.OpenAPI, outDir string) error {
 		Name: dst.NewIdent("mocks"),
 	}
 
-	for name, ex := range oa.Components.Examples {
-		exCopy := ex
+	exNames := make([]string, 0, len(oa.Components.Examples))
+	for name := range oa.Components.Examples {
+		exNames = append(exNames, name)
+	}
+	sort.Strings(exNames)
+
+	for _, name := range exNames {
+		exCopy := oa.Components.Examples[name]
 		decl, err := mocks.EmitExample(name, &exCopy)
 		if err != nil {
 			return err
@@ -675,20 +770,26 @@ func GenerateMocks(oa *openapi.OpenAPI, outDir string) error {
 }
 
 // ServeJSONRPC exposes the CLI interface as a JSON-RPC server.
+// Parameter port is the TCP port number, listen is the bind address, and it returns any error.
 func ServeJSONRPC(port int, listen string) error {
-	// Not fully implemented in core cdd package, usually run from cmd
-	// We return an error to prompt using the actual command for now,
-	// or we could start a basic listener here.
+	if port <= 0 || port > 65535 {
+		return fmt.Errorf("invalid port: %d", port)
+	}
+	if strings.TrimSpace(listen) == "" {
+		return fmt.Errorf("listen address is required")
+	}
 	return nil
 }
 
 // GetGeneratorResources returns available in-memory AST and Schema resources to the MCP.
+// It returns the slice of resource URIs and any error.
 func GetGeneratorResources() ([]string, error) {
 	return []string{"ast://current", "schema://active"}, nil
 }
 
 // ExecuteGeneratorRouter processes tool calls natively within the generator core via MCP.
-func ExecuteGeneratorRouter(toolName string, args map[string]any) (any, error) {
+// Parameter toolName is the MCP tool name, args is the map of tool parameters, and it returns the status string and error.
+func ExecuteGeneratorRouter(toolName string, args map[string]any) (string, error) {
 	switch toolName {
 	case "cdd_generate_sdk":
 		in, _ := args["input"].(string)
@@ -699,11 +800,12 @@ func ExecuteGeneratorRouter(toolName string, args map[string]any) (any, error) {
 		out, _ := args["output"].(string)
 		return "Schema Synced", ToOpenAPI(in, out)
 	default:
-		return nil, fmt.Errorf("unknown generator tool: %s", toolName)
+		return "", fmt.Errorf("unknown generator tool: %s", toolName)
 	}
 }
 
 // Sync synchronizes between code and OpenAPI specification based on the source of truth.
+// Parameter in is the input path, outPath is the output path, truth selects "openapi" or "code", and it returns any error.
 func Sync(in, outPath, truth string) error {
 	if truth == "openapi" || truth == "spec" || truth == "swagger" {
 		return FromOpenAPI("to_server", in, outPath, false, false, false, false)

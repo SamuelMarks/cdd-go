@@ -1,3 +1,4 @@
+// Package info provides parsing and emitting of OpenAPI Info metadata to and from Go AST declarations.
 package info
 
 import (
@@ -9,7 +10,27 @@ import (
 )
 
 // Emit formats an OpenAPI Info object into an AST representation.
+// Parameter info is the OpenAPI Info metadata, and it returns the generated AST variable declaration.
 func Emit(info openapi.Info) *dst.GenDecl {
+	contactStructType := &dst.StructType{
+		Fields: &dst.FieldList{
+			List: []*dst.Field{
+				{Names: []*dst.Ident{dst.NewIdent("Name")}, Type: dst.NewIdent("string")},
+				{Names: []*dst.Ident{dst.NewIdent("URL")}, Type: dst.NewIdent("string")},
+				{Names: []*dst.Ident{dst.NewIdent("Email")}, Type: dst.NewIdent("string")},
+			},
+		},
+	}
+	licenseStructType := &dst.StructType{
+		Fields: &dst.FieldList{
+			List: []*dst.Field{
+				{Names: []*dst.Ident{dst.NewIdent("Name")}, Type: dst.NewIdent("string")},
+				{Names: []*dst.Ident{dst.NewIdent("URL")}, Type: dst.NewIdent("string")},
+				{Names: []*dst.Ident{dst.NewIdent("Identifier")}, Type: dst.NewIdent("string")},
+			},
+		},
+	}
+
 	cl := &dst.CompositeLit{
 		Type: &dst.StructType{
 			Fields: &dst.FieldList{
@@ -21,27 +42,11 @@ func Emit(info openapi.Info) *dst.GenDecl {
 					{Names: []*dst.Ident{dst.NewIdent("Summary")}, Type: dst.NewIdent("string")},
 					{
 						Names: []*dst.Ident{dst.NewIdent("Contact")},
-						Type: &dst.StructType{
-							Fields: &dst.FieldList{
-								List: []*dst.Field{
-									{Names: []*dst.Ident{dst.NewIdent("Name")}, Type: dst.NewIdent("string")},
-									{Names: []*dst.Ident{dst.NewIdent("URL")}, Type: dst.NewIdent("string")},
-									{Names: []*dst.Ident{dst.NewIdent("Email")}, Type: dst.NewIdent("string")},
-								},
-							},
-						},
+						Type:  contactStructType,
 					},
 					{
 						Names: []*dst.Ident{dst.NewIdent("License")},
-						Type: &dst.StructType{
-							Fields: &dst.FieldList{
-								List: []*dst.Field{
-									{Names: []*dst.Ident{dst.NewIdent("Name")}, Type: dst.NewIdent("string")},
-									{Names: []*dst.Ident{dst.NewIdent("URL")}, Type: dst.NewIdent("string")},
-									{Names: []*dst.Ident{dst.NewIdent("Identifier")}, Type: dst.NewIdent("string")},
-								},
-							},
-						},
+						Type:  licenseStructType,
 					},
 				},
 			},
@@ -65,7 +70,10 @@ func Emit(info openapi.Info) *dst.GenDecl {
 	addField("TermsOfService", info.TermsOfService)
 
 	if info.Contact != nil {
-		contactLit := &dst.CompositeLit{Elts: []dst.Expr{}}
+		contactLit := &dst.CompositeLit{
+			Type: dst.Clone(contactStructType).(*dst.StructType),
+			Elts: []dst.Expr{},
+		}
 		if info.Contact.Name != "" {
 			contactLit.Elts = append(contactLit.Elts, &dst.KeyValueExpr{Key: dst.NewIdent("Name"), Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", info.Contact.Name)}})
 		}
@@ -81,7 +89,10 @@ func Emit(info openapi.Info) *dst.GenDecl {
 	}
 
 	if info.License != nil {
-		licenseLit := &dst.CompositeLit{Elts: []dst.Expr{}}
+		licenseLit := &dst.CompositeLit{
+			Type: dst.Clone(licenseStructType).(*dst.StructType),
+			Elts: []dst.Expr{},
+		}
 		if info.License.Name != "" {
 			licenseLit.Elts = append(licenseLit.Elts, &dst.KeyValueExpr{Key: dst.NewIdent("Name"), Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", info.License.Name)}})
 		}
@@ -101,7 +112,7 @@ func Emit(info openapi.Info) *dst.GenDecl {
 	}
 
 	decl := &dst.GenDecl{
-		Tok: token.CONST,
+		Tok: token.VAR,
 		Specs: []dst.Spec{
 			&dst.ValueSpec{
 				Names:  []*dst.Ident{dst.NewIdent("Info")},

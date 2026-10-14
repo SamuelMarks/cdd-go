@@ -1,3 +1,4 @@
+// Package parameters provides parsing and emitting of OpenAPI Parameter objects to and from Go AST struct fields.
 package parameters
 
 import (

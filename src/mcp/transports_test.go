@@ -55,12 +55,6 @@ func TestSseTransport(t *testing.T) {
 	}
 }
 
-func TestStdioTransportError(t *testing.T) {
-	// A simple reader that always returns an error could be injected to test scanner.Err(),
-	// but the bufio.Scanner handles this transparently up to its buffer limits.
-	// We've covered the primary branches.
-}
-
 func TestStdioTransportScannerErr(t *testing.T) {
 	transport := NewStdioTransport(errReader{}, nil)
 	_, err := transport.Receive()

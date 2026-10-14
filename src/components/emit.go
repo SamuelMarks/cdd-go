@@ -1,10 +1,13 @@
+// Package components provides parsing and emitting of OpenAPI Components to and from Go AST declarations.
 package components
 
 import (
 	"fmt"
 	"go/token"
+	"sort"
 
 	"github.com/SamuelMarks/cdd-go/src/headers"
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/SamuelMarks/cdd-go/src/parameters"
 	"github.com/SamuelMarks/cdd-go/src/requestbodies"
@@ -24,7 +27,13 @@ func Emit(comp *openapi.Components) []dst.Decl {
 
 	// Security Schemes
 	if comp.SecuritySchemes != nil {
-		for name, scheme := range comp.SecuritySchemes {
+		keys := make([]string, 0, len(comp.SecuritySchemes))
+		for k := range comp.SecuritySchemes {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, name := range keys {
+			scheme := comp.SecuritySchemes[name]
 			if decl := securityschemes.Emit(name, &scheme); decl != nil {
 				decls = append(decls, decl)
 			}
@@ -33,7 +42,13 @@ func Emit(comp *openapi.Components) []dst.Decl {
 
 	// Reusable Parameters (emitted as variables)
 	if comp.Parameters != nil {
-		for name, param := range comp.Parameters {
+		keys := make([]string, 0, len(comp.Parameters))
+		for k := range comp.Parameters {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, name := range keys {
+			param := comp.Parameters[name]
 			if pDecl := parameters.Emit(param); pDecl != nil {
 				decl := &dst.GenDecl{
 					Tok: token.VAR,
@@ -54,7 +69,13 @@ func Emit(comp *openapi.Components) []dst.Decl {
 
 	// Reusable Headers
 	if comp.Headers != nil {
-		for name, header := range comp.Headers {
+		keys := make([]string, 0, len(comp.Headers))
+		for k := range comp.Headers {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, name := range keys {
+			header := comp.Headers[name]
 			if hDecl := headers.Emit(name, &header); hDecl != nil {
 				decl := &dst.GenDecl{
 					Tok: token.VAR,
@@ -75,7 +96,13 @@ func Emit(comp *openapi.Components) []dst.Decl {
 
 	// Reusable Request Bodies
 	if comp.RequestBodies != nil {
-		for name, rb := range comp.RequestBodies {
+		keys := make([]string, 0, len(comp.RequestBodies))
+		for k := range comp.RequestBodies {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, name := range keys {
+			rb := comp.RequestBodies[name]
 			if rbDecl := requestbodies.Emit(&rb); rbDecl != nil {
 				decl := &dst.GenDecl{
 					Tok: token.TYPE,
@@ -96,7 +123,13 @@ func Emit(comp *openapi.Components) []dst.Decl {
 
 	// Reusable Responses
 	if comp.Responses != nil {
-		for name, resp := range comp.Responses {
+		keys := make([]string, 0, len(comp.Responses))
+		for k := range comp.Responses {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, name := range keys {
+			resp := comp.Responses[name]
 			resps := openapi.Responses{"200": resp}
 			if respExprs := responses.Emit(resps); len(respExprs) > 0 {
 				var rType dst.Expr = respExprs[0]
@@ -127,7 +160,13 @@ func Emit(comp *openapi.Components) []dst.Decl {
 
 	// Schemas
 	if comp.Schemas != nil {
-		for name, schema := range comp.Schemas {
+		keys := make([]string, 0, len(comp.Schemas))
+		for k := range comp.Schemas {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, name := range keys {
+			schema := comp.Schemas[name]
 			if decl := schemas.Emit(name, &schema); decl != nil {
 				decls = append(decls, decl)
 			}
@@ -137,12 +176,8 @@ func Emit(comp *openapi.Components) []dst.Decl {
 	return decls
 }
 
+// toPascalCase converts an identifier string to PascalCase.
+// Parameter s is the input string, and it returns the PascalCase representation.
 func toPascalCase(s string) string {
-	if s == "" {
-		return ""
-	}
-	if s[0] >= 'a' && s[0] <= 'z' {
-		return string(s[0]-32) + s[1:]
-	}
-	return s
+	return naming.ToPascalCase(s)
 }

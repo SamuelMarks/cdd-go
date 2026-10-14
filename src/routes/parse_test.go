@@ -75,28 +75,28 @@ func TestParseHandlerInterface(t *testing.T) {
 		t.Errorf("expected User endpoints, got %s", pathItem.Summary)
 	}
 
-	if pathItem.Get == nil || pathItem.Get.OperationID != "GetUser" {
-		t.Errorf("expected GetUser operation")
+	if pathItem.Get == nil || pathItem.Get.OperationID != "getUser" {
+		t.Errorf("expected getUser operation")
 	}
 
 	if pathItem.Get.Summary != "Get a user" {
 		t.Errorf("expected Get a user summary")
 	}
 
-	if pathItem.Post == nil || pathItem.Post.OperationID != "PostUser" {
-		t.Errorf("expected PostUser operation")
+	if pathItem.Post == nil || pathItem.Post.OperationID != "postUser" {
+		t.Errorf("expected postUser operation")
 	}
 
-	if pathItem.Put == nil || pathItem.Put.OperationID != "PutUser" {
-		t.Errorf("expected PutUser operation")
+	if pathItem.Put == nil || pathItem.Put.OperationID != "putUser" {
+		t.Errorf("expected putUser operation")
 	}
 
-	if pathItem.Delete == nil || pathItem.Delete.OperationID != "DeleteUser" {
-		t.Errorf("expected DeleteUser operation")
+	if pathItem.Delete == nil || pathItem.Delete.OperationID != "deleteUser" {
+		t.Errorf("expected deleteUser operation")
 	}
 
-	if pathItem.Patch == nil || pathItem.Patch.OperationID != "PatchUser" {
-		t.Errorf("expected PatchUser operation")
+	if pathItem.Patch == nil || pathItem.Patch.OperationID != "patchUser" {
+		t.Errorf("expected patchUser operation")
 	}
 }
 
@@ -198,8 +198,44 @@ func TestParseHandlerInterfaceMCPExt(t *testing.T) {
 	if pi.Extensions == nil {
 		t.Fatalf("expected extensions for MCP methods")
 	}
-	ext := pi.Extensions["x-mcp-server"].(map[string]interface{})
+	ext := pi.Extensions["x-mcp-server"]
 	if ext["sse"] != true || ext["message"] != true || ext["auth"] != true || ext["proxy"] != true {
 		t.Errorf("expected MCP server extensions to be set, got %v", ext)
+	}
+}
+
+func TestParseHandlerInterfacePathAndMethodComment(t *testing.T) {
+	ts := &dst.TypeSpec{
+		Name: dst.NewIdent("HandlerUsers"),
+		Decs: dst.TypeSpecDecorations{
+			NodeDecs: dst.NodeDecs{
+				Start: dst.Decorations{"// Path: /users", "// Users summary"},
+			},
+		},
+		Type: &dst.InterfaceType{
+			Methods: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("CustomOp")},
+						Type:  &dst.FuncType{},
+						Decs: dst.FieldDecorations{
+							NodeDecs: dst.NodeDecs{
+								Start: dst.Decorations{"// METHOD: POST", "// Custom post"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	pi, err := ParseHandlerInterface(ts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pi.Summary != "Users summary" {
+		t.Errorf("expected Users summary, got %q", pi.Summary)
+	}
+	if pi.Post == nil || pi.Post.OperationID != "customOp" || pi.Post.Summary != "Custom post" {
+		t.Errorf("expected customOp POST operation, got %+v", pi.Post)
 	}
 }

@@ -1,3 +1,4 @@
+// Package docstrings provides tools for parsing and emitting Go comments for OpenAPI elements.
 package docstrings
 
 import (

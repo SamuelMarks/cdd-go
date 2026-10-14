@@ -1,3 +1,4 @@
+// Package components provides parsing and emitting of OpenAPI Components to and from Go AST declarations.
 package components
 
 import (

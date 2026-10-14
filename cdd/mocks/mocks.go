@@ -1,3 +1,5 @@
+// Package mocks provides default mock constants for generated code.
 package mocks
 
-var string = `""`
+// DefaultEmptyMock represents the default empty JSON string mock value.
+var DefaultEmptyMock = `""`

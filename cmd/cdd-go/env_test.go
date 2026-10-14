@@ -10,9 +10,11 @@ func TestEnvOrDefault(t *testing.T) {
 	defer os.Unsetenv("TEST_ENV_VAR")
 
 	if val := envOrDefault("TEST_ENV_VAR", "default"); val != "value" {
+		t.Errorf("expected 'value', got %q", val)
 	}
 
 	if val := envOrDefault("TEST_ENV_VAR_MISSING", "default"); val != "default" {
+		t.Errorf("expected 'default', got %q", val)
 	}
 }
 
@@ -21,16 +23,20 @@ func TestEnvOrDefaultBool(t *testing.T) {
 	defer os.Unsetenv("TEST_ENV_VAR_BOOL_TRUE")
 
 	if val := envOrDefaultBool("TEST_ENV_VAR_BOOL_TRUE", false); !val {
+		t.Errorf("expected true for 'true'")
 	}
 
 	os.Setenv("TEST_ENV_VAR_BOOL_1", "1")
 	defer os.Unsetenv("TEST_ENV_VAR_BOOL_1")
 
 	if val := envOrDefaultBool("TEST_ENV_VAR_BOOL_1", false); !val {
+		t.Errorf("expected true for '1'")
 	}
 
 	if val := envOrDefaultBool("TEST_ENV_VAR_BOOL_MISSING", false); val {
+		t.Errorf("expected false for missing env var with false default")
 	}
 	if val := envOrDefaultBool("TEST_ENV_VAR_BOOL_MISSING_T", true); !val {
+		t.Errorf("expected true for missing env var with true default")
 	}
 }

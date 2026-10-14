@@ -1,3 +1,4 @@
+// Package links provides parsing and emitting of OpenAPI Link objects to and from Go AST declarations.
 package links
 
 import (

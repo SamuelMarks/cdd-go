@@ -1,3 +1,4 @@
+// Package externaldocs provides parsing and emitting of OpenAPI ExternalDocs objects to and from Go AST declarations.
 package externaldocs
 
 import (

@@ -13,11 +13,11 @@ func TestMetaGenerator(t *testing.T) {
 		t.Errorf("expected AST Query name")
 	}
 
-	res, err := InMemoryGenerationRouter(map[string]interface{}{"lang": "go"})
+	res, err := InMemoryGenerationRouter(map[string]any{"lang": "go"})
 	if err != nil {
 		t.Errorf("expected no error")
 	}
-	if res.(map[string]interface{})["status"] != "generated in memory" {
+	if res["status"] != "generated in memory" {
 		t.Errorf("expected generated status")
 	}
 }

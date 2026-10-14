@@ -185,8 +185,8 @@ type Paths map[string]PathItem
 
 // PathItem describes the operations available on a single path.
 type PathItem struct {
-	// Extensions provides specification extensions (x-...)
-	Extensions map[string]interface{} `json:"-"`
+	// Extensions provides specification extensions (x-...).
+	Extensions map[string]map[string]bool `json:"-"`
 
 	// Ref allows for a referenced definition of this path item.
 	Ref string `json:"$ref,omitempty"`
@@ -532,19 +532,26 @@ type Schema struct {
 	Deprecated *bool `json:"deprecated,omitempty"`
 }
 
-// Discriminator Object for polymorphism support
+// Discriminator Object for polymorphism support.
 type Discriminator struct {
-	PropertyName string            `json:"propertyName"`
-	Mapping      map[string]string `json:"mapping,omitempty"`
+	// PropertyName is the name of the property in the payload that will hold the discriminator value.
+	PropertyName string `json:"propertyName"`
+	// Mapping holds mappings between payload values and schema names or references.
+	Mapping map[string]string `json:"mapping,omitempty"`
 }
 
-// XML Object for XML representations
+// XML Object for XML representations.
 type XML struct {
-	Name      string `json:"name,omitempty"`
+	// Name replaces the name of the element/attribute used for the described schema property.
+	Name string `json:"name,omitempty"`
+	// Namespace is the URI of the namespace definition.
 	Namespace string `json:"namespace,omitempty"`
-	Prefix    string `json:"prefix,omitempty"`
-	Attribute bool   `json:"attribute,omitempty"`
-	Wrapped   bool   `json:"wrapped,omitempty"`
+	// Prefix is the prefix to be used for the name.
+	Prefix string `json:"prefix,omitempty"`
+	// Attribute declares whether the property definition translates to an attribute instead of an element.
+	Attribute bool `json:"attribute,omitempty"`
+	// Wrapped signifies whether the array is wrapped.
+	Wrapped bool `json:"wrapped,omitempty"`
 }
 
 // Response represents a single response from an API Operation.
@@ -724,7 +731,7 @@ type Link struct {
 	// Parameters is a map representing parameters to pass to an operation as specified with operationId or identified via operationRef.
 	Parameters map[string]string `json:"parameters,omitempty"`
 	// RequestBody is a literal value or expression to use as a request body when calling the target operation.
-	RequestBody interface{} `json:"requestBody,omitempty"`
+	RequestBody json.RawMessage `json:"requestBody,omitempty"`
 	// Description describes the link purpose.
 	Description string `json:"description,omitempty"`
 	// Server is a server object to be used by the target operation.

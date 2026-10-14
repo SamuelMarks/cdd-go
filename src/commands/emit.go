@@ -1,3 +1,4 @@
+// Package commands provides parsing and emitting of Cobra CLI commands to and from OpenAPI Operations.
 package commands
 
 import (
@@ -5,23 +6,15 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // toSnakeCase converts PascalCase or camelCase to snake_case.
+// Parameter s is the input string, and it returns the snake_case representation.
 func toSnakeCase(s string) string {
-	if s == "" {
-		return ""
-	}
-	var b strings.Builder
-	for i, c := range s {
-		if i > 0 && c >= 'A' && c <= 'Z' {
-			b.WriteRune('_')
-		}
-		b.WriteRune(c)
-	}
-	return strings.ToLower(b.String())
+	return naming.ToSnakeCase(s)
 }
 
 // Emit formats an OpenAPI Operation object into a Cobra command AST representation.
@@ -32,9 +25,10 @@ func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 
 	opID := op.OperationID
 	if opID == "" {
-		opID = strings.ToLower(method) + toPascalCase(strings.ReplaceAll(path, "/", "_"))
-		opID = strings.ReplaceAll(opID, "{", "")
-		opID = strings.ReplaceAll(opID, "}", "")
+		cleanPath := strings.ReplaceAll(path, "/", "_")
+		cleanPath = strings.ReplaceAll(cleanPath, "{", "")
+		cleanPath = strings.ReplaceAll(cleanPath, "}", "")
+		opID = strings.ToLower(method) + toPascalCase(cleanPath)
 	}
 
 	useName := toSnakeCase(opID)
@@ -78,6 +72,12 @@ func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 				},
 			},
 		},
+		Decs: dst.GenDeclDecorations{
+			NodeDecs: dst.NodeDecs{
+				Before: dst.NewLine,
+				After:  dst.NewLine,
+			},
+		},
 	}
 
 	decl.Decs.Start.Append(fmt.Sprintf("// Method: %s", strings.ToUpper(method)))
@@ -86,18 +86,10 @@ func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 	return decl
 }
 
+// toPascalCase converts an identifier string to PascalCase.
+// Parameter s is the input string, and it returns the PascalCase representation.
 func toPascalCase(s string) string {
-	if s == "" {
-		return ""
-	}
-	parts := strings.Split(s, "_")
-	var res string
-	for _, p := range parts {
-		if p != "" {
-			res += strings.ToUpper(p[:1]) + p[1:]
-		}
-	}
-	return res
+	return naming.ToPascalCase(s)
 }
 
 // EmitMcpCmd generates the MCP CLI subcommand with stdio transport bindings.
@@ -178,6 +170,12 @@ func EmitMcpCmd() *dst.GenDecl {
 						X:  cl,
 					},
 				},
+			},
+		},
+		Decs: dst.GenDeclDecorations{
+			NodeDecs: dst.NodeDecs{
+				Before: dst.NewLine,
+				After:  dst.NewLine,
 			},
 		},
 	}

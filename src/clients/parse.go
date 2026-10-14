@@ -1,3 +1,4 @@
+// Package clients provides parsing and emitting of Go client SDK interfaces to and from OpenAPI PathItems.
 package clients
 
 import (
@@ -9,6 +10,7 @@ import (
 )
 
 // ParseClientInterface parses a dst.InterfaceType into an OpenAPI PathItem.
+// Parameter ts is the AST type specification for the client interface, and it returns the parsed PathItem and error.
 func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 	if ts == nil {
 		return nil, fmt.Errorf("TypeSpec is nil")
@@ -16,79 +18,93 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 
 	iface, ok := ts.Type.(*dst.InterfaceType)
 	if !ok {
-		return nil, fmt.Errorf("TypeSpec is not an interface")
+		return nil, fmt.Errorf("TypeSpec is not an InterfaceType")
 	}
 
 	pathItem := &openapi.PathItem{}
-	var mcpExt map[string]interface{}
 
 	if len(ts.Decs.Start) > 0 {
 		desc := ""
 		for _, doc := range ts.Decs.Start {
-			desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
+			line := strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+			if strings.HasPrefix(line, "Path:") {
+				continue
+			}
+			desc += line + " "
 		}
 		pathItem.Summary = strings.TrimSpace(desc)
 	}
 
-	for _, field := range iface.Methods.List {
-		if len(field.Names) == 0 {
-			continue // Embedded interface
+	mcpExt := make(map[string]bool)
+
+	for _, method := range iface.Methods.List {
+		if len(method.Names) == 0 {
+			continue
 		}
-
-		methodName := field.Names[0].Name
-
-		// Track MCP adapter methods
-		if methodName == "GetTools" || methodName == "GetResources" || methodName == "ExecuteTool" {
-			if mcpExt == nil {
-				mcpExt = make(map[string]interface{})
-			}
-			if methodName == "GetTools" {
-				mcpExt["tools"] = true
-			} else if methodName == "GetResources" {
-				mcpExt["resources"] = true
-			} else if methodName == "ExecuteTool" {
-				mcpExt["execute"] = true
-			}
+		methodName := method.Names[0].Name
+		if methodName == "GetTools" {
+			mcpExt["tools"] = true
+			continue
+		}
+		if methodName == "GetResources" {
+			mcpExt["resources"] = true
+			continue
+		}
+		if methodName == "ExecuteTool" {
+			mcpExt["execute"] = true
 			continue
 		}
 
 		op := &openapi.Operation{
-			OperationID: methodName, Responses: make(openapi.Responses),
+			OperationID: strings.ToLower(methodName[:1]) + methodName[1:],
 		}
 
-		parsedMethod := ""
-		if len(field.Decs.Start) > 0 {
+		var httpVerb string
+		if len(method.Decs.Start) > 0 {
 			desc := ""
-			for _, doc := range field.Decs.Start {
-				if strings.HasPrefix(doc, "// METHOD: ") {
-					parsedMethod = strings.TrimSpace(strings.TrimPrefix(doc, "// METHOD: "))
-				} else {
-					desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
+			for _, doc := range method.Decs.Start {
+				line := strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+				if strings.HasPrefix(line, "METHOD:") {
+					httpVerb = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(line, "METHOD:")))
+					continue
 				}
+				desc += line + " "
 			}
 			op.Summary = strings.TrimSpace(desc)
 		}
 
-		nameLower := strings.ToLower(parsedMethod)
-		if nameLower == "" {
-			nameLower = strings.ToLower(methodName)
+		nameLower := strings.ToLower(methodName)
+		if httpVerb == "" {
+			for _, verb := range []string{"get", "post", "put", "delete", "patch", "options", "head", "trace"} {
+				if strings.HasPrefix(nameLower, verb) {
+					httpVerb = verb
+					break
+				}
+			}
 		}
 
-		if strings.HasPrefix(nameLower, "get") {
+		switch httpVerb {
+		case "get":
 			pathItem.Get = op
-		} else if strings.HasPrefix(nameLower, "post") {
+		case "post":
 			pathItem.Post = op
-		} else if strings.HasPrefix(nameLower, "put") {
+		case "put":
 			pathItem.Put = op
-		} else if strings.HasPrefix(nameLower, "delete") {
+		case "delete":
 			pathItem.Delete = op
-		} else if strings.HasPrefix(nameLower, "patch") {
+		case "patch":
 			pathItem.Patch = op
+		case "options":
+			pathItem.Options = op
+		case "head":
+			pathItem.Head = op
+		case "trace":
+			pathItem.Trace = op
 		}
 	}
 
-	if mcpExt != nil {
-		pathItem.Extensions = make(map[string]interface{})
+	if len(mcpExt) > 0 {
+		pathItem.Extensions = make(map[string]map[string]bool)
 		pathItem.Extensions["x-mcp"] = mcpExt
 	}
 

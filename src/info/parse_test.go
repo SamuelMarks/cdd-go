@@ -91,8 +91,8 @@ func TestParseInfoNil(t *testing.T) {
 	}
 }
 
-func TestParseInfoNotConst(t *testing.T) {
-	info, err := Parse(&dst.GenDecl{Tok: token.VAR})
+func TestParseInfoNotConstOrVar(t *testing.T) {
+	info, err := Parse(&dst.GenDecl{Tok: token.TYPE})
 	if err != nil || info != nil {
 		t.Errorf("expected nil")
 	}

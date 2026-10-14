@@ -9,15 +9,25 @@ import (
 func TestCalculateCoverage(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create dummy go file with coverage 50%
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n// Doc\ntype A struct{}\ntype B struct{}\n"), 0644)
+	// File doc (1/1) + Type A (1/1) + Field X (1/1) + Type B (0/1) = 3/4 = 75%
+	os.WriteFile(filepath.Join(dir, "a.go"), []byte(`// Package a doc
+package a
+// Doc
+type A struct {
+// X doc
+X int
+}
+type B struct {
+int
+}
+`), 0644)
 
 	cov, err := calculateCoverage(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cov != 50.0 {
-		t.Errorf("expected 50.0%% coverage, got %f", cov)
+	if cov != 75.0 {
+		t.Errorf("expected 75.0%% coverage, got %f", cov)
 	}
 
 	// Empty dir
@@ -46,23 +56,34 @@ func TestCalculateCoverage(t *testing.T) {
 
 	// Add more stuff
 	os.Remove(filepath.Join(dir, "bad.go"))
-	os.WriteFile(filepath.Join(dir, "b.go"), []byte("package a\n// C\nfunc C() {}\nvar D int\nconst E = 1\n"), 0644)
+	// b.go: File doc (0/1) + Func C (1/1) + Var D (0/1) + Const E (0/1) = 1/4
+	// Total with a.go (3/4): 4/8 = 50%
+	os.WriteFile(filepath.Join(dir, "b.go"), []byte(`package a
+// C
+func C() {}
+var D int
+const E = 1
+`), 0644)
 	cov, err = calculateCoverage(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cov != 40.0 { // 5 total, 2 with docs
-		t.Errorf("expected 40.0%% coverage, got %f", cov)
+	if cov != 50.0 {
+		t.Errorf("expected 50.0%% coverage, got %f", cov)
 	}
 
-	// Hit ValueSpec doc
-	os.WriteFile(filepath.Join(dir, "c.go"), []byte("package a\n// F\nvar F int\n"), 0644)
+	// Hit ValueSpec doc: File doc (1/1) + Var F (1/1) = 2/2 -> Total 6/10 = 60%
+	os.WriteFile(filepath.Join(dir, "c.go"), []byte(`// Package a
+package a
+// F
+var F int
+`), 0644)
 	cov, err = calculateCoverage(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cov != 50.0 { // 6 total, 3 with docs
-		t.Errorf("expected 50.0%% coverage, got %f", cov)
+	if cov != 60.0 {
+		t.Errorf("expected 60.0%% coverage, got %f", cov)
 	}
 }
 
@@ -70,7 +91,11 @@ func TestMainCoverage(t *testing.T) {
 	dir := t.TempDir()
 
 	// Test success
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n// Doc\ntype A struct{}\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "a.go"), []byte(`// Package a
+package a
+// Doc
+type A struct{}
+`), 0644)
 	runMain(dir)
 
 	// Test error
@@ -96,8 +121,6 @@ func TestMainDirectly(t *testing.T) {
 	defer func() { osExit = oldOsExit }()
 	osExit = func(code int) {}
 
-	// main normally runs with src, cmd, cdd. Since we are inside scripts, those might not exist or might exist.
-	// But it covers the code path.
 	main()
 }
 
@@ -110,10 +133,10 @@ func TestMainError(t *testing.T) {
 	oldWd, _ := os.Getwd()
 	defer os.Chdir(oldWd)
 
-	// Go to a place where "src" exists but is unreadable or just a file
 	dir := t.TempDir()
 	os.Chdir(dir)
-	os.WriteFile("src", []byte("file, not dir"), 0644)
+	os.MkdirAll("src", 0755)
+	os.WriteFile("src/bad.go", []byte("package bad; var var"), 0644)
 
 	oldOsExit := osExit
 	defer func() { osExit = oldOsExit }()
@@ -150,7 +173,11 @@ func TestMainWithFiles(t *testing.T) {
 	dir := t.TempDir()
 	os.Chdir(dir)
 	os.MkdirAll("src", 0755)
-	os.WriteFile("src/a.go", []byte("package a\n// A is doc\ntype A int\n"), 0644)
+	os.WriteFile("src/a.go", []byte(`// Package a
+package a
+// A is doc
+type A int
+`), 0644)
 	os.MkdirAll("cmd", 0755)
 	os.MkdirAll("cdd", 0755)
 

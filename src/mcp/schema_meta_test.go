@@ -14,69 +14,72 @@ func TestSchemaMetaStructs(t *testing.T) {
 		t.Errorf("expected progress token")
 	}
 
-	// Test JSONRPCRequest
+	// Test JSONRPCRequest, Response, Notification, Error
 	req := JSONRPCRequest{
 		JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"},
-		ID:             "req1",
+		ID:             1,
 		Method:         "test",
-		Params:         map[string]interface{}{"p": "v"},
+	}
+	if err := req.Validate(); err != nil {
+		t.Errorf("expected valid JSONRPCMessage, got %v", err)
+	}
+	invalidMsg := JSONRPCMessage{JSONRPC: "1.0"}
+	if err := invalidMsg.Validate(); err == nil {
+		t.Errorf("expected error for invalid JSONRPC version")
 	}
 	b, _ = json.Marshal(req)
-	if !strings.Contains(string(b), `"req1"`) || !strings.Contains(string(b), `"test"`) {
-		t.Errorf("expected request fields")
+	if !strings.Contains(string(b), `"method":"test"`) {
+		t.Errorf("expected request method")
 	}
 
-	// Test JSONRPCResponse
-	res := JSONRPCResponse{
+	resp := JSONRPCResponse{
 		JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"},
-		ID:             123,
-		Result:         "success",
+		ID:             "1",
+		Error:          &JSONRPCError{Code: -32600, Message: "Invalid"},
 	}
-	b, _ = json.Marshal(res)
-	if !strings.Contains(string(b), `"success"`) {
-		t.Errorf("expected response fields")
-	}
-
-	errRes := JSONRPCResponse{
-		JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"},
-		ID:             123,
-		Error:          &JSONRPCError{Code: -32600, Message: "error"},
-	}
-	b, _ = json.Marshal(errRes)
-	if !strings.Contains(string(b), `-32600`) {
+	b, _ = json.Marshal(resp)
+	if !strings.Contains(string(b), `"-32600"`) && !strings.Contains(string(b), `-32600`) {
 		t.Errorf("expected error code")
 	}
 
-	// Test Result
-	baseResult := Result{Meta: &Meta{ProgressToken: "token456"}}
-	b, _ = json.Marshal(baseResult)
-	if !strings.Contains(string(b), `"token456"`) {
-		t.Errorf("expected meta progress token in base result")
-	}
-
-	// Test JSONRPCNotification
 	not := JSONRPCNotification{
 		JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"},
 		Method:         "notify",
 	}
 	b, _ = json.Marshal(not)
 	if !strings.Contains(string(b), `"notify"`) {
-		t.Errorf("expected notification method")
+		t.Errorf("expected notify method")
 	}
-}
-func TestClientServerMeta(t *testing.T) {
-	// Types are simple wrappers around JSONRPC base classes, validating they exist.
-	_ = ClientNotification{JSONRPCNotification{JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"}}}
-	_ = ClientRequest{JSONRPCRequest{JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"}}}
-	_ = ClientResult{JSONRPCResponse{JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"}}}
-	_ = ServerNotification{JSONRPCNotification{JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"}}}
-	_ = ServerRequest{JSONRPCRequest{JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"}}}
-	_ = ServerResult{JSONRPCResponse{JSONRPCMessage: JSONRPCMessage{JSONRPC: "2.0"}}}
+
+	res := Result{Meta: &meta}
+	b, _ = json.Marshal(res)
+	if !strings.Contains(string(b), `"token123"`) {
+		t.Errorf("expected meta in result")
+	}
+
+	_ = ClientNotification{not}
+	_ = ClientRequest{req}
+	_ = ClientResult{resp}
+	_ = ServerNotification{not}
+	_ = ServerRequest{req}
+	_ = ServerResult{resp}
 }
 
-func TestProgressToken(t *testing.T) {
+func TestProgressTokenAndRequestID(t *testing.T) {
 	var pt ProgressToken = "token"
 	if pt != "token" {
 		t.Errorf("ProgressToken test failed")
+	}
+
+	idStr, err := UnmarshalRequestID([]byte(`"req-1"`))
+	if err != nil || idStr != "req-1" {
+		t.Errorf("expected req-1, got %v, %v", idStr, err)
+	}
+	idInt, err := UnmarshalRequestID([]byte(`42`))
+	if err != nil || idInt != int64(42) {
+		t.Errorf("expected 42, got %v, %v", idInt, err)
+	}
+	if _, err := UnmarshalRequestID([]byte(`true`)); err == nil {
+		t.Errorf("expected error for boolean RequestID")
 	}
 }

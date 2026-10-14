@@ -58,9 +58,13 @@ func TestEmitExampleNil(t *testing.T) {
 	}
 }
 
-func TestEmitExampleErrorMock(t *testing.T) {
-	_, err := EmitExample("error_mock", &openapi.Example{})
-	if err == nil || err.Error() != "simulated mock error" {
-		t.Errorf("expected simulated mock error, got %v", err)
+func TestEmitExampleInvalidIdentifier(t *testing.T) {
+	_, err := EmitExample("123-invalid", &openapi.Example{})
+	if err == nil {
+		t.Errorf("expected error for invalid Go identifier")
+	}
+	_, err = EmitExample("", &openapi.Example{})
+	if err == nil {
+		t.Errorf("expected error for empty identifier")
 	}
 }

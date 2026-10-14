@@ -1,3 +1,4 @@
+// Package responses provides parsing and emitting of OpenAPI Responses objects to and from Go AST return type lists.
 package responses
 
 import (

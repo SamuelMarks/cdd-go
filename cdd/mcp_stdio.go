@@ -1,3 +1,4 @@
+// Package cdd provides the core orchestration for OpenAPI and Go AST code generation.
 package cdd
 
 import (
@@ -5,28 +6,61 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/SamuelMarks/cdd-go/src/mcp"
 )
 
 // MCPRequest represents an incoming MCP tool call.
 type MCPRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	Method  string          `json:"method"`
-	ID      interface{}     `json:"id"`
-	Params  json.RawMessage `json:"params"`
+	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
+	JSONRPC string `json:"jsonrpc"`
+	// Method is the MCP method name (e.g., "initialize", "tools/list", "tools/call").
+	Method string `json:"method"`
+	// ID is the unique request identifier.
+	ID mcp.RequestID `json:"id"`
+	// Params holds the raw JSON parameters.
+	Params json.RawMessage `json:"params"`
 }
 
 // MCPResponse represents an outgoing MCP response.
 type MCPResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      interface{} `json:"id"`
-	Result  interface{} `json:"result,omitempty"`
-	Error   interface{} `json:"error,omitempty"`
+	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
+	JSONRPC string `json:"jsonrpc"`
+	// ID is the response identifier matching the request.
+	ID mcp.RequestID `json:"id"`
+	// Result holds the successful execution payload.
+	Result any `json:"result,omitempty"`
+	// Error holds the JSON-RPC error object if the call failed.
+	Error *mcp.Error `json:"error,omitempty"`
+}
+
+// MCPToolParams represents the arguments passed to cdd_generate_sdk or cdd_sync_schema.
+type MCPToolParams struct {
+	// Input is the input file or directory path.
+	Input string `json:"input"`
+	// Output is the output file or directory path.
+	Output string `json:"output"`
+}
+
+// MCPCallToolParams represents the parameters for the tools/call MCP method.
+type MCPCallToolParams struct {
+	// Name is the tool name to invoke.
+	Name string `json:"name"`
+	// Arguments holds the strongly-typed tool arguments.
+	Arguments MCPToolParams `json:"arguments"`
 }
 
 // ServeMCPStdio serves the MCP tool interface via standard I/O.
+// Parameter args is the slice of CLI arguments, and it returns any execution error.
 func ServeMCPStdio(args []string) error {
-	fmt.Fprintf(os.Stderr, "Starting CDD Generator MCP Server on stdio...\n")
-	decoder := json.NewDecoder(os.Stdin)
+	return ServeMCP(os.Stdin, os.Stdout, os.Stderr)
+}
+
+// ServeMCP serves the MCP tool interface over the provided reader, writer, and error writer.
+// Parameter in is the input stream, out is the output stream, and errW is the diagnostic stream.
+func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
+	fmt.Fprintln(errW, "Starting CDD Generator MCP Server on stdio...")
+	decoder := json.NewDecoder(in)
 
 	for {
 		var req MCPRequest
@@ -34,96 +68,80 @@ func ServeMCPStdio(args []string) error {
 			if err == io.EOF {
 				break
 			}
-			fmt.Fprintf(os.Stderr, "Error decoding request: %v\n", err)
-			// Reset decoder on error to avoid infinite loop
-			decoder = json.NewDecoder(os.Stdin)
-			// Need to consume bad input, but since stdin is blocking, we just break
+			fmt.Fprintln(errW, "Error decoding request:", err)
 			break
 		}
 
-		var result interface{}
-		var errResp interface{}
+		var result any
+		var errResp *mcp.Error
 
-		if req.Method == "initialize" {
-			result = map[string]interface{}{
-				"protocolVersion": "1.0.0",
-				"capabilities": map[string]interface{}{
-					"tools": map[string]interface{}{},
-				},
-				"serverInfo": map[string]interface{}{
-					"name":    "cdd-generator-mcp",
-					"version": "0.0.3",
-				},
+		switch req.Method {
+		case "initialize":
+			var initRes mcp.InitializeResult
+			initRes.ProtocolVersion = "1.0.0"
+			initRes.Capabilities = mcp.ServerCapabilities{
+				Tools: &struct {
+					ListChanged bool `json:"listChanged,omitempty"`
+				}{},
 			}
-		} else if req.Method == "tools/list" {
-			result = map[string]interface{}{
-				"tools": []map[string]interface{}{
+			initRes.ServerInfo.Name = "cdd-generator-mcp"
+			initRes.ServerInfo.Version = "0.0.3"
+			result = initRes
+		case "tools/list":
+			inputSchema := map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"input":  map[string]string{"type": "string"},
+					"output": map[string]string{"type": "string"},
+				},
+				"required": []string{"input", "output"},
+			}
+			result = mcp.ListToolsResult{
+				Tools: []mcp.Tool{
 					{
-						"name":        "cdd_generate_sdk",
-						"description": "Generate an SDK from an OpenAPI spec",
-						"inputSchema": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"input":  map[string]interface{}{"type": "string"},
-								"output": map[string]interface{}{"type": "string"},
-							},
-							"required": []string{"input", "output"},
-						},
+						Name:        "cdd_generate_sdk",
+						Description: "Generate an SDK from an OpenAPI spec",
+						InputSchema: inputSchema,
 					},
 					{
-						"name":        "cdd_sync_schema",
-						"description": "Extract an OpenAPI spec from source code",
-						"inputSchema": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"input":  map[string]interface{}{"type": "string"},
-								"output": map[string]interface{}{"type": "string"},
-							},
-							"required": []string{"input", "output"},
-						},
+						Name:        "cdd_sync_schema",
+						Description: "Extract an OpenAPI spec from source code",
+						InputSchema: inputSchema,
 					},
 				},
 			}
-		} else if req.Method == "tools/call" {
-			var params struct {
-				Name      string                 `json:"name"`
-				Arguments map[string]interface{} `json:"arguments"`
-			}
+		case "tools/call":
+			var params MCPCallToolParams
 			if err := json.Unmarshal(req.Params, &params); err == nil {
-				if params.Name == "cdd_generate_sdk" {
-					in, _ := params.Arguments["input"].(string)
-					out, _ := params.Arguments["output"].(string)
-					err := FromOpenAPI("to_sdk", in, out, false, false, false, false)
-					if err != nil {
-						errResp = map[string]interface{}{"code": -32603, "message": err.Error()}
+				switch params.Name {
+				case "cdd_generate_sdk":
+					if err := FromOpenAPI("to_sdk", params.Arguments.Input, params.Arguments.Output, false, false, false, false); err != nil {
+						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 					} else {
-						result = map[string]interface{}{
-							"content": []map[string]interface{}{
-								{"type": "text", "text": "SDK successfully generated"},
+						result = mcp.CallToolResult{
+							Content: []mcp.Content{
+								mcp.TextContent{Type: "text", Text: "SDK successfully generated"},
 							},
 						}
 					}
-				} else if params.Name == "cdd_sync_schema" {
-					in, _ := params.Arguments["input"].(string)
-					out, _ := params.Arguments["output"].(string)
-					err := ToOpenAPI(in, out)
-					if err != nil {
-						errResp = map[string]interface{}{"code": -32603, "message": err.Error()}
+				case "cdd_sync_schema":
+					if err := ToOpenAPI(params.Arguments.Input, params.Arguments.Output); err != nil {
+						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 					} else {
-						result = map[string]interface{}{
-							"content": []map[string]interface{}{
-								{"type": "text", "text": "OpenAPI schema successfully extracted"},
+						result = mcp.CallToolResult{
+							Content: []mcp.Content{
+								mcp.TextContent{Type: "text", Text: "OpenAPI schema successfully extracted"},
 							},
 						}
 					}
-				} else {
-					errResp = map[string]interface{}{"code": -32601, "message": "Method not found"}
+				default:
+					errResp = mcp.MapErrorCode(mcp.ErrMethodNotFound, "")
 				}
 			} else {
-				errResp = map[string]interface{}{"code": -32602, "message": "Invalid params"}
+				errResp = mcp.MapErrorCode(mcp.ErrInvalidParams, "")
 			}
-		} else {
-			errResp = map[string]interface{}{"code": -32601, "message": "Method not found"}
+		default:
+			errResp = mcp.MapErrorCode(mcp.ErrMethodNotFound, "")
 		}
 
 		resp := MCPResponse{
@@ -133,8 +151,8 @@ func ServeMCPStdio(args []string) error {
 			Error:   errResp,
 		}
 
-		out, _ := json.Marshal(resp)
-		fmt.Printf("%s\n", out)
+		outBytes, _ := json.Marshal(resp)
+		fmt.Fprintln(out, string(outBytes))
 	}
 
 	return nil

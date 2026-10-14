@@ -1,3 +1,4 @@
+// Package openapi provides structures and utilities for parsing and emitting OpenAPI descriptions.
 package openapi
 
 import (

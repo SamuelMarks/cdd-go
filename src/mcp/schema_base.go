@@ -1,61 +1,176 @@
+// Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
+
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Annotations provides optional metadata.
 type Annotations struct {
+	// Audience lists the intended recipients ("user", "assistant").
 	Audience []string `json:"audience,omitempty"`
-	Priority float64  `json:"priority,omitempty"`
+	// Priority indicates the relative importance of the content (0.0 to 1.0).
+	Priority float64 `json:"priority,omitempty"`
 }
 
 // Annotated is a base for objects that can have annotations.
 type Annotated struct {
+	// Annotations holds optional metadata annotations.
 	Annotations *Annotations `json:"annotations,omitempty"`
 }
 
 // BlobResourceContents represents binary resource contents.
 type BlobResourceContents struct {
-	URI      string `json:"uri"`
+	// URI is the unique resource identifier.
+	URI string `json:"uri"`
+	// MimeType is the optional MIME type of the binary blob.
 	MimeType string `json:"mimeType,omitempty"`
-	Blob     string `json:"blob"` // Base64 encoded
+	// Blob is the base64-encoded binary data.
+	Blob string `json:"blob"`
 }
+
+// IsResourceContents marks BlobResourceContents as a valid ResourceContents implementation.
+func (BlobResourceContents) IsResourceContents() {}
 
 // TextResourceContents represents text resource contents.
 type TextResourceContents struct {
-	URI      string `json:"uri"`
+	// URI is the unique resource identifier.
+	URI string `json:"uri"`
+	// MimeType is the optional MIME type of the text.
 	MimeType string `json:"mimeType,omitempty"`
-	Text     string `json:"text"`
+	// Text is the textual content of the resource.
+	Text string `json:"text"`
 }
 
-// ResourceContents can be either BlobResourceContents or TextResourceContents
-type ResourceContents interface{}
+// IsResourceContents marks TextResourceContents as a valid ResourceContents implementation.
+func (TextResourceContents) IsResourceContents() {}
+
+// ResourceContents can be either BlobResourceContents or TextResourceContents.
+type ResourceContents interface {
+	// IsResourceContents is a sealed marker method for ResourceContents implementations.
+	IsResourceContents()
+}
+
+// UnmarshalResourceContents unmarshals raw JSON into a concrete TextResourceContents or BlobResourceContents.
+// Parameter data is the raw JSON payload, and it returns the decoded ResourceContents and error.
+func UnmarshalResourceContents(data []byte) (ResourceContents, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	if _, ok := raw["blob"]; ok {
+		var b BlobResourceContents
+		if err := json.Unmarshal(data, &b); err != nil {
+			return nil, err
+		}
+		return b, nil
+	}
+	if _, ok := raw["text"]; ok {
+		var t TextResourceContents
+		if err := json.Unmarshal(data, &t); err != nil {
+			return nil, err
+		}
+		return t, nil
+	}
+	return nil, fmt.Errorf("unknown resource contents payload: %s", string(data))
+}
 
 // EmbeddedResource represents a resource embedded directly within a message.
 type EmbeddedResource struct {
 	Annotated
-	Type     string           `json:"type"` // MUST be "resource"
+	// Type must be "resource".
+	Type string `json:"type"`
+	// Resource holds the embedded text or blob resource contents.
 	Resource ResourceContents `json:"resource"`
 }
+
+// IsContent marks EmbeddedResource as a valid Content implementation.
+func (EmbeddedResource) IsContent() {}
 
 // TextContent represents text content within a message.
 type TextContent struct {
 	Annotated
-	Type string `json:"type"` // MUST be "text"
+	// Type must be "text".
+	Type string `json:"type"`
+	// Text is the message text.
 	Text string `json:"text"`
 }
+
+// IsContent marks TextContent as a valid Content implementation.
+func (TextContent) IsContent() {}
 
 // ImageContent represents image content within a message.
 type ImageContent struct {
 	Annotated
-	Type     string `json:"type"` // MUST be "image"
-	Data     string `json:"data"` // Base64 encoded
+	// Type must be "image".
+	Type string `json:"type"`
+	// Data is the base64-encoded image payload.
+	Data string `json:"data"`
+	// MimeType is the image MIME type (e.g., "image/png").
 	MimeType string `json:"mimeType"`
 }
 
-// Content can be TextContent, ImageContent, or EmbeddedResource
-type Content interface{}
+// IsContent marks ImageContent as a valid Content implementation.
+func (ImageContent) IsContent() {}
+
+// Content can be TextContent, ImageContent, or EmbeddedResource.
+type Content interface {
+	// IsContent is a sealed marker method for Content implementations.
+	IsContent()
+}
+
+// UnmarshalContent unmarshals raw JSON into a concrete TextContent, ImageContent, or EmbeddedResource.
+// Parameter data is the raw JSON payload, and it returns the decoded Content and error.
+func UnmarshalContent(data []byte) (Content, error) {
+	var header struct {
+		Type     string          `json:"type"`
+		Resource json.RawMessage `json:"resource"`
+	}
+	if err := json.Unmarshal(data, &header); err != nil {
+		return nil, err
+	}
+	switch header.Type {
+	case "text":
+		var tc TextContent
+		if err := json.Unmarshal(data, &tc); err != nil {
+			return nil, err
+		}
+		return tc, nil
+	case "image":
+		var ic ImageContent
+		if err := json.Unmarshal(data, &ic); err != nil {
+			return nil, err
+		}
+		return ic, nil
+	case "resource":
+		var er struct {
+			Annotated
+			Type     string          `json:"type"`
+			Resource json.RawMessage `json:"resource"`
+		}
+		if err := json.Unmarshal(data, &er); err != nil {
+			return nil, err
+		}
+		rc, err := UnmarshalResourceContents(er.Resource)
+		if err != nil {
+			return nil, err
+		}
+		return EmbeddedResource{
+			Annotated: er.Annotated,
+			Type:      er.Type,
+			Resource:  rc,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported content type: %q", header.Type)
+	}
+}
 
 // Implementation describes the name and version of an MCP implementation.
 type Implementation struct {
-	Name    string `json:"name"`
+	// Name is the implementation name.
+	Name string `json:"name"`
+	// Version is the implementation version string.
 	Version string `json:"version"`
 }
 

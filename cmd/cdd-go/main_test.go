@@ -140,8 +140,12 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	}
 
 	// Output dir mapping test
-	err = run([]string{"to_openapi", "-i", goDir, "-o", "generated"})
-	// this will write to openapi.json in current dir. Let's ignore err, just want coverage.
+	genOutDir := filepath.Join(dir, "generated_dir")
+	os.MkdirAll(genOutDir, 0755)
+	err = run([]string{"to_openapi", "-i", goDir, "-o", genOutDir})
+	if err != nil {
+		t.Errorf("unexpected error writing to directory output: %v", err)
+	}
 
 	// Force WriteDstFile error by providing a path that is a directory
 	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", path})
@@ -177,7 +181,7 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	}
 
 	// Test emit error inside generateRoutes
-	os.WriteFile(path, []byte(`{"paths": {"/error-path": {}}}`), 0644)
+	os.WriteFile(path, []byte(`{"paths": {"error-path": {}}}`), 0644)
 	err = run([]string{"from_openapi", "to_server", "-i", path, "-o", filepath.Join(dir, "error_gen")})
 	if err == nil {
 		t.Errorf("expected error from routes.EmitHandlerInterface")
@@ -202,7 +206,9 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	// osGetwd error
 	osGetwdErr := osGetwd
 	osGetwd = func() (string, error) { return "", os.ErrNotExist }
-	run([]string{"from_openapi", "to_server", "-i", path})
+	if err := run([]string{"from_openapi", "to_server", "-i", path}); err == nil {
+		t.Errorf("expected error when osGetwd fails")
+	}
 	osGetwd = osGetwdErr
 
 	// generate composable tests and mocks test
@@ -361,7 +367,7 @@ func TestRunHelpAndVersion(t *testing.T) {
 func TestGenerateClientsError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "openapi.json")
-	os.WriteFile(path, []byte("{\"paths\": {\"/error-client-path\": {}}}"), 0644)
+	os.WriteFile(path, []byte("{\"paths\": {\"error-client-path\": {}}}"), 0644)
 	err := run([]string{"from_openapi", "to_sdk", "-i", path, "-o", filepath.Join(dir, "error_gen")})
 	if err == nil {
 		t.Errorf("expected error from clients.EmitClientInterface")
@@ -483,7 +489,7 @@ func TestFromOpenAPIErrorsSubsubcommands(t *testing.T) {
 	}
 
 	// to_sdk: generateClients err
-	os.WriteFile(path, []byte(`{"paths": {"/error-client-path": {}}}`), 0644)
+	os.WriteFile(path, []byte(`{"paths": {"error-client-path": {}}}`), 0644)
 	err = run([]string{"from_openapi", "to_sdk", "-i", path, "-o", dir})
 	if err == nil {
 		t.Errorf("expected err")
@@ -608,7 +614,9 @@ func TestGenerateOpenAPIParseErr(t *testing.T) {
 	path2 := filepath.Join(dir, "bad2.go")
 	os.WriteFile(path2, []byte("package bad\nfunc x(){"), 0644) // dst fails gracefully here usually
 
-	cdd.GenerateOpenAPI(dir, filepath.Join(dir, "out.json"))
+	if err := cdd.GenerateOpenAPI(dir, filepath.Join(dir, "out.json")); err == nil {
+		t.Errorf("expected syntax parse error from GenerateOpenAPI")
+	}
 }
 
 func TestRunServeJSONRPCPortErr(t *testing.T) {

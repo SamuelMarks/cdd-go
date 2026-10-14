@@ -1,3 +1,4 @@
+// Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
 import (
@@ -14,8 +15,11 @@ type Transport interface {
 
 // StdioTransport implements Transport over standard input/output.
 type StdioTransport struct {
-	In      io.Reader
-	Out     io.Writer
+	// In is the underlying input reader.
+	In io.Reader
+	// Out is the underlying output writer.
+	Out io.Writer
+	// Scanner reads newline-delimited messages from In.
 	Scanner *bufio.Scanner
 }
 

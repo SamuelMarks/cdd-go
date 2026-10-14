@@ -1,15 +1,18 @@
+// Package schemas provides parsing and emitting of OpenAPI Schema objects to and from Go AST declarations.
 package schemas
 
 import (
 	"go/token"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/classes"
 	"github.com/SamuelMarks/cdd-go/src/docstrings"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
-// Parse extracts an OpenAPI Schema object from a type declaration
+// Parse extracts an OpenAPI Schema object from a type declaration.
+// Parameter decl is the AST generic declaration, and it returns the schema name and parsed OpenAPI Schema.
 func Parse(decl *dst.GenDecl) (string, *openapi.Schema) {
 	if decl == nil || decl.Tok != token.TYPE {
 		return "", nil
@@ -40,7 +43,7 @@ func Parse(decl *dst.GenDecl) (string, *openapi.Schema) {
 					if f.Tag != nil {
 						tagVal := strings.Trim(f.Tag.Value, "`")
 						if strings.HasPrefix(tagVal, "json:") {
-							parts := strings.Split(strings.TrimPrefix(tagVal, "json:\""), "\"")
+							parts := strings.Split(strings.TrimPrefix(tagVal, `json:"`), `"`)
 							if len(parts) > 0 {
 								jsonName := strings.Split(parts[0], ",")[0]
 								if jsonName != "" && jsonName != "-" {
@@ -71,39 +74,12 @@ func Parse(decl *dst.GenDecl) (string, *openapi.Schema) {
 	return "", nil
 }
 
-// ParseType converts a Go AST type expression to an OpenAPI schema
+// ParseType converts a Go AST type expression to an OpenAPI schema.
+// Parameter expr is the AST type expression, and it returns the parsed OpenAPI Schema.
 func ParseType(expr dst.Expr) *openapi.Schema {
-	if expr == nil {
+	s, err := classes.ParseExpr(expr)
+	if err != nil || s == nil {
 		return &openapi.Schema{}
 	}
-
-	switch e := expr.(type) {
-	case *dst.Ident:
-		switch e.Name {
-		case "int", "int32", "int64":
-			return &openapi.Schema{Type: "integer"}
-		case "float32", "float64":
-			return &openapi.Schema{Type: "number"}
-		case "bool":
-			return &openapi.Schema{Type: "boolean"}
-		case "string":
-			return &openapi.Schema{Type: "string"}
-		case "any":
-			return &openapi.Schema{}
-		default:
-			return &openapi.Schema{Ref: "#/components/schemas/" + e.Name}
-		}
-	case *dst.StarExpr:
-		return ParseType(e.X)
-	case *dst.ArrayType:
-		return &openapi.Schema{Type: "array", Items: ParseType(e.Elt)}
-	case *dst.MapType:
-		return &openapi.Schema{Type: "object", AdditionalProperties: ParseType(e.Value)}
-	case *dst.SelectorExpr:
-		if x, ok := e.X.(*dst.Ident); ok && x.Name == "time" && e.Sel.Name == "Time" {
-			return &openapi.Schema{Type: "string", Format: "date-time"}
-		}
-	}
-
-	return &openapi.Schema{}
+	return s
 }

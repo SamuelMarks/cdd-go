@@ -1,16 +1,25 @@
+// Package daos provides generation of Data Access Objects (DAO) interfaces, stubs, and concrete implementations from OpenAPI schemas.
 package daos
 
 import (
 	"go/token"
+	"sort"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // EmitFactoryInterface generates an interface that defines how to retrieve DAOs.
+// Parameter schemas is the map of OpenAPI schemas, and it returns the generated AST interface declaration.
 func EmitFactoryInterface(schemas map[string]openapi.Schema) *dst.GenDecl {
-	fields := &dst.FieldList{List: []*dst.Field{}}
+	names := make([]string, 0, len(schemas))
 	for name := range schemas {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fields := &dst.FieldList{List: []*dst.Field{}}
+	for _, name := range names {
 		fields.List = append(fields.List, &dst.Field{
 			Names: []*dst.Ident{dst.NewIdent(name)},
 			Type: &dst.FuncType{
@@ -80,7 +89,13 @@ func EmitConcreteFactory(schemas map[string]openapi.Schema) (*dst.GenDecl, []dst
 	f1.Decs.Start.Append("// NewDAOFactory creates a new DAOFactory.")
 	methods := []dst.Decl{f1}
 
+	names := make([]string, 0, len(schemas))
 	for name := range schemas {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
 		f := &dst.FuncDecl{
 			Recv: &dst.FieldList{List: []*dst.Field{{Names: []*dst.Ident{dst.NewIdent("f")}, Type: &dst.StarExpr{X: dst.NewIdent("DAOFactory")}}}},
 			Name: dst.NewIdent(name),

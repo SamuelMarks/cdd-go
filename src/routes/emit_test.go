@@ -89,6 +89,10 @@ func TestEmitHandlerInterfaceNil(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for nil PathItem")
 	}
+	_, err = EmitHandlerInterface("invalid-path", &openapi.PathItem{})
+	if err == nil {
+		t.Errorf("expected error for path without leading slash")
+	}
 }
 
 func TestToCamelCase(t *testing.T) {
@@ -174,5 +178,9 @@ func TestEmitHandlerStructNil(t *testing.T) {
 	_, err := EmitHandlerStruct("/", nil)
 	if err == nil {
 		t.Errorf("expected error for nil PathItem")
+	}
+	_, err = EmitHandlerStruct("invalid-path", &openapi.PathItem{})
+	if err == nil {
+		t.Errorf("expected error for path without leading slash")
 	}
 }

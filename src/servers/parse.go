@@ -1,3 +1,4 @@
+// Package servers provides parsing and emitting of OpenAPI Server slices to and from Go AST declarations.
 package servers
 
 import (

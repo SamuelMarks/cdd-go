@@ -1,9 +1,11 @@
+// Package securityschemes provides parsing and emitting of OpenAPI SecurityScheme objects to and from Go AST declarations.
 package securityschemes
 
 import (
 	"fmt"
 	"go/token"
 
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/oauthflows"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
@@ -73,12 +75,8 @@ func Emit(name string, scheme *openapi.SecurityScheme) *dst.GenDecl {
 	return decl
 }
 
+// toPascalCase converts an identifier string to PascalCase.
+// Parameter s is the input string, and it returns the PascalCase representation.
 func toPascalCase(s string) string {
-	if s == "" {
-		return ""
-	}
-	if s[0] >= 'a' && s[0] <= 'z' {
-		return string(s[0]-32) + s[1:]
-	}
-	return s
+	return naming.ToPascalCase(s)
 }

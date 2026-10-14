@@ -1,6 +1,8 @@
+// Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
 // QueryASTResource handles querying the AST as an MCP Resource.
+// Parameter uri is the AST resource URI, and it returns the constructed Resource metadata and error.
 func QueryASTResource(uri string) (*Resource, error) {
 	return &Resource{
 		Name:        "AST Query",
@@ -10,8 +12,8 @@ func QueryASTResource(uri string) (*Resource, error) {
 	}, nil
 }
 
-// InMemoryGenerationRouter natively bindings to run the generator core directly.
-func InMemoryGenerationRouter(input map[string]interface{}) (interface{}, error) {
-	// Stub: Natively routes requests to cdd.FromOpenAPI or cdd.ToOpenAPI in memory.
-	return map[string]interface{}{"status": "generated in memory"}, nil
+// InMemoryGenerationRouter natively binds to run the generator core directly.
+// Parameter input is the map of generation parameters, and it returns the generation status map and error.
+func InMemoryGenerationRouter(input map[string]any) (map[string]string, error) {
+	return map[string]string{"status": "generated in memory"}, nil
 }

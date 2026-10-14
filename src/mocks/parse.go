@@ -1,3 +1,4 @@
+// Package mocks provides mechanisms to parse and emit mock data from/to OpenAPI Example Objects.
 package mocks
 
 import (

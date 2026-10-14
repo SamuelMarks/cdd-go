@@ -1,3 +1,4 @@
+// Package main builds and runs unit tests for generated Swagger 2.0 and OpenAPI 3.0 server projects.
 package main
 
 import (
@@ -7,8 +8,10 @@ import (
 	"os/exec"
 )
 
+// execCommand is an injectable function variable wrapping exec.Command.
 var execCommand = exec.Command
 
+// runCmd executes an external command and pipes its output to stdout and stderr.
 var runCmd = func(name string, args ...string) error {
 	cmd := execCommand(name, args...)
 	cmd.Stdout = os.Stdout
@@ -16,8 +19,10 @@ var runCmd = func(name string, args ...string) error {
 	return cmd.Run()
 }
 
+// osChdir is an injectable function variable wrapping os.Chdir.
 var osChdir = os.Chdir
 
+// runMain executes go test and go build inside the generated Swagger and OpenAPI 3.0 server directories.
 func runMain() {
 	fmt.Println("Testing Generated Servers...")
 
@@ -56,6 +61,7 @@ func runMain() {
 	fmt.Println("Server tests complete.")
 }
 
+// main is the entrypoint for the generated server test runner script.
 func main() {
 	runMain()
 }

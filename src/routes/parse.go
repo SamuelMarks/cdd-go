@@ -1,3 +1,4 @@
+// Package routes provides parsing and emitting of Gin HTTP handler interfaces and structs to and from OpenAPI PathItems.
 package routes
 
 import (
@@ -9,6 +10,7 @@ import (
 )
 
 // ParseHandlerInterface parses a dst.InterfaceType into an OpenAPI PathItem.
+// Parameter ts is the AST type specification for the handler interface, and it returns the parsed PathItem and error.
 func ParseHandlerInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 	if ts == nil {
 		return nil, fmt.Errorf("TypeSpec is nil")
@@ -16,78 +18,97 @@ func ParseHandlerInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 
 	iface, ok := ts.Type.(*dst.InterfaceType)
 	if !ok {
-		return nil, fmt.Errorf("TypeSpec is not an interface")
+		return nil, fmt.Errorf("TypeSpec is not an InterfaceType")
 	}
 
 	pathItem := &openapi.PathItem{}
-	var mcpExt map[string]interface{}
 
 	if len(ts.Decs.Start) > 0 {
 		desc := ""
 		for _, doc := range ts.Decs.Start {
-			desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
+			line := strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+			if strings.HasPrefix(line, "Path:") {
+				continue
+			}
+			desc += line + " "
 		}
 		pathItem.Summary = strings.TrimSpace(desc)
 	}
 
-	for _, field := range iface.Methods.List {
-		if len(field.Names) == 0 {
-			continue // Embedded interface
-		}
-		methodName := field.Names[0].Name
+	mcpExt := make(map[string]bool)
 
-		// Track MCP server handler methods
-		if methodName == "HandleMcpSse" || methodName == "HandleMcpMessage" || methodName == "WithMcpAuth" || methodName == "MapMcpToolToRoute" {
-			if mcpExt == nil {
-				mcpExt = make(map[string]interface{})
-			}
-			if methodName == "HandleMcpSse" {
-				mcpExt["sse"] = true
-			} else if methodName == "HandleMcpMessage" {
-				mcpExt["message"] = true
-			} else if methodName == "WithMcpAuth" {
-				mcpExt["auth"] = true
-			} else if methodName == "MapMcpToolToRoute" {
-				mcpExt["proxy"] = true
-			}
+	for _, method := range iface.Methods.List {
+		if len(method.Names) == 0 {
+			continue
+		}
+		methodName := method.Names[0].Name
+		if methodName == "HandleMcpSse" {
+			mcpExt["sse"] = true
+			continue
+		}
+		if methodName == "HandleMcpMessage" {
+			mcpExt["message"] = true
+			continue
+		}
+		if methodName == "WithMcpAuth" {
+			mcpExt["auth"] = true
+			continue
+		}
+		if methodName == "MapMcpToolToRoute" {
+			mcpExt["proxy"] = true
 			continue
 		}
 
 		op := &openapi.Operation{
-			OperationID: methodName, Responses: make(openapi.Responses, 0),
+			OperationID: strings.ToLower(methodName[:1]) + methodName[1:],
 		}
 
-		if len(field.Decs.Start) > 0 {
+		var httpVerb string
+		if len(method.Decs.Start) > 0 {
 			desc := ""
-			for _, doc := range field.Decs.Start {
-				desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
+			for _, doc := range method.Decs.Start {
+				line := strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+				if strings.HasPrefix(line, "METHOD:") {
+					httpVerb = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(line, "METHOD:")))
+					continue
+				}
+				desc += line + " "
 			}
 			op.Summary = strings.TrimSpace(desc)
 		}
 
-		// Simple heuristic to map method name to HTTP verb
 		nameLower := strings.ToLower(methodName)
-		if strings.HasPrefix(nameLower, "get") {
+		if httpVerb == "" {
+			for _, verb := range []string{"get", "post", "put", "delete", "patch", "options", "head", "trace"} {
+				if strings.HasPrefix(nameLower, verb) {
+					httpVerb = verb
+					break
+				}
+			}
+		}
+
+		switch httpVerb {
+		case "get":
 			pathItem.Get = op
-		} else if strings.HasPrefix(nameLower, "post") {
+		case "post":
 			pathItem.Post = op
-		} else if strings.HasPrefix(nameLower, "put") {
+		case "put":
 			pathItem.Put = op
-		} else if strings.HasPrefix(nameLower, "delete") {
+		case "delete":
 			pathItem.Delete = op
-		} else if strings.HasPrefix(nameLower, "patch") {
+		case "patch":
 			pathItem.Patch = op
-		} else if strings.HasPrefix(nameLower, "options") {
+		case "options":
 			pathItem.Options = op
-		} else if strings.HasPrefix(nameLower, "head") {
+		case "head":
 			pathItem.Head = op
-		} else if strings.HasPrefix(nameLower, "trace") {
+		case "trace":
 			pathItem.Trace = op
 		}
 	}
 
-	if mcpExt != nil {
-		pathItem.Extensions = make(map[string]interface{})
+	if len(mcpExt) > 0 {
+		pathItem.Extensions = make(map[string]map[string]bool)
 		pathItem.Extensions["x-mcp-server"] = mcpExt
 	}
 

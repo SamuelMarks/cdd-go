@@ -1,3 +1,4 @@
+// Package oauthflows provides parsing and emitting of OpenAPI OAuthFlows objects to and from Go AST composite literals.
 package oauthflows
 
 import (
@@ -47,6 +48,7 @@ func Parse(cl *dst.CompositeLit) *openapi.OAuthFlows {
 	return flows
 }
 
+// parseFlow extracts a single OpenAPI OAuthFlow object from a dst.CompositeLit.
 func parseFlow(cl *dst.CompositeLit) *openapi.OAuthFlow {
 	flow := &openapi.OAuthFlow{
 		Scopes: make(map[string]string),

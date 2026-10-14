@@ -1,3 +1,4 @@
+// Package main provides the CLI entrypoint and subcommand dispatcher for cdd-go.
 package main
 
 import (
@@ -8,10 +9,16 @@ import (
 	"os"
 )
 
+// osExit is an injectable function variable wrapping os.Exit.
 var osExit = os.Exit
+
+// osGetwd is an injectable function variable wrapping os.Getwd.
 var osGetwd = os.Getwd
+
+// stderr is an injectable writer wrapping os.Stderr.
 var stderr = os.Stderr
 
+// main is the CLI entrypoint for cdd-go.
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(stderr, err.Error())
@@ -19,6 +26,8 @@ func main() {
 	}
 }
 
+// envOrDefault returns the value of environment variable key or def if unset.
+// Parameter key is the environment variable name, and def is the fallback string.
 func envOrDefault(key, def string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -26,6 +35,8 @@ func envOrDefault(key, def string) string {
 	return def
 }
 
+// envOrDefaultBool returns the boolean value of environment variable key or def if unset.
+// Parameter key is the environment variable name, and def is the fallback boolean.
 func envOrDefaultBool(key string, def bool) bool {
 	if val := os.Getenv(key); val != "" {
 		return val == "true" || val == "1"
@@ -33,6 +44,8 @@ func envOrDefaultBool(key string, def bool) bool {
 	return def
 }
 
+// envOrDefaultInt returns the integer value of environment variable key or def if unset or invalid.
+// Parameter key is the environment variable name, and def is the fallback integer.
 func envOrDefaultInt(key string, def int) int {
 	if val := os.Getenv(key); val != "" {
 		var i int
@@ -43,6 +56,8 @@ func envOrDefaultInt(key string, def int) int {
 	return def
 }
 
+// run parses CLI arguments and executes the requested subcommand.
+// Parameter args is the slice of CLI arguments excluding the binary name, and it returns any execution error.
 func run(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("Error: Unknown or incomplete command: ")

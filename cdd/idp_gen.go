@@ -1,3 +1,4 @@
+// Package cdd provides the core orchestration for OpenAPI and Go AST code generation.
 package cdd
 
 import (
@@ -32,6 +33,7 @@ func GenerateIdP(outDir string) error {
 	return WriteDstFile(filepath.Join(idpDir, "idp_handlers.go"), file)
 }
 
+// emitIdpRegisterHandler generates the AST for the mock HandleRegister Gin endpoint.
 func emitIdpRegisterHandler() *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("HandleRegister"),
@@ -48,6 +50,7 @@ func emitIdpRegisterHandler() *dst.FuncDecl {
 	return f
 }
 
+// emitIdpLoginHandler generates the AST for the mock HandleLogin Gin endpoint.
 func emitIdpLoginHandler() *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("HandleLogin"),

@@ -1,3 +1,4 @@
+// Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
 // LoggingLevel represents the severity of a log message.
@@ -29,21 +30,32 @@ const LogLevelEmergency LoggingLevel = "emergency"
 
 // LoggingMessageNotification sends a log message to the client.
 type LoggingMessageNotification struct {
+	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
 	JSONRPC string `json:"jsonrpc"`
-	Method  string `json:"method"` // MUST be "notifications/message"
-	Params  struct {
-		Level  LoggingLevel `json:"level"`
-		Logger string       `json:"logger,omitempty"`
-		Data   interface{}  `json:"data"`
+	// Method must be "notifications/message".
+	Method string `json:"method"`
+	// Params holds the log level, logger name, and payload.
+	Params struct {
+		// Level is the severity level of the log entry.
+		Level LoggingLevel `json:"level"`
+		// Logger is the optional name of the logger emitting the message.
+		Logger string `json:"logger,omitempty"`
+		// Data is the arbitrary serializable log payload.
+		Data any `json:"data"`
 	} `json:"params"`
 }
 
 // SetLevelRequest requests that the server change its logging level.
 type SetLevelRequest struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      interface{} `json:"id"`
-	Method  string      `json:"method"` // MUST be "logging/setLevel"
-	Params  struct {
+	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
+	JSONRPC string `json:"jsonrpc"`
+	// ID is the unique request identifier.
+	ID RequestID `json:"id"`
+	// Method must be "logging/setLevel".
+	Method string `json:"method"`
+	// Params holds the requested minimum logging level.
+	Params struct {
+		// Level is the minimum LoggingLevel to emit.
 		Level LoggingLevel `json:"level"`
 	} `json:"params"`
 }

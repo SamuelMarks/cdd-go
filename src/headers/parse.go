@@ -1,3 +1,4 @@
+// Package headers provides parsing and emitting of OpenAPI Header objects to and from Go AST struct fields.
 package headers
 
 import (

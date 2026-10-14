@@ -1,3 +1,4 @@
+// Package cdd provides the core orchestration for OpenAPI and Go AST code generation.
 package cdd
 
 import (
@@ -34,6 +35,7 @@ func GenerateMiddlewares(outDir string) error {
 	return WriteDstFile(filepath.Join(mwDir, "middlewares.go"), file)
 }
 
+// emitCorsMiddleware generates the AST for the CORSMiddleware Gin handler.
 func emitCorsMiddleware() *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("CORSMiddleware"),
@@ -76,6 +78,7 @@ func emitCorsMiddleware() *dst.FuncDecl {
 	return f
 }
 
+// emitAuthMockMiddleware generates the AST for the AuthMockMiddleware Gin handler.
 func emitAuthMockMiddleware() *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("AuthMockMiddleware"),
@@ -136,6 +139,7 @@ func emitAuthMockMiddleware() *dst.FuncDecl {
 	return f
 }
 
+// emitValidationMiddleware generates the AST for the ValidationMiddleware Gin handler.
 func emitValidationMiddleware() *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("ValidationMiddleware"),

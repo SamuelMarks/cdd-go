@@ -299,4 +299,23 @@ func TestParseExprMap(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for invalid map value")
 	}
+
+	// Test time.Time SelectorExpr and generic SelectorExpr
+	timeExpr := &dst.SelectorExpr{
+		X:   dst.NewIdent("time"),
+		Sel: dst.NewIdent("Time"),
+	}
+	sTime, err := ParseExpr(timeExpr)
+	if err != nil || sTime.Type != "string" || sTime.Format != "date-time" {
+		t.Errorf("expected date-time string for time.Time, got %+v, %v", sTime, err)
+	}
+
+	otherSel := &dst.SelectorExpr{
+		X:   dst.NewIdent("pkg"),
+		Sel: dst.NewIdent("Custom"),
+	}
+	sOther, err := ParseExpr(otherSel)
+	if err != nil || sOther.Type != "" {
+		t.Errorf("expected empty schema for other selector, got %+v, %v", sOther, err)
+	}
 }

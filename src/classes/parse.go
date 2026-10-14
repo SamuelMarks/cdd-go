@@ -1,3 +1,4 @@
+// Package classes provides parsing and emitting of Go structs from/to OpenAPI schemas.
 package classes
 
 import (
@@ -11,6 +12,7 @@ import (
 )
 
 // ParseType parses a dst.TypeSpec into an OpenAPI Schema.
+// Parameter ts is the AST type specification, and it returns the parsed OpenAPI Schema and error.
 func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 	if ts == nil {
 		return nil, fmt.Errorf("TypeSpec is nil")
@@ -32,7 +34,7 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 		schema.Properties = make(map[string]openapi.Schema)
 		for _, field := range t.Fields.List {
 			if len(field.Names) == 0 {
-				continue // Skip embedded fields for now
+				continue
 			}
 			propName := field.Names[0].Name
 			if field.Tag != nil && field.Tag.Kind == token.STRING {
@@ -40,7 +42,7 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 				structTag := reflect.StructTag(tagVal)
 				if j := structTag.Get("json"); j != "" {
 					parts := strings.Split(j, ",")
-					if parts[0] != "" {
+					if parts[0] != "" && parts[0] != "-" {
 						propName = parts[0]
 					}
 				}
@@ -84,6 +86,7 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 			return nil, err
 		}
 		schema.Type = s.Type
+		schema.Format = s.Format
 		schema.Ref = s.Ref
 	}
 
@@ -91,6 +94,7 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 }
 
 // ParseExpr parses a dst.Expr into an OpenAPI Schema.
+// Parameter expr is the AST type expression, and it returns the parsed OpenAPI Schema and error.
 func ParseExpr(expr dst.Expr) (*openapi.Schema, error) {
 	if expr == nil {
 		return nil, fmt.Errorf("expr is nil")
@@ -107,11 +111,16 @@ func ParseExpr(expr dst.Expr) (*openapi.Schema, error) {
 			return &openapi.Schema{Type: "number"}, nil
 		case "bool":
 			return &openapi.Schema{Type: "boolean"}, nil
-		case "interface{}":
+		case "interface{}", "any":
 			return &openapi.Schema{}, nil
 		default:
 			return &openapi.Schema{Ref: fmt.Sprintf("#/components/schemas/%s", e.Name)}, nil
 		}
+	case *dst.SelectorExpr:
+		if x, ok := e.X.(*dst.Ident); ok && x.Name == "time" && e.Sel.Name == "Time" {
+			return &openapi.Schema{Type: "string", Format: "date-time"}, nil
+		}
+		return &openapi.Schema{}, nil
 	case *dst.ArrayType:
 		itemsSchema, err := ParseExpr(e.Elt)
 		if err != nil {
@@ -123,8 +132,10 @@ func ParseExpr(expr dst.Expr) (*openapi.Schema, error) {
 	case *dst.StructType:
 		return &openapi.Schema{Type: "object"}, nil
 	case *dst.MapType:
-		if keyIdent, ok := e.Key.(*dst.Ident); !ok || keyIdent.Name != "string" {
-			return nil, fmt.Errorf("map keys must be strings")
+		if e.Key != nil {
+			if keyIdent, ok := e.Key.(*dst.Ident); !ok || keyIdent.Name != "string" {
+				return nil, fmt.Errorf("map keys must be strings")
+			}
 		}
 		valSchema, err := ParseExpr(e.Value)
 		if err != nil {

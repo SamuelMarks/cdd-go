@@ -1,16 +1,18 @@
+// Package daos provides generation of Data Access Objects (DAO) interfaces, stubs, and concrete implementations from OpenAPI schemas.
 package daos
 
 import (
 	"fmt"
 	"go/token"
+	"sort"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // EmitFactoryTests generates tests for the DAO Factory.
+// Parameter schemas is the map of OpenAPI schemas, and it returns the generated test declarations.
 func EmitFactoryTests(schemas map[string]openapi.Schema) (*dst.GenDecl, []dst.Decl) {
-	// A simple test func
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("TestDAOFactory"),
 		Type: &dst.FuncType{
@@ -27,7 +29,13 @@ func EmitFactoryTests(schemas map[string]openapi.Schema) (*dst.GenDecl, []dst.De
 		},
 	}
 
+	names := make([]string, 0, len(schemas))
 	for name := range schemas {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
 		f.Body.List = append(f.Body.List, &dst.IfStmt{
 			Init: &dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("_, ok")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.TypeAssertExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("fStub"), Sel: dst.NewIdent(name)}, Args: []dst.Expr{}}, Type: &dst.StarExpr{X: dst.NewIdent(name + "StubDAO")}}}},
 			Cond: &dst.UnaryExpr{Op: token.NOT, X: dst.NewIdent("ok")},
@@ -39,10 +47,17 @@ func EmitFactoryTests(schemas map[string]openapi.Schema) (*dst.GenDecl, []dst.De
 }
 
 // EmitConcreteDAOTests generates tests for Concrete DAOs.
+// Parameter schemas is the map of OpenAPI schemas, and it returns the generated test declarations.
 func EmitConcreteDAOTests(schemas map[string]openapi.Schema) []dst.Decl {
 	var decls []dst.Decl
 
+	names := make([]string, 0, len(schemas))
 	for name := range schemas {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
 		f := &dst.FuncDecl{
 			Name: dst.NewIdent("Test" + name + "ConcreteDAO"),
 			Type: &dst.FuncType{

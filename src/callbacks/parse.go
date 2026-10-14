@@ -1,3 +1,4 @@
+// Package callbacks provides parsing and emitting of OpenAPI Callback objects to and from Go AST declarations.
 package callbacks
 
 import (

@@ -1,3 +1,4 @@
+// Package oauthflows provides parsing and emitting of OpenAPI OAuthFlows objects to and from Go AST composite literals.
 package oauthflows
 
 import (
@@ -66,6 +67,7 @@ func Emit(flows *openapi.OAuthFlows) *dst.CompositeLit {
 	return cl
 }
 
+// emitFlow formats a single OpenAPI OAuthFlow object into a dst.CompositeLit.
 func emitFlow(flow *openapi.OAuthFlow) *dst.CompositeLit {
 	cl := &dst.CompositeLit{
 		Type: dst.NewIdent("OAuthFlow"),

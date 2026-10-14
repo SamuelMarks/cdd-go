@@ -1,3 +1,4 @@
+// Package functions parses and emits Go function declarations to/from OpenAPI Operations.
 package functions
 
 import (

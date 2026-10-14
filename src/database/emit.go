@@ -1,7 +1,9 @@
+// Package database provides AST emission for GORM database initialization and schema auto-migration.
 package database
 
 import (
 	"go/token"
+	"sort"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
@@ -126,7 +128,13 @@ func EmitMigrate(schemas map[string]openapi.Schema) *dst.FuncDecl {
 		},
 	}
 
+	names := make([]string, 0, len(schemas))
 	for name := range schemas {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
 		f.Body.List = append(f.Body.List, &dst.IfStmt{
 			Init: &dst.AssignStmt{
 				Lhs: []dst.Expr{dst.NewIdent("err")},

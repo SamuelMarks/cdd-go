@@ -1,3 +1,4 @@
+// Package cdd provides the core orchestration for OpenAPI and Go AST code generation.
 package cdd
 
 import (

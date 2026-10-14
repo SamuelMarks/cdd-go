@@ -53,19 +53,17 @@ func TestToDocsJSONCoverage(t *testing.T) {
 	defer os.Remove(inPath)
 
 	// test no operationId
-	ToDocsJSON(inPath, "", false, false)
+	if err := ToDocsJSON(inPath, "", false, false); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 
 	// test empty paths to trigger operations == nil
 	emptyPath := "test_docs_empty.json"
 	os.WriteFile(emptyPath, []byte(`{"openapi": "3.0.0", "info": {"title": "Test", "version": "1.0"}}`), 0644)
 	defer os.Remove(emptyPath)
-	ToDocsJSON(emptyPath, "", false, false)
-}
-
-type badWriter struct{}
-
-func (w badWriter) Write(p []byte) (n int, err error) {
-	return 0, os.ErrClosed
+	if err := ToDocsJSON(emptyPath, "", false, false); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 }
 
 func TestToDocsJSONEncodeErr(t *testing.T) {

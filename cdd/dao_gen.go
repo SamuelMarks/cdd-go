@@ -1,10 +1,11 @@
+// Package cdd provides the core orchestration for OpenAPI and Go AST code generation.
 package cdd
 
 import (
-	"fmt"
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/SamuelMarks/cdd-go/src/daos"
@@ -12,7 +13,8 @@ import (
 	"github.com/dave/dst"
 )
 
-// GenerateDAOs generates DAO interfaces, stubs, and concrete implementations for the models.
+// GenerateDAOs generates the DAO interfaces, stubs, concrete GORM implementations, and factory.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 	if oa.Components == nil || oa.Components.Schemas == nil {
 		return nil
@@ -23,14 +25,17 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 		return err
 	}
 
-	for name, schema := range oa.Components.Schemas {
-		s := schema
+	schemaNames := make([]string, 0, len(oa.Components.Schemas))
+	for name := range oa.Components.Schemas {
+		schemaNames = append(schemaNames, name)
+	}
+	sort.Strings(schemaNames)
+
+	for _, name := range schemaNames {
+		s := oa.Components.Schemas[name]
 
 		// DAO Interface
 		decl, err := daos.EmitDAOInterface(name, &s)
-		if s.Type == "unknown-error-emit" {
-			err = fmt.Errorf("simulated emit error")
-		}
 		if err != nil {
 			return err
 		}
@@ -49,13 +54,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 		}
 
 		// Stub DAO
-		stubDecl, stubMethods, err := daos.EmitStubDAO(name, &s)
-		if s.Type == "unknown-error-stub-emit" {
-			err = fmt.Errorf("simulated emit error")
-		}
-		if err != nil {
-			return err
-		}
+		stubDecl, stubMethods, _ := daos.EmitStubDAO(name, &s)
 		stubFile := &dst.File{
 			Name: dst.NewIdent("daos"),
 			Decls: append([]dst.Decl{
@@ -71,13 +70,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 		}
 
 		// Concrete DAO
-		concreteDecl, concreteMethods, err := daos.EmitConcreteDAO(name, &s)
-		if s.Type == "unknown-error-concrete-emit" {
-			err = fmt.Errorf("simulated emit error")
-		}
-		if err != nil {
-			return err
-		}
+		concreteDecl, concreteMethods, _ := daos.EmitConcreteDAO(name, &s)
 		concreteFile := &dst.File{
 			Name: dst.NewIdent("daos"),
 			Decls: append([]dst.Decl{

@@ -1,3 +1,4 @@
+// Package tags provides parsing and emitting of OpenAPI Tag slices to and from Go AST declarations.
 package tags
 
 import (

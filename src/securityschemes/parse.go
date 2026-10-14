@@ -1,3 +1,4 @@
+// Package securityschemes provides parsing and emitting of OpenAPI SecurityScheme objects to and from Go AST declarations.
 package securityschemes
 
 import (

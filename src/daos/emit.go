@@ -10,11 +10,24 @@ import (
 	"github.com/dave/dst"
 )
 
+// isValidDAOSchemaType checks whether an OpenAPI schema type is valid for DAO generation.
+func isValidDAOSchemaType(t string) bool {
+	switch t {
+	case "", "object", "string", "integer", "number", "boolean", "array":
+		return true
+	default:
+		return false
+	}
+}
+
 // EmitDAOInterface generates the abstract DAO interface for a given schema.
 // It defines standard CRUD operations: Create, Get, Update, Delete, List.
 func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
+	}
+	if name == "" || !isValidDAOSchemaType(schema.Type) {
+		return nil, fmt.Errorf("invalid schema %q with type %q for DAO interface", name, schema.Type)
 	}
 
 	interfaceName := name + "DAO"
@@ -150,6 +163,9 @@ func EmitStubDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.Decl,
 	if schema == nil {
 		return nil, nil, fmt.Errorf("schema is nil")
 	}
+	if name == "" || !isValidDAOSchemaType(schema.Type) {
+		return nil, nil, fmt.Errorf("invalid schema %q with type %q for stub DAO", name, schema.Type)
+	}
 
 	stubName := name + "StubDAO"
 
@@ -177,6 +193,7 @@ func EmitStubDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.Decl,
 	return decl, methods, nil
 }
 
+// emitStubMethod generates a stub CRUD method declaration for a stub DAO.
 func emitStubMethod(receiver string, method string, model string, hasItem bool, returnsModel bool) *dst.FuncDecl {
 	params := &dst.FieldList{
 		List: []*dst.Field{
@@ -234,6 +251,7 @@ func emitStubMethod(receiver string, method string, model string, hasItem bool, 
 	return f
 }
 
+// emitStubListMethod generates the stub List method declaration for a stub DAO.
 func emitStubListMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -278,6 +296,9 @@ func EmitConcreteDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.D
 	if schema == nil {
 		return nil, nil, fmt.Errorf("schema is nil")
 	}
+	if name == "" || !isValidDAOSchemaType(schema.Type) {
+		return nil, nil, fmt.Errorf("invalid schema %q with type %q for concrete DAO", name, schema.Type)
+	}
 
 	concreteName := name + "GormDAO"
 
@@ -309,6 +330,7 @@ func EmitConcreteDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.D
 	return decl, methods, nil
 }
 
+// emitConcreteCreateMethod generates the GORM Create method declaration for a concrete DAO.
 func emitConcreteCreateMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -350,6 +372,7 @@ func emitConcreteCreateMethod(receiver string, model string) *dst.FuncDecl {
 	return f
 }
 
+// emitConcreteGetMethod generates the GORM Get method declaration for a concrete DAO.
 func emitConcreteGetMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -406,6 +429,7 @@ func emitConcreteGetMethod(receiver string, model string) *dst.FuncDecl {
 	return f
 }
 
+// emitConcreteUpdateMethod generates the GORM Update method declaration for a concrete DAO.
 func emitConcreteUpdateMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -448,6 +472,7 @@ func emitConcreteUpdateMethod(receiver string, model string) *dst.FuncDecl {
 	return f
 }
 
+// emitConcreteDeleteMethod generates the GORM Delete method declaration for a concrete DAO.
 func emitConcreteDeleteMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -492,6 +517,7 @@ func emitConcreteDeleteMethod(receiver string, model string) *dst.FuncDecl {
 	return f
 }
 
+// emitConcreteListMethod generates the GORM List method declaration for a concrete DAO.
 func emitConcreteListMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{

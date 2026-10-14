@@ -1,3 +1,4 @@
+// Package main runs integration tests for generated SDKs against Petstore or Prism mock servers.
 package main
 
 import (
@@ -9,6 +10,7 @@ import (
 	"time"
 )
 
+// runCmd executes an external command and pipes its output to stdout and stderr.
 var runCmd = func(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout
@@ -16,10 +18,16 @@ var runCmd = func(name string, args ...string) error {
 	return cmd.Run()
 }
 
+// execCommand is an injectable function variable wrapping exec.Command.
 var execCommand = exec.Command
+
+// osChdir is an injectable function variable wrapping os.Chdir.
 var osChdir = os.Chdir
+
+// timeSleep is an injectable function variable wrapping time.Sleep.
 var timeSleep = time.Sleep
 
+// startServer starts a Docker container for the specified image, container name, and host port.
 func startServer(image, name, port string) error {
 	fmt.Printf("Starting %s...\n", image)
 	_ = execCommand("sh", "-c", "docker ps -aq | xargs docker rm -f").Run()
@@ -27,6 +35,7 @@ func startServer(image, name, port string) error {
 	return cmd.Run()
 }
 
+// startPrism starts a Stoplight Prism mock server for the given OpenAPI spec path and port.
 func startPrism(specPath, name, port string) error {
 	fmt.Printf("Starting Prism for %s...\n", specPath)
 
@@ -61,6 +70,7 @@ func startPrism(specPath, name, port string) error {
 	return cmd.Run()
 }
 
+// waitForServer polls the given URL using curl until it succeeds or timeout expires.
 func waitForServer(url string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -73,15 +83,21 @@ func waitForServer(url string, timeout time.Duration) bool {
 	return false
 }
 
+// main is the entrypoint for the SDK test runner script.
 func main() {
 	runMain()
 }
 
+// waitTimeout is the maximum wait duration for the Swagger 2.0 server to become ready.
 var waitTimeout = 60 * time.Second
+
+// waitTimeoutOAS3 is the maximum wait duration for the OpenAPI 3.0 server to become ready.
 var waitTimeoutOAS3 = 90 * time.Second
 
+// osExit is an injectable function variable wrapping os.Exit.
 var osExit = os.Exit
 
+// runMain orchestrates starting servers, running generated SDK tests, and cleaning up containers.
 func runMain() {
 	fmt.Println("Testing SDKs against servers...")
 

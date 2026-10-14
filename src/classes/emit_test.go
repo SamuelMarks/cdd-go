@@ -171,6 +171,14 @@ func TestEmitTypeNil(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for nil schema")
 	}
+	_, err = EmitType("", &openapi.Schema{Type: "string"})
+	if err == nil {
+		t.Errorf("expected error for empty schema name")
+	}
+	_, err = EmitType("User", &openapi.Schema{Type: "invalid-type"})
+	if err == nil {
+		t.Errorf("expected error for unsupported schema type")
+	}
 }
 
 func TestEmitTypeMap(t *testing.T) {
@@ -225,5 +233,27 @@ func TestEmitTypeExprObjectFallthrough(t *testing.T) {
 	id, ok := expr.(*dst.Ident)
 	if !ok || id.Name != "interface{}" {
 		t.Errorf("expected interface{}")
+	}
+
+	objSchema := &openapi.Schema{
+		Type: "object",
+		Properties: map[string]openapi.Schema{
+			"user_id": {Type: "string"},
+		},
+	}
+	tsOpt, err := EmitTypeWithOptions("User", objSchema, EmitOptions{
+		IncludeGormTags:         false,
+		OmitEmpty:               true,
+		UsePascalCaseFieldNames: true,
+	})
+	if err != nil || tsOpt == nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tsPlain, err := EmitTypeWithOptions("User", objSchema, EmitOptions{
+		IncludeGormTags: false,
+		OmitEmpty:       false,
+	})
+	if err != nil || tsPlain == nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

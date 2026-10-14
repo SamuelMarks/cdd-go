@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
@@ -83,54 +85,119 @@ func TestEmitTestFindByStatusGet(t *testing.T) {
 	op := &openapi.Operation{
 		OperationID: "findByStatus",
 	}
-	_, err := EmitTest("/pet/findByStatus", "get", op)
+	_, err := EmitTest("/items/findByStatus", "get", op)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
+func TestSynthesizeParamAndJSONPayload(t *testing.T) {
+	schemas := map[string]openapi.Schema{
+		"Item": {
+			Type: "object",
+			Properties: map[string]openapi.Schema{
+				"id":        {Type: "integer"},
+				"active":    {Type: "boolean"},
+				"tags":      {Type: "array", Items: &openapi.Schema{Type: "string"}},
+				"meta":      {Type: "object"},
+				"createdAt": {Type: "string", Format: "date-time"},
+				"email":     {Type: "string", Format: "email"},
+				"status":    {Type: "string", Enum: []json.RawMessage{json.RawMessage(`"available"`)}},
+				"empty":     {},
+			},
+		},
+	}
+
+	if ResolveSchema(nil, schemas) != nil {
+		t.Errorf("expected nil for nil schema")
+	}
+
+	payload := SynthesizeJSONPayload(&openapi.Schema{Ref: "#/components/schemas/Item"}, false, schemas)
+	if !strings.Contains(payload, `"status":"available"`) || !strings.Contains(payload, `"email":"dummy@dummy.com"`) {
+		t.Errorf("unexpected synthesized payload: %s", payload)
+	}
+
+	arrPayload := SynthesizeJSONPayload(&openapi.Schema{Type: "array", Items: &openapi.Schema{Ref: "#/components/schemas/Item"}}, false, schemas)
+	if !strings.HasPrefix(arrPayload, "[") {
+		t.Errorf("expected array payload, got %s", arrPayload)
+	}
+
+	if synthesizePropertyJSON("nilProp", nil) != `"dummy"` {
+		t.Errorf("expected dummy for nil property")
+	}
+
+	// Test SynthesizeParamValue branches
+	pEnum := openapi.Parameter{Schema: &openapi.Schema{Type: "string", Enum: []json.RawMessage{json.RawMessage(`"active"`)}}}
+	if SynthesizeParamValue(pEnum, schemas) != "active" {
+		t.Errorf("expected active")
+	}
+	pInt := openapi.Parameter{Schema: &openapi.Schema{Type: "integer"}}
+	if SynthesizeParamValue(pInt, schemas) != "1" {
+		t.Errorf("expected 1")
+	}
+	pBool := openapi.Parameter{Schema: &openapi.Schema{Type: "boolean"}}
+	if SynthesizeParamValue(pBool, schemas) != "true" {
+		t.Errorf("expected true")
+	}
+	pArrEnum := openapi.Parameter{Schema: &openapi.Schema{Type: "array", Items: &openapi.Schema{Enum: []json.RawMessage{json.RawMessage(`"enumItem"`)}}}}
+	if SynthesizeParamValue(pArrEnum, schemas) != "enumItem" {
+		t.Errorf("expected enumItem")
+	}
+	pArrDefault := openapi.Parameter{Schema: &openapi.Schema{Type: "array"}}
+	if SynthesizeParamValue(pArrDefault, schemas) != "item1" {
+		t.Errorf("expected item1")
+	}
+	pItemsEnum := openapi.Parameter{Items: &openapi.Items{Enum: []json.RawMessage{json.RawMessage(`"swaggerEnum"`)}}}
+	if SynthesizeParamValue(pItemsEnum, schemas) != "swaggerEnum" {
+		t.Errorf("expected swaggerEnum")
+	}
+	pLegacyBool := openapi.Parameter{Type: "boolean"}
+	if SynthesizeParamValue(pLegacyBool, schemas) != "true" {
+		t.Errorf("expected true")
+	}
+}
+
 func TestEmitTestCoverageExtras(t *testing.T) {
-	// 1. Path param string, username
 	op1 := &openapi.Operation{
 		OperationID: "op1",
 		Parameters: []openapi.Parameter{
 			{Name: "username", In: "path"},
+			{Name: "userId", In: "path"},
 			{Name: "id2", In: "path", Schema: &openapi.Schema{Type: "string"}},
 			{Name: "id3", In: "path", Type: "string"},
 		},
 	}
-	EmitTest("/user/{username}/{id2}/{id3}", "get", op1)
+	if fd, err := EmitTest("/user/{username}/{userId}/{id2}/{id3}", "get", op1); err != nil || fd == nil {
+		t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
+	}
 
-	// 2. Query param status, tags, integer
 	op2 := &openapi.Operation{
 		OperationID: "op2",
 		Parameters: []openapi.Parameter{
 			{Name: "status", In: "query", Required: true},
-			{Name: "tags", In: "query", Required: true},
 			{Name: "limit", In: "query", Required: true, Type: "integer"},
 		},
 	}
-	EmitTest("/test", "get", op2)
+	if fd, err := EmitTest("/test", "get", op2); err != nil || fd == nil {
+		t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
+	}
 
-	// 3. Various paths and array combinations for body
-	paths := []string{"/pet", "/store/order", "/user", "/other"}
-	for _, p := range paths {
-		for _, isArray := range []bool{true, false} {
-			schemaType := "object"
-			if isArray {
-				schemaType = "array"
-			}
-			op := &openapi.Operation{
-				OperationID: "op",
-				Parameters: []openapi.Parameter{
-					{Name: "body", In: "body", Schema: &openapi.Schema{Type: schemaType}},
-				},
-			}
-			EmitTest(p, "post", op)
+	for _, isArray := range []bool{true, false} {
+		schemaType := "object"
+		if isArray {
+			schemaType = "array"
+		}
+		op := &openapi.Operation{
+			OperationID: "op",
+			Parameters: []openapi.Parameter{
+				{Name: "body", In: "body", Schema: &openapi.Schema{Type: schemaType}},
+			},
+		}
+		if fd, err := EmitTest("/resource", "post", op); err != nil || fd == nil {
+			t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
 		}
 	}
 
-	// 4. Content types
 	contentTypes := []string{"application/x-www-form-urlencoded", "multipart/form-data", "text/plain"}
 	for _, cType := range contentTypes {
 		op := &openapi.Operation{
@@ -140,7 +207,9 @@ func TestEmitTestCoverageExtras(t *testing.T) {
 				{Name: "body", In: "body", Schema: &openapi.Schema{Type: "object"}},
 			},
 		}
-		EmitTest("/test", "post", op)
+		if fd, err := EmitTest("/test", "post", op); err != nil || fd == nil {
+			t.Errorf("expected non-nil FuncDecl and nil err for %s, got %v, %v", cType, fd, err)
+		}
 	}
 }
 
@@ -152,5 +221,7 @@ func TestEmitTestCoverageExtrasBreakLoop(t *testing.T) {
 			{Name: "body", In: "body"},
 		},
 	}
-	EmitTest("/test", "post", op)
+	if fd, err := EmitTest("/test", "post", op); err != nil || fd == nil {
+		t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
+	}
 }

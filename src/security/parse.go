@@ -1,3 +1,4 @@
+// Package security provides parsing and emitting of OpenAPI SecurityRequirement slices to and from Go AST composite literals.
 package security
 
 import (

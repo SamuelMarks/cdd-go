@@ -1,107 +1,50 @@
+// Package schemas provides parsing and emitting of OpenAPI Schema objects to and from Go AST declarations.
 package schemas
 
 import (
-	"fmt"
 	"go/token"
-	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/classes"
 	"github.com/SamuelMarks/cdd-go/src/docstrings"
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // Emit formats an OpenAPI Schema object into a struct representation.
+// Parameter name is the schema name, and schema is the OpenAPI Schema definition.
 func Emit(name string, schema *openapi.Schema) *dst.GenDecl {
 	if schema == nil || schema.Type != "object" {
 		return nil
 	}
 
-	st := &dst.StructType{
-		Fields: &dst.FieldList{
-			List: []*dst.Field{},
-		},
-	}
-
-	for propName, propSchema := range schema.Properties {
-		f := &dst.Field{
-			Names: []*dst.Ident{dst.NewIdent(toPascalCase(propName))},
-			Type:  EmitType(&propSchema),
-			Tag:   &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("`json:\"%s,omitempty\"`", propName)},
-		}
-
-		if propSchema.Description != "" {
-			f.Decs.Start.Append("// " + propSchema.Description)
-		}
-
-		st.Fields.List = append(st.Fields.List, f)
-	}
+	ts, _ := classes.EmitTypeWithOptions(toPascalCase(name), schema, classes.EmitOptions{
+		IncludeGormTags:         false,
+		OmitEmpty:               true,
+		UsePascalCaseFieldNames: true,
+	})
+	ts.Decs.Start = nil
 
 	decl := &dst.GenDecl{
-		Tok: token.TYPE,
-		Specs: []dst.Spec{
-			&dst.TypeSpec{
-				Name: dst.NewIdent(toPascalCase(name)),
-				Type: st,
-			},
-		},
+		Tok:   token.TYPE,
+		Specs: []dst.Spec{ts},
 	}
 
-	var comments []string
 	if schema.Description != "" {
-		comments = append(comments, schema.Description)
-	}
-	if len(comments) > 0 {
-		decl.Decs.Start = docstrings.Emit(strings.Join(comments, "\n"))
+		decl.Decs.Start = docstrings.Emit(schema.Description)
 	}
 
 	return decl
 }
 
-// EmitType converts a schema to a Go type expression
+// EmitType converts a schema to a Go type expression.
+// Parameter s is the OpenAPI Schema, and it returns the AST type expression.
 func EmitType(s *openapi.Schema) dst.Expr {
-	if s == nil {
-		return dst.NewIdent("interface{}")
-	}
-
-	if s.Ref != "" {
-		parts := strings.Split(s.Ref, "/")
-		return dst.NewIdent(toPascalCase(parts[len(parts)-1]))
-	}
-
-	switch s.Type {
-	case "integer":
-		return dst.NewIdent("int")
-	case "number":
-		return dst.NewIdent("float64")
-	case "boolean":
-		return dst.NewIdent("bool")
-	case "string":
-		return dst.NewIdent("string")
-	case "array":
-		return &dst.ArrayType{Elt: EmitType(s.Items)}
-	case "object":
-		if s.AdditionalProperties != nil {
-			return &dst.MapType{
-				Key:   dst.NewIdent("string"),
-				Value: EmitType(s.AdditionalProperties),
-			}
-		}
-		return dst.NewIdent("interface{}")
-	default:
-		return dst.NewIdent("interface{}")
-	}
+	return classes.EmitTypeExpr(s)
 }
 
+// toPascalCase delegates identifier conversion to naming.ToPascalCase.
+// Parameter s is the input string, and it returns the PascalCase representation.
 func toPascalCase(s string) string {
-	if s == "" {
-		return ""
-	}
-	parts := strings.Split(s, "_")
-	var res string
-	for _, p := range parts {
-		if p != "" {
-			res += strings.ToUpper(p[:1]) + p[1:]
-		}
-	}
-	return res
+	return naming.ToPascalCase(s)
 }

@@ -1,3 +1,4 @@
+// Package webhooks provides parsing and emitting of OpenAPI Webhooks maps to and from Go AST declarations.
 package webhooks
 
 import (

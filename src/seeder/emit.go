@@ -1,21 +1,30 @@
+// Package seeder provides AST emission for database seeding routines and fake entity factories.
 package seeder
 
 import (
 	"fmt"
 	"go/token"
-	"strings"
+	"sort"
 
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // EmitSeeder generates a SeedDatabase function and entity pools using gofakeit.
+// Parameter schemas is the map of OpenAPI schemas, and it returns the generated AST declarations.
 func EmitSeeder(schemas map[string]openapi.Schema) []dst.Decl {
 	decls := []dst.Decl{}
 
+	schemaNames := make([]string, 0, len(schemas))
+	for name := range schemas {
+		schemaNames = append(schemaNames, name)
+	}
+	sort.Strings(schemaNames)
+
 	// Entity Pool struct
 	poolFields := &dst.FieldList{List: []*dst.Field{}}
-	for name := range schemas {
+	for _, name := range schemaNames {
 		poolFields.List = append(poolFields.List, &dst.Field{
 			Names: []*dst.Ident{dst.NewIdent(name + "IDs")},
 			Type:  &dst.ArrayType{Elt: dst.NewIdent("string")},
@@ -48,7 +57,8 @@ func EmitSeeder(schemas map[string]openapi.Schema) []dst.Decl {
 	}
 	seedFunc.Decs.Start.Append("// SeedDatabase generates a dependency graph of fake data and inserts it.")
 
-	for name, schema := range schemas {
+	for _, name := range schemaNames {
+		schema := schemas[name]
 		seedFunc.Body.List = append(seedFunc.Body.List, &dst.ForStmt{
 			Init: &dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("i")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.BasicLit{Kind: token.INT, Value: "0"}}},
 			Cond: &dst.BinaryExpr{X: dst.NewIdent("i"), Op: token.LSS, Y: &dst.BasicLit{Kind: token.INT, Value: "10"}},
@@ -84,6 +94,8 @@ func EmitSeeder(schemas map[string]openapi.Schema) []dst.Decl {
 	return decls
 }
 
+// emitFakeFactory generates a Fake<Name> function for a single schema.
+// Parameter name is the model name, and schema is the OpenAPI Schema.
 func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("Fake" + name),
@@ -100,7 +112,14 @@ func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 		Elts: []dst.Expr{},
 	}
 
-	for propName, propSchema := range schema.Properties {
+	propNames := make([]string, 0, len(schema.Properties))
+	for propName := range schema.Properties {
+		propNames = append(propNames, propName)
+	}
+	sort.Strings(propNames)
+
+	for _, propName := range propNames {
+		propSchema := schema.Properties[propName]
 		goName := exportedName(propName)
 		var fakeExpr dst.Expr
 
@@ -113,7 +132,6 @@ func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 		} else if propSchema.Type == "boolean" {
 			fakeExpr = &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gofakeit"), Sel: dst.NewIdent("Bool")}}
 		} else {
-			// default fallback
 			fakeExpr = &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gofakeit"), Sel: dst.NewIdent("Word")}}
 		}
 
@@ -127,12 +145,8 @@ func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 	return f
 }
 
+// exportedName converts a JSON field name into an exported Go field name.
+// Parameter name is the JSON field name, and it returns the exported Go identifier.
 func exportedName(name string) string {
-	if name == "" {
-		return ""
-	}
-	if strings.ToLower(name) == "id" {
-		return "Id"
-	}
-	return strings.ToUpper(name[:1]) + name[1:]
+	return naming.ExportedName(name)
 }

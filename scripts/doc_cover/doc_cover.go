@@ -1,3 +1,4 @@
+// Package main calculates AST documentation coverage across Go source files and packages.
 package main
 
 import (
@@ -10,6 +11,8 @@ import (
 	"strings"
 )
 
+// calculateCoverageCount walks srcDir and counts total documentable AST nodes vs documented AST nodes.
+// Parameter srcDir is the root directory to walk, and it returns total items, documented items, and any error.
 func calculateCoverageCount(srcDir string) (int, int, error) {
 	fset := token.NewFileSet()
 	var total, docs int
@@ -27,6 +30,12 @@ func calculateCoverageCount(srcDir string) (int, int, error) {
 			return err
 		}
 
+		// File / Package documentation
+		total++
+		if f.Doc != nil && strings.TrimSpace(f.Doc.Text()) != "" {
+			docs++
+		}
+
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
 			case *ast.GenDecl:
@@ -34,31 +43,35 @@ func calculateCoverageCount(srcDir string) (int, int, error) {
 					for _, spec := range d.Specs {
 						switch s := spec.(type) {
 						case *ast.TypeSpec:
-							if s.Name.IsExported() {
-								total++
-								if d.Doc != nil {
-									docs++
+							total++
+							if d.Doc != nil || s.Doc != nil {
+								docs++
+							}
+							if st, ok := s.Type.(*ast.StructType); ok && st.Fields != nil {
+								for _, field := range st.Fields.List {
+									if len(field.Names) == 0 {
+										continue
+									}
+									total++
+									if field.Doc != nil || field.Comment != nil {
+										docs++
+									}
 								}
 							}
 						case *ast.ValueSpec:
-							for _, name := range s.Names {
-								if name.IsExported() {
-									total++
-									if d.Doc != nil {
-										docs++
-									}
-									break
+							if len(s.Names) > 0 {
+								total++
+								if d.Doc != nil || s.Doc != nil {
+									docs++
 								}
 							}
 						}
 					}
 				}
 			case *ast.FuncDecl:
-				if d.Name.IsExported() {
-					total++
-					if d.Doc != nil {
-						docs++
-					}
+				total++
+				if d.Doc != nil {
+					docs++
 				}
 			}
 		}
@@ -72,6 +85,8 @@ func calculateCoverageCount(srcDir string) (int, int, error) {
 	return total, docs, nil
 }
 
+// calculateCoverage computes the percentage of documented AST nodes in srcDir.
+// Parameter srcDir is the root directory to analyze, and it returns the coverage percentage and any error.
 func calculateCoverage(srcDir string) (float64, error) {
 	total, docs, err := calculateCoverageCount(srcDir)
 	if err != nil {
@@ -83,8 +98,11 @@ func calculateCoverage(srcDir string) (float64, error) {
 	return float64(docs) / float64(total) * 100.0, nil
 }
 
+// osExit is an injectable function variable wrapping os.Exit.
 var osExit = os.Exit
 
+// runMain calculates and prints documentation coverage for a single directory.
+// Parameter srcDir is the target directory path.
 func runMain(srcDir string) {
 	total, docs, err := calculateCoverageCount(srcDir)
 	if err != nil {
@@ -96,13 +114,17 @@ func runMain(srcDir string) {
 		fmt.Println("100.0%")
 		return
 	}
-	fmt.Printf("%.1f%%\n", float64(docs)/float64(total)*100.0)
+	fmt.Println(fmt.Sprintf("%.1f%%", float64(docs)/float64(total)*100.0))
 }
 
+// main calculates aggregate documentation coverage across src, cmd, cdd, and scripts.
 func main() {
 	var total, docs int
-	dirs := []string{"src", "cmd", "cdd"}
+	dirs := []string{"src", "cmd", "cdd", "scripts"}
 	for _, dir := range dirs {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			continue
+		}
 		t, d, err := calculateCoverageCount(dir)
 		if err != nil {
 			fmt.Println("0.0%")
@@ -116,5 +138,5 @@ func main() {
 		fmt.Println("100.0%")
 		return
 	}
-	fmt.Printf("%.1f%%\n", float64(docs)/float64(total)*100.0)
+	fmt.Println(fmt.Sprintf("%.1f%%", float64(docs)/float64(total)*100.0))
 }

@@ -1,3 +1,4 @@
+// Package routes provides parsing and emitting of Gin HTTP handler interfaces and structs to and from OpenAPI PathItems.
 package routes
 
 import (
@@ -5,6 +6,7 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
@@ -13,6 +15,9 @@ import (
 func EmitHandlerInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl, error) {
 	if pathItem == nil {
 		return nil, fmt.Errorf("PathItem is nil")
+	}
+	if !strings.HasPrefix(path, "/") {
+		return nil, fmt.Errorf("invalid path %q: must start with '/'", path)
 	}
 
 	interfaceName := "Handler" + toCamelCase(path)
@@ -146,16 +151,25 @@ func EmitHandlerInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl
 		Type: iface,
 	}
 
-	if pathItem.Summary != "" {
-		ts.Decs.Start.Append(fmt.Sprintf("// %s", pathItem.Summary))
-	}
-
-	return &dst.GenDecl{
+	decl := &dst.GenDecl{
 		Tok:   token.TYPE,
 		Specs: []dst.Spec{ts},
-	}, nil
+	}
+
+	pathComment := fmt.Sprintf("// Path: %s", path)
+	ts.Decs.Start.Append(pathComment)
+	decl.Decs.Start.Append(pathComment)
+	if pathItem.Summary != "" {
+		summaryComment := fmt.Sprintf("// %s", pathItem.Summary)
+		ts.Decs.Start.Append(summaryComment)
+		decl.Decs.Start.Append(summaryComment)
+	}
+
+	return decl, nil
 }
 
+// emitMethodSignature builds a dst.Field method signature for a route handler interface method.
+// Parameter method is the HTTP method name, and op is the OpenAPI Operation.
 func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 	name := method
 	if op.OperationID != "" {
@@ -196,6 +210,9 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 func EmitHandlerStruct(path string, pathItem *openapi.PathItem) ([]dst.Decl, error) {
 	if pathItem == nil {
 		return nil, fmt.Errorf("PathItem is nil")
+	}
+	if !strings.HasPrefix(path, "/") {
+		return nil, fmt.Errorf("invalid path %q: must start with '/'", path)
 	}
 
 	camelName := toCamelCase(path)
@@ -339,18 +356,8 @@ func EmitHandlerStruct(path string, pathItem *openapi.PathItem) ([]dst.Decl, err
 	return decls, nil
 }
 
+// toCamelCase delegates URL path to PascalCase conversion to naming.ToCamelCasePath.
+// Parameter s is the OpenAPI URL path, and it returns the PascalCase identifier.
 func toCamelCase(s string) string {
-	parts := strings.Split(s, "/")
-	var res string
-	for _, p := range parts {
-		p = strings.ReplaceAll(p, "{", "")
-		p = strings.ReplaceAll(p, "}", "")
-		if p != "" {
-			res += strings.ToUpper(p[:1]) + p[1:]
-		}
-	}
-	if res == "" {
-		res = "Root"
-	}
-	return res
+	return naming.ToCamelCasePath(s)
 }

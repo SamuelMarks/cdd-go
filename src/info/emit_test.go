@@ -52,17 +52,22 @@ func TestEmitInfo(t *testing.T) {
 		out = strings.ReplaceAll(out, "  ", " ")
 	}
 
-	if !strings.Contains(out, "const Info = struct") {
-		t.Errorf("expected const Info")
+	if !strings.Contains(out, "var Info = struct") {
+		t.Errorf("expected var Info, got %s", out)
 	}
 	if !strings.Contains(out, `Title: "Test API"`) {
 		t.Errorf("expected Title")
 	}
-	if !strings.Contains(out, `Contact: {Name: "Test Contact", URL: "http://example.com/contact", Email: "test@example.com"}`) {
-		t.Errorf("expected Contact")
+	if !strings.Contains(out, `Name: "Test Contact", URL: "http://example.com/contact", Email: "test@example.com"`) {
+		t.Errorf("expected Contact, got %s", out)
 	}
-	if !strings.Contains(out, `License: {Name: "MIT", URL: "http://example.com/license", Identifier: "MIT"}`) {
-		t.Errorf("expected License")
+	if !strings.Contains(out, `Name: "MIT", URL: "http://example.com/license", Identifier: "MIT"`) {
+		t.Errorf("expected License, got %s", out)
+	}
+
+	parsedInfo, err := Parse(decl)
+	if err != nil || parsedInfo == nil || parsedInfo.Title != "Test API" {
+		t.Errorf("expected round-trip parse to succeed, got %v, %v", parsedInfo, err)
 	}
 }
 
