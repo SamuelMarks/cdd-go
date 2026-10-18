@@ -766,3 +766,36 @@ func TestEnvOrDefaultInt(t *testing.T) {
 		t.Error("expected default on invalid")
 	}
 }
+
+func TestFromArazzoAndToArazzoCLI(t *testing.T) {
+	if err := run([]string{"from_arazzo"}); err == nil {
+		t.Error("expected error on missing subsubcommand")
+	}
+	if err := run([]string{"from_arazzo", "to_sdk", "-invalid-flag"}); err == nil {
+		t.Error("expected error on invalid flag")
+	}
+	if err := run([]string{"to_arazzo", "-invalid-flag"}); err == nil {
+		t.Error("expected error on invalid flag")
+	}
+
+	dir := t.TempDir()
+	specPath := filepath.Join(dir, "arazzo.json")
+	os.WriteFile(specPath, []byte(`{"arazzo":"1.1.0","info":{"title":"T","version":"1.0"},"sourceDescriptions":[{"name":"s","url":"./o.json"}],"workflows":[{"workflowId":"w","steps":[{"stepId":"s","operationId":"op"}]}]}`), 0644)
+
+	// Test with --input-dir and default output (osGetwd)
+	oldGetwd := osGetwd
+	osGetwd = func() (string, error) { return dir, nil }
+	if err := run([]string{"from_arazzo", "to_sdk", "--input-dir", specPath}); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	osGetwd = func() (string, error) { return "", os.ErrNotExist }
+	if err := run([]string{"from_arazzo", "to_sdk", "-i", "missing.json"}); err == nil {
+		t.Error("expected error on missing file")
+	}
+	osGetwd = oldGetwd
+
+	outSpec := filepath.Join(dir, "regen_arazzo.json")
+	if err := run([]string{"to_arazzo", "-i", dir, "-o", outSpec}); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

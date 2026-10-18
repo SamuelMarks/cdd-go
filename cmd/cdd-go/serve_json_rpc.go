@@ -74,7 +74,7 @@ func newJSONRPCHandler() http.Handler {
 
 		switch req.Method {
 		case "version":
-			result = json.RawMessage(`"0.0.3"`)
+			result = json.RawMessage(`"0.0.4"`)
 		case "to_docs_json":
 			var params []string
 			if err := json.Unmarshal(req.Params, &params); err == nil {
@@ -102,6 +102,30 @@ func newJSONRPCHandler() http.Handler {
 				}
 			} else {
 				errResp = "Invalid params for to_openapi"
+			}
+		case "to_arazzo":
+			var params []string
+			if err := json.Unmarshal(req.Params, &params); err == nil {
+				err := run(append([]string{"to_arazzo"}, params...))
+				if err != nil {
+					errResp = err.Error()
+				} else {
+					result = json.RawMessage(`"Success"`)
+				}
+			} else {
+				errResp = "Invalid params for to_arazzo"
+			}
+		case "from_arazzo":
+			var params []string
+			if err := json.Unmarshal(req.Params, &params); err == nil {
+				err := run(append([]string{"from_arazzo"}, params...))
+				if err != nil {
+					errResp = err.Error()
+				} else {
+					result = json.RawMessage(`"Success"`)
+				}
+			} else {
+				errResp = "Invalid params for from_arazzo"
 			}
 		case "from_openapi":
 			var params []string

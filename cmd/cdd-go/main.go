@@ -74,7 +74,9 @@ func run(args []string) error {
 		fmt.Println("\nSubcommands:")
 		fmt.Println("  from_openapi    Generate code from an OpenAPI specification.")
 		fmt.Println("  to_openapi      Generate an OpenAPI specification from source code.")
-		fmt.Println("  sync            Synchronize an OpenAPI specification with source code.")
+		fmt.Println("  from_arazzo     Generate code from an Arazzo 1.1.0 specification.")
+		fmt.Println("  to_arazzo       Generate an Arazzo 1.1.0 specification from source code.")
+		fmt.Println("  sync            Synchronize an OpenAPI or Arazzo specification with source code.")
 		fmt.Println("  to_docs_json    Generate JSON documentation with code snippets for an OpenAPI specification.")
 		fmt.Println("  serve_json_rpc  Expose CLI interface as a JSON-RPC server.")
 		fmt.Println("  mcp             Run the generator as an MCP server over stdio.")
@@ -83,7 +85,7 @@ func run(args []string) error {
 		fmt.Println("  -v, --version    Show version information")
 		return nil
 	case "-v", "--version", "version":
-		fmt.Println("0.0.3")
+		fmt.Println("0.0.4")
 		return nil
 	case "mcp":
 		return cdd.ServeMCPStdio(args[1:])
@@ -139,6 +141,54 @@ func run(args []string) error {
 		}
 
 		return cdd.ToOpenAPI(in, out)
+	case "from_arazzo":
+		if len(args) < 2 {
+			return fmt.Errorf("expected 'to_sdk', 'to_sdk_cli', or 'to_server' subcommands for from_arazzo")
+		}
+		subsubcommand := args[1]
+		fs := flag.NewFlagSet("from_arazzo "+subsubcommand, flag.ContinueOnError)
+		fs.SetOutput(stderr)
+
+		fs.StringVar(&in, "i", envOrDefault("CDD_INPUT", ""), "Path to the Arazzo 1.1.0 specification.")
+		fs.StringVar(&in, "input", envOrDefault("CDD_INPUT", ""), "Path to the Arazzo 1.1.0 specification.")
+		var inputDir string
+		fs.StringVar(&inputDir, "d", envOrDefault("CDD_INPUT_DIR", ""), "Directory containing Arazzo specifications.")
+		fs.StringVar(&inputDir, "input-dir", envOrDefault("CDD_INPUT_DIR", ""), "Directory containing Arazzo specifications.")
+		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", ""), "Output directory path.")
+		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", ""), "Output directory path.")
+
+		var noGithubActions, noInstallablePackage, tests bool
+		fs.BoolVar(&noGithubActions, "no-github-actions", envOrDefaultBool("CDD_NO_GITHUB_ACTIONS", false), "Do not generate GitHub Actions scaffolding.")
+		fs.BoolVar(&noInstallablePackage, "no-installable-package", envOrDefaultBool("CDD_NO_INSTALLABLE_PACKAGE", false), "Do not generate installable package scaffolding.")
+		fs.BoolVar(&tests, "tests", envOrDefaultBool("CDD_TESTS", false), "Generate workflow E2E tests.")
+
+		if err := fs.Parse(args[2:]); err != nil {
+			return err
+		}
+		if out == "" {
+			pwd, err := osGetwd()
+			if err != nil {
+				pwd = "."
+			}
+			out = pwd
+		}
+		inputTarget := in
+		if inputTarget == "" {
+			inputTarget = inputDir
+		}
+		return cdd.FromArazzo(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage, tests)
+	case "to_arazzo":
+		fs := flag.NewFlagSet("to_arazzo", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		fs.StringVar(&in, "i", envOrDefault("CDD_INPUT", ""), "Path to source code directory or file.")
+		fs.StringVar(&in, "input", envOrDefault("CDD_INPUT", ""), "Path to source code directory or file.")
+		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", "arazzo.json"), "Output file or directory path.")
+		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", "arazzo.json"), "Output file or directory path.")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+
+		return cdd.ToArazzo(in, out)
 	case "sync":
 		fs := flag.NewFlagSet("sync", flag.ContinueOnError)
 		fs.SetOutput(stderr)

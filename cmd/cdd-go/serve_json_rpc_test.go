@@ -76,8 +76,8 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// 4. version
 	resp, _ = doRequest("version", "[]")
-	if string(resp.Result) != `"0.0.3"` {
-		t.Errorf("expected %q, got %s", `"0.0.3"`, string(resp.Result))
+	if string(resp.Result) != `"0.0.4"` {
+		t.Errorf("expected %q, got %s", `"0.0.4"`, string(resp.Result))
 	}
 
 	// 5. to_docs_json (invalid params)
@@ -161,5 +161,33 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 	resp, _ = doRequest("from_openapi", mapParamsDir)
 	if resp.Error == "" {
 		t.Errorf("expected error when passing a directory as OpenAPI input file")
+	}
+
+	// 17. from_arazzo & to_arazzo
+	arazzoFile := dir + "/arazzo.json"
+	os.WriteFile(arazzoFile, []byte(`{"arazzo":"1.1.0","info":{"title":"T","version":"1.0"},"sourceDescriptions":[{"name":"s","url":"./o.json"}],"workflows":[{"workflowId":"w","steps":[{"stepId":"s","operationId":"op"}]}]}`), 0644)
+	resp, _ = doRequest("from_arazzo", `123`)
+	if resp.Error != "Invalid params for from_arazzo" {
+		t.Errorf("expected Invalid params for from_arazzo, got %v", resp.Error)
+	}
+	resp, _ = doRequest("from_arazzo", `["to_sdk", "-i", "missing.json"]`)
+	if resp.Error == "" {
+		t.Errorf("expected error for missing arazzo file")
+	}
+	resp, _ = doRequest("from_arazzo", fmt.Sprintf(`["to_sdk", "-i", "%s", "-o", "%s/az_sdk"]`, arazzoFile, dir))
+	if resp.Error != "" {
+		t.Errorf("expected no error for from_arazzo, got %v", resp.Error)
+	}
+	resp, _ = doRequest("to_arazzo", `123`)
+	if resp.Error != "Invalid params for to_arazzo" {
+		t.Errorf("expected Invalid params for to_arazzo, got %v", resp.Error)
+	}
+	resp, _ = doRequest("to_arazzo", `["-i", "missing_dir"]`)
+	if resp.Error == "" {
+		t.Errorf("expected error for missing dir in to_arazzo")
+	}
+	resp, _ = doRequest("to_arazzo", fmt.Sprintf(`["-i", "%s/az_sdk", "-o", "%s/az_out.json"]`, dir, dir))
+	if resp.Error != "" {
+		t.Errorf("expected no error for to_arazzo, got %v", resp.Error)
 	}
 }

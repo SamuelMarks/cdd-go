@@ -288,7 +288,7 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 		OpenAPI: "3.2.0",
 		Info: openapi.Info{
 			Title:   "Generated API",
-			Version: "0.0.3",
+			Version: "0.0.4",
 		},
 		Paths: make(openapi.Paths),
 		Components: &openapi.Components{
@@ -799,17 +799,30 @@ func ExecuteGeneratorRouter(toolName string, args map[string]any) (string, error
 		in, _ := args["input"].(string)
 		out, _ := args["output"].(string)
 		return "Schema Synced", ToOpenAPI(in, out)
+	case "cdd_generate_arazzo_sdk":
+		in, _ := args["input"].(string)
+		out, _ := args["output"].(string)
+		return "Arazzo SDK Generated", FromArazzo("to_sdk", in, out, false, false, false)
+	case "cdd_sync_arazzo":
+		in, _ := args["input"].(string)
+		out, _ := args["output"].(string)
+		return "Arazzo Synced", ToArazzo(in, out)
 	default:
 		return "", fmt.Errorf("unknown generator tool: %s", toolName)
 	}
 }
 
-// Sync synchronizes between code and OpenAPI specification based on the source of truth.
-// Parameter in is the input path, outPath is the output path, truth selects "openapi" or "code", and it returns any error.
+// Sync synchronizes between code and OpenAPI/Arazzo specification based on the source of truth.
+// Parameter in is the input path, outPath is the output path, truth selects "openapi", "arazzo", or "code", and it returns any error.
 func Sync(in, outPath, truth string) error {
 	if truth == "openapi" || truth == "spec" || truth == "swagger" {
 		return FromOpenAPI("to_server", in, outPath, false, false, false, false)
+	} else if truth == "arazzo" {
+		return FromArazzo("to_sdk", in, outPath, false, false, false)
 	} else if truth == "code" || truth == "go" {
+		if strings.HasSuffix(outPath, "arazzo.json") || strings.HasSuffix(outPath, "arazzo.yaml") || strings.HasSuffix(outPath, "arazzo.yml") {
+			return ToArazzo(in, outPath)
+		}
 		return ToOpenAPI(in, outPath)
 	}
 	return fmt.Errorf("invalid truth value: %s", truth)

@@ -85,7 +85,7 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 				}{},
 			}
 			initRes.ServerInfo.Name = "cdd-generator-mcp"
-			initRes.ServerInfo.Version = "0.0.3"
+			initRes.ServerInfo.Version = "0.0.4"
 			result = initRes
 		case "tools/list":
 			inputSchema := map[string]any{
@@ -106,6 +106,16 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 					{
 						Name:        "cdd_sync_schema",
 						Description: "Extract an OpenAPI spec from source code",
+						InputSchema: inputSchema,
+					},
+					{
+						Name:        "cdd_generate_arazzo_sdk",
+						Description: "Generate a workflow SDK from an Arazzo 1.1.0 spec",
+						InputSchema: inputSchema,
+					},
+					{
+						Name:        "cdd_sync_arazzo",
+						Description: "Extract an Arazzo 1.1.0 spec from Go source code",
 						InputSchema: inputSchema,
 					},
 				},
@@ -131,6 +141,26 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 						result = mcp.CallToolResult{
 							Content: []mcp.Content{
 								mcp.TextContent{Type: "text", Text: "OpenAPI schema successfully extracted"},
+							},
+						}
+					}
+				case "cdd_generate_arazzo_sdk":
+					if err := FromArazzo("to_sdk", params.Arguments.Input, params.Arguments.Output, false, false, false); err != nil {
+						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
+					} else {
+						result = mcp.CallToolResult{
+							Content: []mcp.Content{
+								mcp.TextContent{Type: "text", Text: "Arazzo SDK successfully generated"},
+							},
+						}
+					}
+				case "cdd_sync_arazzo":
+					if err := ToArazzo(params.Arguments.Input, params.Arguments.Output); err != nil {
+						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
+					} else {
+						result = mcp.CallToolResult{
+							Content: []mcp.Content{
+								mcp.TextContent{Type: "text", Text: "Arazzo specification successfully extracted"},
 							},
 						}
 					}

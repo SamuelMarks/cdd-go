@@ -21,9 +21,10 @@ graph TD
 
     subgraph Frontend [Parsers]
         A[OpenAPI .yaml/.json]:::endpoint --> P1(OpenAPI Parser):::frontend
+        A2[Arazzo 1.1.0 .yaml/.json]:::endpoint --> P5(Arazzo Parser):::frontend
         B[Go Models / Source]:::endpoint --> P2(Go Parser):::frontend
         C[Server Routes / Frameworks]:::endpoint --> P3(Framework Parser):::frontend
-        D[Client SDKs / ORMs]:::endpoint --> P4(Ext Parser):::frontend
+        D[Client SDKs / Workflows / CLIs]:::endpoint --> P4(Ext Parser):::frontend
     end
 
     subgraph Core [Intermediate Representation]
@@ -32,18 +33,21 @@ graph TD
 
     subgraph Backend [Emitters]
         E1(OpenAPI Emitter):::backend --> X[OpenAPI .yaml/.json]:::endpoint
+        E6(Arazzo Emitter):::backend --> X2[Arazzo 1.1.0 .yaml/.json]:::endpoint
         E2(Go Emitter):::backend --> Y[Go Models / Structs]:::endpoint
-        E3(Server Emitter):::backend --> Z[Server Routes / Controllers]:::endpoint
-        E4(Client Emitter):::backend --> W[Client SDKs / API Calls]:::endpoint
+        E3(Server Emitter):::backend --> Z[Server Routes / E2E Workflows]:::endpoint
+        E4(Client Emitter):::backend --> W[Client SDKs / Workflow Runners]:::endpoint
         E5(Data Emitter):::backend --> V[ORM Models / CLI Parsers]:::endpoint
     end
 
     P1 --> IR
+    P5 --> IR
     P2 --> IR
     P3 --> IR
     P4 --> IR
 
     IR --> E1
+    IR --> E6
     IR --> E2
     IR --> E3
     IR --> E4

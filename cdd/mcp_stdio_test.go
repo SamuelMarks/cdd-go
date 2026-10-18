@@ -80,6 +80,10 @@ func TestRunServeMCPStdioToolsCall(t *testing.T) {
 	outR, outW, _ := os.Pipe()
 	os.Stdout = outW
 
+	tmpDir := t.TempDir()
+	arazzoSpec := tmpDir + "/arazzo.json"
+	os.WriteFile(arazzoSpec, []byte(`{"arazzo":"1.1.0","info":{"title":"T","version":"1.0"},"sourceDescriptions":[{"name":"s","url":"./o.json"}],"workflows":[{"workflowId":"w","steps":[{"stepId":"s","operationId":"op"}]}]}`), 0644)
+
 	// Write inputs
 	inputs := []string{
 		`{"jsonrpc": "2.0", "method": "tools/call", "id": 1, "params": {"name": "cdd_generate_sdk", "arguments": {"input": "../test_spec.json", "output": "../test_out/my_mcp_sdk"}}}`,
@@ -88,6 +92,10 @@ func TestRunServeMCPStdioToolsCall(t *testing.T) {
 		`{"jsonrpc": "2.0", "method": "tools/call", "id": 4, "params": {"name": "cdd_generate_sdk", "arguments": {"input": "does-not-exist.json", "output": "../test_out/missing"}}}`,
 		`{"jsonrpc": "2.0", "method": "tools/call", "id": 5, "params": {"name": "cdd_sync_schema", "arguments": {"input": "", "output": ""}}}`,
 		`{"jsonrpc": "2.0", "method": "tools/call", "id": 6, "params": []}`,
+		`{"jsonrpc": "2.0", "method": "tools/call", "id": 7, "params": {"name": "cdd_generate_arazzo_sdk", "arguments": {"input": "` + arazzoSpec + `", "output": "` + tmpDir + `/az_sdk"}}}`,
+		`{"jsonrpc": "2.0", "method": "tools/call", "id": 8, "params": {"name": "cdd_generate_arazzo_sdk", "arguments": {"input": "", "output": ""}}}`,
+		`{"jsonrpc": "2.0", "method": "tools/call", "id": 9, "params": {"name": "cdd_sync_arazzo", "arguments": {"input": "` + tmpDir + `/az_sdk", "output": "` + tmpDir + `/az_out.json"}}}`,
+		`{"jsonrpc": "2.0", "method": "tools/call", "id": 10, "params": {"name": "cdd_sync_arazzo", "arguments": {"input": "", "output": ""}}}`,
 	}
 	for _, input := range inputs {
 		w.Write([]byte(input + "\n"))

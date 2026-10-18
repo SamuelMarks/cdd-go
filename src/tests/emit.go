@@ -293,17 +293,20 @@ func EmitTestWithSchemas(path string, method string, op *openapi.Operation, sche
 			jsonStr = `"name=dummy&status=available"`
 		} else if contentType == "multipart/form-data" {
 			contentType = "multipart/form-data; boundary=dummyboundary"
-			jsonStr = `"--dummyboundary
-Content-Disposition: form-data; name="additionalMetadata"
-
-dummy
---dummyboundary
-Content-Disposition: form-data; name="file"; filename="dummy.txt"
-Content-Type: application/octet-stream
-
-dummy
---dummyboundary--
-"`
+			multipartPayload := strings.Join([]string{
+				"--dummyboundary",
+				`Content-Disposition: form-data; name="additionalMetadata"`,
+				"",
+				"dummy",
+				"--dummyboundary",
+				`Content-Disposition: form-data; name="file"; filename="dummy.txt"`,
+				"Content-Type: application/octet-stream",
+				"",
+				"dummy",
+				"--dummyboundary--",
+				"",
+			}, string(rune(10)))
+			jsonStr = strconv.Quote(multipartPayload)
 		}
 
 		bodyExpr = &dst.CallExpr{

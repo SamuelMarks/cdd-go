@@ -64,6 +64,22 @@ func TestToDocsJSONCoverage(t *testing.T) {
 	if err := ToDocsJSON(emptyPath, "", false, false); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
+
+	// test Arazzo 1.1.0 spec input
+	arazzoPath := "test_docs_arazzo.json"
+	os.WriteFile(arazzoPath, []byte(`{"arazzo": "1.1.0", "info": {"title": "Wf", "version": "1.0"}, "sourceDescriptions": [{"name": "s", "url": "./o.json"}], "workflows": [{"workflowId": "loginWf", "steps": [{"stepId": "s1", "operationId": "op1"}]}]}`), 0644)
+	defer os.Remove(arazzoPath)
+	if err := ToDocsJSON(arazzoPath, "", false, false); err != nil {
+		t.Errorf("unexpected error on Arazzo docs: %v", err)
+	}
+	if err := ToDocsJSON(arazzoPath, "", true, true); err != nil {
+		t.Errorf("unexpected error on Arazzo docs noImports/noWrapping: %v", err)
+	}
+
+	// test directory passed as input file (triggers io.ReadAll error)
+	if err := ToDocsJSON(t.TempDir(), "", false, false); err == nil {
+		t.Error("expected error when passing directory to ToDocsJSON")
+	}
 }
 
 func TestToDocsJSONEncodeErr(t *testing.T) {

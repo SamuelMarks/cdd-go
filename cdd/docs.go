@@ -2,6 +2,7 @@
 package cdd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/arazzo"
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
 
@@ -72,12 +75,52 @@ func ToDocsJSONWriter(in string, w io.Writer, noImports bool, noWrapping bool) e
 	}
 	defer f.Close()
 
-	oa, err := openapi.Parse(f)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return err
 	}
 
 	var operations []DocsOperation
+
+	if azDoc, errAz := arazzo.ParseBytes(data); errAz == nil && len(azDoc.Workflows) > 0 {
+		for _, wf := range azDoc.Workflows {
+			wfPascal := naming.ToPascalCase(wf.WorkflowID)
+			var imports *string
+			if !noImports {
+				i := "import (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n\t\"generated_sdk/workflows\"\n)"
+				imports = &i
+			}
+			var wrapperStart *string
+			var wrapperEnd *string
+			if !noWrapping {
+				ws := "func main() {"
+				wrapperStart = &ws
+				we := "}"
+				wrapperEnd = &we
+			}
+			snippet := fmt.Sprintf("client := workflows.NewWorkflowClient(os.Getenv(\"BASE_URL\"))\nout, err := client.Execute%s(context.Background(), workflows.%sInput{})\nif err != nil {\n\tfmt.Fprintf(os.Stderr, \"Error: %%v\\n\", err)\n\tos.Exit(1)\n}\nfmt.Fprintf(os.Stdout, \"Workflow Output: %%+v\\n\", out)", wfPascal, wfPascal)
+			operations = append(operations, DocsOperation{
+				Method:      "WORKFLOW",
+				Path:        "/workflows/" + wf.WorkflowID,
+				OperationId: wf.WorkflowID,
+				Code: DocsCode{
+					Imports:      imports,
+					WrapperStart: wrapperStart,
+					WrapperEnd:   wrapperEnd,
+					Snippet:      snippet,
+				},
+			})
+		}
+		result := []DocsJSONOutput{{Language: "go", Operations: operations}}
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	}
+
+	oa, err := openapi.Parse(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
 
 	paths := make([]string, 0, len(oa.Paths))
 	for path := range oa.Paths {
