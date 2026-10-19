@@ -2,72 +2,92 @@ package mcp
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestSchemaPromptsStructs(t *testing.T) {
-	// Test PromptArgument
-	arg := PromptArgument{Name: "arg1", Required: true}
-	b, _ := json.Marshal(arg)
-	if !strings.Contains(string(b), `"arg1"`) || !strings.Contains(string(b), `"required":true`) {
-		t.Errorf("expected prompt argument fields")
+func TestSchemaPromptsStructsAndRoundTrip(t *testing.T) {
+	arg := PromptArgument{Name: "arg1", Description: "first arg", Required: true}
+	b, err := json.Marshal(arg)
+	if err != nil || !strings.Contains(string(b), `"name":"arg1"`) || !strings.Contains(string(b), `"required":true`) {
+		t.Fatalf("expected prompt argument fields: %v", err)
 	}
 
-	// Test Prompt
-	prompt := Prompt{Name: "p1", Arguments: []PromptArgument{arg}}
-	b, _ = json.Marshal(prompt)
-	if !strings.Contains(string(b), `"p1"`) || !strings.Contains(string(b), `"arg1"`) {
-		t.Errorf("expected prompt fields")
+	prompt := Prompt{Name: "p1", Description: "desc", Arguments: []PromptArgument{arg}}
+	b, err = json.Marshal(prompt)
+	if err != nil || !strings.Contains(string(b), `"name":"p1"`) {
+		t.Fatalf("expected prompt name: %v", err)
+	}
+	var promptOut Prompt
+	if err := json.Unmarshal(b, &promptOut); err != nil || !reflect.DeepEqual(prompt, promptOut) {
+		t.Errorf("Prompt round-trip mismatch: %+v vs %+v (%v)", prompt, promptOut, err)
 	}
 
-	// Test PromptMessage
-	msg := PromptMessage{Role: RoleUser, Content: TextContent{Type: "text", Text: "hi"}}
-	b, _ = json.Marshal(msg)
-	if !strings.Contains(string(b), `"user"`) || !strings.Contains(string(b), `"hi"`) {
-		t.Errorf("expected prompt message fields")
+	msg := PromptMessage{Role: RoleUser, Content: TextContent{Type: "text", Text: "hello"}}
+	b, err = json.Marshal(msg)
+	if err != nil || !strings.Contains(string(b), `"role":"user"`) {
+		t.Fatalf("expected prompt message role: %v", err)
+	}
+	var msgOut PromptMessage
+	if err := json.Unmarshal(b, &msgOut); err != nil || !reflect.DeepEqual(msg, msgOut) {
+		t.Errorf("PromptMessage round-trip mismatch: %+v vs %+v (%v)", msg, msgOut, err)
+	}
+	if err := json.Unmarshal([]byte(`123`), &msgOut); err == nil {
+		t.Errorf("expected error for non-object PromptMessage json")
+	}
+	if err := json.Unmarshal([]byte(`{"role":"user","content":{"type":"bad"}}`), &msgOut); err == nil {
+		t.Errorf("expected error for invalid PromptMessage content")
 	}
 
-	// Test PromptReference
 	ref := PromptReference{Type: "ref/prompt", Name: "p1"}
-	b, _ = json.Marshal(ref)
-	if !strings.Contains(string(b), `"ref/prompt"`) {
-		t.Errorf("expected ref/prompt")
+	b, err = json.Marshal(ref)
+	if err != nil || !strings.Contains(string(b), `"ref/prompt"`) {
+		t.Fatalf("expected prompt reference: %v", err)
 	}
 
-	// Test GetPromptRequest
-	req := GetPromptRequest{Method: "prompts/get"}
-	req.Params.Name = "p1"
-	b, _ = json.Marshal(req)
-	if !strings.Contains(string(b), `"prompts/get"`) || !strings.Contains(string(b), `"p1"`) {
-		t.Errorf("expected get prompt fields")
+	getReq := GetPromptRequest{JSONRPC: "2.0", ID: NewIntRequestID(1), Method: "prompts/get"}
+	getReq.Params.Name = "p1"
+	getReq.Params.Arguments = map[string]string{"k": "v"}
+	b, err = json.Marshal(getReq)
+	if err != nil || !strings.Contains(string(b), `"prompts/get"`) || !strings.Contains(string(b), `"k":"v"`) {
+		t.Fatalf("expected get prompt request fields: %v", err)
+	}
+	var getReqOut GetPromptRequest
+	if err := json.Unmarshal(b, &getReqOut); err != nil || getReqOut.Params.Arguments["k"] != "v" {
+		t.Errorf("GetPromptRequest round-trip failed: %+v, %v", getReqOut, err)
 	}
 
-	// Test GetPromptResult
-	res := GetPromptResult{Messages: []PromptMessage{msg}}
-	b, _ = json.Marshal(res)
-	if !strings.Contains(string(b), `"hi"`) {
-		t.Errorf("expected messages in result")
+	getRes := GetPromptResult{Description: "res", Messages: []PromptMessage{msg}}
+	b, err = json.Marshal(getRes)
+	if err != nil || !strings.Contains(string(b), `"description":"res"`) {
+		t.Fatalf("expected get prompt result description: %v", err)
+	}
+	var getResOut GetPromptResult
+	if err := json.Unmarshal(b, &getResOut); err != nil || !reflect.DeepEqual(getRes, getResOut) {
+		t.Errorf("GetPromptResult round-trip mismatch: %+v vs %+v (%v)", getRes, getResOut, err)
 	}
 
-	// Test ListPromptsRequest
-	listReq := ListPromptsRequest{Method: "prompts/list"}
-	b, _ = json.Marshal(listReq)
-	if !strings.Contains(string(b), `"prompts/list"`) {
-		t.Errorf("expected list method")
+	listReq := ListPromptsRequest{JSONRPC: "2.0", ID: NewIntRequestID(2), Method: "prompts/list"}
+	listReq.Params.Cursor = "c1"
+	b, err = json.Marshal(listReq)
+	if err != nil || !strings.Contains(string(b), `"prompts/list"`) || !strings.Contains(string(b), `"c1"`) {
+		t.Fatalf("expected list prompts request: %v", err)
 	}
 
-	// Test ListPromptsResult
-	listRes := ListPromptsResult{Prompts: []Prompt{prompt}}
-	b, _ = json.Marshal(listRes)
-	if !strings.Contains(string(b), `"p1"`) {
-		t.Errorf("expected prompts in result")
+	listRes := ListPromptsResult{NextCursor: "c2", Prompts: []Prompt{prompt}}
+	b, err = json.Marshal(listRes)
+	if err != nil || !strings.Contains(string(b), `"c2"`) {
+		t.Fatalf("expected list prompts result: %v", err)
+	}
+	var listResOut ListPromptsResult
+	if err := json.Unmarshal(b, &listResOut); err != nil || !reflect.DeepEqual(listRes, listResOut) {
+		t.Errorf("ListPromptsResult round-trip mismatch: %+v vs %+v (%v)", listRes, listResOut, err)
 	}
 
-	// Test PromptListChangedNotification
-	not := PromptListChangedNotification{Method: "notifications/prompts/list_changed"}
-	b, _ = json.Marshal(not)
-	if !strings.Contains(string(b), `"notifications/prompts/list_changed"`) {
-		t.Errorf("expected notification method")
+	not := PromptListChangedNotification{JSONRPC: "2.0", Method: "notifications/prompts/list_changed"}
+	b, err = json.Marshal(not)
+	if err != nil || !strings.Contains(string(b), `"notifications/prompts/list_changed"`) {
+		t.Fatalf("expected notification method: %v", err)
 	}
 }

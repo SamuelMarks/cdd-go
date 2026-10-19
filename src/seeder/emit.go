@@ -120,7 +120,7 @@ func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 
 	for _, propName := range propNames {
 		propSchema := schema.Properties[propName]
-		goName := exportedName(propName)
+		goName := naming.ExportedName(propName)
 		var fakeExpr dst.Expr
 
 		if goName == "Id" || goName == "ID" {
@@ -143,10 +143,4 @@ func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 
 	f.Body.List = append(f.Body.List, &dst.ReturnStmt{Results: []dst.Expr{compLit}})
 	return f
-}
-
-// exportedName converts a JSON field name into an exported Go field name.
-// Parameter name is the JSON field name, and it returns the exported Go identifier.
-func exportedName(name string) string {
-	return naming.ExportedName(name)
 }

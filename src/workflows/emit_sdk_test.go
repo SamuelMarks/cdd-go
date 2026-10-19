@@ -194,6 +194,52 @@ func TestEmitAndParseSDKWorkflows(t *testing.T) {
 				Type: &dst.FuncType{},
 				Body: &dst.BlockStmt{
 					List: []dst.Stmt{
+						&dst.IfStmt{
+							Init: &dst.AssignStmt{
+								Lhs: []dst.Expr{dst.NewIdent("_"), dst.NewIdent("err")},
+								Tok: token.DEFINE,
+								Rhs: []dst.Expr{
+									&dst.CallExpr{
+										Fun: &dst.SelectorExpr{X: dst.NewIdent("w"), Sel: dst.NewIdent("ExecuteAuthPrereq")},
+									},
+								},
+							},
+							Cond: dst.NewIdent("true"),
+							Body: &dst.BlockStmt{},
+						},
+						&dst.BlockStmt{
+							List: []dst.Stmt{
+								&dst.ExprStmt{X: dst.NewIdent("noop")},
+								&dst.AssignStmt{
+									Lhs: []dst.Expr{
+										&dst.IndexExpr{
+											X:     dst.NewIdent("stepOutputs"),
+											Index: &dst.BasicLit{Kind: token.STRING, Value: `"astStep"`},
+										},
+									},
+									Tok: token.ASSIGN,
+									Rhs: []dst.Expr{dst.NewIdent("nil")},
+								},
+								&dst.AssignStmt{
+									Lhs: []dst.Expr{dst.NewIdent("req"), dst.NewIdent("err")},
+									Tok: token.DEFINE,
+									Rhs: []dst.Expr{
+										&dst.CallExpr{
+											Fun: dst.NewIdent("NewRequestWithContext"),
+											Args: []dst.Expr{
+												dst.NewIdent("ctx"),
+												&dst.BasicLit{Kind: token.STRING, Value: `"POST"`},
+												&dst.BinaryExpr{
+													X:  dst.NewIdent("baseURL"),
+													Op: token.ADD,
+													Y:  &dst.BasicLit{Kind: token.STRING, Value: `"/astOp"`},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
 						&dst.BlockStmt{
 							Decs: dst.BlockStmtDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// StepID: manualStep"}}},
 						},

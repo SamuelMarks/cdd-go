@@ -878,7 +878,7 @@ func TestExecuteGeneratorRouter(t *testing.T) {
 	outDir := filepath.Join(tmpDir, "out")
 	os.WriteFile(inPath, []byte(`{"openapi":"3.0.0","info":{"title":"Test","version":"1.0.0"}}`), 0644)
 
-	res, err := ExecuteGeneratorRouter("cdd_generate_sdk", map[string]any{"input": inPath, "output": outDir})
+	res, err := ExecuteGeneratorRouter("cdd_generate_sdk", MCPToolParams{Input: inPath, Output: outDir})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -893,7 +893,7 @@ func TestExecuteGeneratorRouter(t *testing.T) {
 	os.WriteFile(srcPath, []byte("package main\n"), 0644)
 	outPath := filepath.Join(tmpDir, "openapi.json")
 
-	res, err = ExecuteGeneratorRouter("cdd_sync_schema", map[string]any{"input": srcDir, "output": outPath})
+	res, err = ExecuteGeneratorRouter("cdd_sync_schema", MCPToolParams{Input: srcDir, Output: outPath})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -901,7 +901,7 @@ func TestExecuteGeneratorRouter(t *testing.T) {
 		t.Errorf("unexpected result: %v", res)
 	}
 
-	_, err = ExecuteGeneratorRouter("unknown", nil)
+	_, err = ExecuteGeneratorRouter("unknown", MCPToolParams{})
 	if err == nil {
 		t.Errorf("expected error for unknown tool")
 	}

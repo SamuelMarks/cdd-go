@@ -2,17 +2,18 @@
 package commands
 
 import (
-	"go/token"
-	"strconv"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/astutil"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // Parse extracts an OpenAPI Operation from a Cobra command AST representation.
+// Parameter decl is the generic AST declaration, and it returns the HTTP method, URL path, and parsed Operation.
 func Parse(decl *dst.GenDecl) (string, string, *openapi.Operation) {
-	if decl == nil || decl.Tok != token.VAR {
+	rawName, cl := astutil.FindSuffixValueCompositeLit(decl, "Cmd")
+	if cl == nil {
 		return "", "", nil
 	}
 
@@ -26,52 +27,37 @@ func Parse(decl *dst.GenDecl) (string, string, *openapi.Operation) {
 		}
 	}
 
-	for _, spec := range decl.Specs {
-		if vs, ok := spec.(*dst.ValueSpec); ok {
-			if len(vs.Names) > 0 && strings.HasSuffix(vs.Names[0].Name, "Cmd") && len(vs.Values) > 0 {
-				name := vs.Names[0].Name
+	op := &openapi.Operation{}
+	hasContent := false
 
-				var cl *dst.CompositeLit
-				if unary, ok := vs.Values[0].(*dst.UnaryExpr); ok && unary.Op == token.AND {
-					cl, _ = unary.X.(*dst.CompositeLit)
-				}
+	opID := strings.TrimSuffix(rawName, "Cmd")
+	if opID != "" {
+		op.OperationID = strings.ToLower(opID[:1]) + opID[1:]
+	}
 
-				if cl != nil {
-					op := &openapi.Operation{}
-					hasContent := false
-
-					op.OperationID = strings.TrimSuffix(name, "Cmd")
-					if op.OperationID != "" {
-						op.OperationID = strings.ToLower(op.OperationID[:1]) + op.OperationID[1:]
-					}
-
-					for _, elt := range cl.Elts {
-						if kv, ok := elt.(*dst.KeyValueExpr); ok {
-							if keyIdent, ok := kv.Key.(*dst.Ident); ok {
-								if valLit, ok := kv.Value.(*dst.BasicLit); ok && valLit.Kind == token.STRING {
-									val, _ := strconv.Unquote(valLit.Value)
-									switch keyIdent.Name {
-									case "Short":
-										op.Summary = val
-										hasContent = true
-									case "Long":
-										op.Description = val
-										hasContent = true
-									case "Use":
-										hasContent = true
-									}
-								}
-							}
-						}
-					}
-
-					if hasContent || method != "" || path != "" {
-						return method, path, op
-					}
-				}
-			}
+	for _, elt := range cl.Elts {
+		key, valExpr, ok := astutil.IdentKeyValue(elt)
+		if !ok {
+			continue
+		}
+		val, isStr := astutil.StringLit(valExpr)
+		if !isStr {
+			continue
+		}
+		switch key {
+		case "Short":
+			op.Summary = val
+			hasContent = true
+		case "Long":
+			op.Description = val
+			hasContent = true
+		case "Use":
+			hasContent = true
 		}
 	}
 
+	if hasContent || method != "" || path != "" {
+		return method, path, op
+	}
 	return "", "", nil
 }

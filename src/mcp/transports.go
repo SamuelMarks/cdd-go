@@ -3,13 +3,18 @@ package mcp
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"sync"
 )
 
 // Transport defines the interface for MCP message passing.
 type Transport interface {
+	// Send writes a serialized JSON-RPC message to the underlying transport.
 	Send(msg []byte) error
+	// Receive reads the next serialized JSON-RPC message from the underlying transport.
 	Receive() ([]byte, error)
+	// Close terminates the transport and releases any associated resources.
 	Close() error
 }
 
@@ -24,6 +29,7 @@ type StdioTransport struct {
 }
 
 // NewStdioTransport creates a new stdio transport.
+// Parameter in is the input stream, out is the output stream, and it returns the initialized StdioTransport.
 func NewStdioTransport(in io.Reader, out io.Writer) *StdioTransport {
 	return &StdioTransport{
 		In:      in,
@@ -33,12 +39,14 @@ func NewStdioTransport(in io.Reader, out io.Writer) *StdioTransport {
 }
 
 // Send writes a message to stdio.
+// Parameter msg is the JSON-RPC payload bytes, and it returns any write error.
 func (t *StdioTransport) Send(msg []byte) error {
-	_, err := t.Out.Write(append(msg, '\n'))
+	_, err := t.Out.Write(append(msg, byte(10)))
 	return err
 }
 
 // Receive reads a message from stdio.
+// It returns the next line bytes or io.EOF when the input stream ends.
 func (t *StdioTransport) Receive() ([]byte, error) {
 	if t.Scanner.Scan() {
 		return t.Scanner.Bytes(), nil
@@ -54,24 +62,75 @@ func (t *StdioTransport) Close() error {
 	return nil
 }
 
-// SseTransport is a stub for Server-Sent Events transport.
+// SseTransport implements a bidirectional Server-Sent Events (SSE) and HTTP POST message queue transport.
 type SseTransport struct {
-	// Typically this would hold HTTP response writers and flusher channels.
+	// Out is the optional SSE writer where server-sent event frames are written.
+	Out io.Writer
+	// mu protects closed state and queue operations.
+	mu sync.Mutex
+	// queue buffers incoming messages posted to the SSE message endpoint.
+	queue [][]byte
+	// closed indicates whether Close has been called.
+	closed bool
 }
 
-// Send writes a message to sse.
-func (t *SseTransport) Send(msg []byte) error {
-	// Stub: In reality this formats "data: <msg>\n\n"
+// NewSseTransport creates a new SseTransport writing SSE frames to out.
+// Parameter out is the optional writer for outbound SSE frames, and it returns the initialized SseTransport.
+func NewSseTransport(out io.Writer) *SseTransport {
+	return &SseTransport{
+		Out: out,
+	}
+}
+
+// Enqueue pushes an inbound client message (e.g., from an HTTP POST to /mcp/message) into the transport receive queue.
+// Parameter msg is the raw JSON-RPC message bytes, and it returns an error if the transport is closed.
+func (t *SseTransport) Enqueue(msg []byte) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return io.ErrClosedPipe
+	}
+	cp := make([]byte, len(msg))
+	copy(cp, msg)
+	t.queue = append(t.queue, cp)
 	return nil
 }
 
-// Receive reads a message from sse.
+// Send formats and writes a message as an SSE data frame if Out is configured, or queues it for local loopback.
+// Parameter msg is the JSON-RPC message bytes, and it returns any write error.
+func (t *SseTransport) Send(msg []byte) error {
+	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return io.ErrClosedPipe
+	}
+	out := t.Out
+	t.mu.Unlock()
+
+	if out != nil {
+		_, err := fmt.Fprintf(out, `data: %s`+string([]byte{10, 10}), string(msg))
+		return err
+	}
+	return nil
+}
+
+// Receive reads the next queued message from the SSE transport or returns io.EOF when empty or closed.
 func (t *SseTransport) Receive() ([]byte, error) {
-	// Stub: In reality this reads from an HTTP POST to /mcp/message
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.queue) > 0 {
+		msg := t.queue[0]
+		t.queue = t.queue[1:]
+		return msg, nil
+	}
 	return nil, io.EOF
 }
 
-// Close closes the transport.
+// Close marks the SSE transport as closed and clears any unread messages.
 func (t *SseTransport) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closed = true
+	t.queue = nil
 	return nil
 }

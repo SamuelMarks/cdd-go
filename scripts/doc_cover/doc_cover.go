@@ -57,6 +57,16 @@ func calculateCoverageCount(srcDir string) (int, int, error) {
 										docs++
 									}
 								}
+							} else if iface, ok := s.Type.(*ast.InterfaceType); ok && iface.Methods != nil {
+								for _, method := range iface.Methods.List {
+									if len(method.Names) == 0 {
+										continue
+									}
+									total++
+									if method.Doc != nil || method.Comment != nil {
+										docs++
+									}
+								}
 							}
 						case *ast.ValueSpec:
 							if len(s.Names) > 0 {

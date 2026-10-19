@@ -11,12 +11,6 @@ import (
 	"github.com/dave/dst"
 )
 
-// toSnakeCase converts PascalCase or camelCase to snake_case.
-// Parameter s is the input string, and it returns the snake_case representation.
-func toSnakeCase(s string) string {
-	return naming.ToSnakeCase(s)
-}
-
 // Emit formats an OpenAPI Operation object into a Cobra command AST representation.
 func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 	if op == nil {
@@ -28,10 +22,10 @@ func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 		cleanPath := strings.ReplaceAll(path, "/", "_")
 		cleanPath = strings.ReplaceAll(cleanPath, "{", "")
 		cleanPath = strings.ReplaceAll(cleanPath, "}", "")
-		opID = strings.ToLower(method) + toPascalCase(cleanPath)
+		opID = strings.ToLower(method) + naming.ToPascalCase(cleanPath)
 	}
 
-	useName := toSnakeCase(opID)
+	useName := naming.ToSnakeCase(opID)
 	cl := &dst.CompositeLit{
 		Type: &dst.SelectorExpr{
 			X:   dst.NewIdent("cobra"),
@@ -63,7 +57,7 @@ func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 		Tok: token.VAR,
 		Specs: []dst.Spec{
 			&dst.ValueSpec{
-				Names: []*dst.Ident{dst.NewIdent(toPascalCase(opID) + "Cmd")},
+				Names: []*dst.Ident{dst.NewIdent(naming.ToPascalCase(opID) + "Cmd")},
 				Values: []dst.Expr{
 					&dst.UnaryExpr{
 						Op: token.AND,
@@ -84,12 +78,6 @@ func Emit(path, method string, op *openapi.Operation) *dst.GenDecl {
 	decl.Decs.Start.Append(fmt.Sprintf("// Path: %s", path))
 
 	return decl
-}
-
-// toPascalCase converts an identifier string to PascalCase.
-// Parameter s is the input string, and it returns the PascalCase representation.
-func toPascalCase(s string) string {
-	return naming.ToPascalCase(s)
 }
 
 // EmitMcpCmd generates the MCP CLI subcommand with stdio transport bindings.
@@ -134,21 +122,23 @@ func EmitMcpCmd() *dst.GenDecl {
 					},
 					Body: &dst.BlockStmt{
 						List: []dst.Stmt{
-							&dst.AssignStmt{
-								Lhs: []dst.Expr{dst.NewIdent("_")},
-								Tok: token.ASSIGN,
-								Rhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Stdin")}},
-							},
-							&dst.AssignStmt{
-								Lhs: []dst.Expr{dst.NewIdent("_")},
-								Tok: token.ASSIGN,
-								Rhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Stdout")}},
+							&dst.ExprStmt{
+								X: &dst.CallExpr{
+									Fun:  &dst.SelectorExpr{X: dst.NewIdent("cmd"), Sel: dst.NewIdent("SetIn")},
+									Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Stdin")}},
+								},
 							},
 							&dst.ExprStmt{
 								X: &dst.CallExpr{
-									Fun: dst.NewIdent("print"),
+									Fun:  &dst.SelectorExpr{X: dst.NewIdent("cmd"), Sel: dst.NewIdent("SetOut")},
+									Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("os"), Sel: dst.NewIdent("Stdout")}},
+								},
+							},
+							&dst.ExprStmt{
+								X: &dst.CallExpr{
+									Fun: &dst.SelectorExpr{X: dst.NewIdent("cmd"), Sel: dst.NewIdent("Println")},
 									Args: []dst.Expr{
-										&dst.BasicLit{Kind: token.STRING, Value: `"MCP server started on stdio\n"`},
+										&dst.BasicLit{Kind: token.STRING, Value: `"MCP server started on stdio"`},
 									},
 								},
 							},

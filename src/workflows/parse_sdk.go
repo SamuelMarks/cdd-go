@@ -224,7 +224,18 @@ func parseSDKExecuteMethod(fn *dst.FuncDecl, inputSchemas map[string]*openapi.Sc
 
 	if fn.Body != nil {
 		for _, stmt := range fn.Body.List {
-			if block, ok := stmt.(*dst.BlockStmt); ok {
+			if ifStmt, ok := stmt.(*dst.IfStmt); ok && len(wf.DependsOn) == 0 {
+				if assign, ok := ifStmt.Init.(*dst.AssignStmt); ok && len(assign.Rhs) > 0 {
+					if call, ok := assign.Rhs[0].(*dst.CallExpr); ok {
+						if sel, ok := call.Fun.(*dst.SelectorExpr); ok && strings.HasPrefix(sel.Sel.Name, "Execute") {
+							depPascal := strings.TrimPrefix(sel.Sel.Name, "Execute")
+							if depPascal != "" {
+								wf.DependsOn = append(wf.DependsOn, strings.ToLower(depPascal[:1])+depPascal[1:])
+							}
+						}
+					}
+				}
+			} else if block, ok := stmt.(*dst.BlockStmt); ok {
 				step := parseSDKStepBlock(block)
 				if step.StepID != "" {
 					wf.Steps = append(wf.Steps, step)
@@ -273,6 +284,31 @@ func parseSDKStepBlock(block *dst.BlockStmt) arazzo.Step {
 			step.StepID = strings.TrimSpace(strings.TrimPrefix(line, "StepID:"))
 		}
 	}
+
+	// Inspect AST statements in block for stepOutputs["<stepID>"] and http.NewRequestWithContext URL
+	for _, s := range block.List {
+		assign, ok := s.(*dst.AssignStmt)
+		if !ok || len(assign.Lhs) == 0 || len(assign.Rhs) == 0 {
+			continue
+		}
+		if idx, ok := assign.Lhs[0].(*dst.IndexExpr); ok {
+			if ident, ok := idx.X.(*dst.Ident); ok && ident.Name == "stepOutputs" && step.StepID == "" {
+				if lit, ok := idx.Index.(*dst.BasicLit); ok {
+					step.StepID, _ = strconv.Unquote(lit.Value)
+				}
+			}
+		}
+		if call, ok := assign.Rhs[0].(*dst.CallExpr); ok && len(call.Args) >= 3 {
+			if bin, ok := call.Args[2].(*dst.BinaryExpr); ok {
+				if lit, ok := bin.Y.(*dst.BasicLit); ok {
+					if pathStr, err := strconv.Unquote(lit.Value); err == nil {
+						step.OperationID = strings.TrimPrefix(pathStr, "/")
+					}
+				}
+			}
+		}
+	}
+
 	if step.StepID != "" && step.OperationID == "" && step.OperationPath == "" && step.ChannelPath == "" && step.WorkflowID == "" {
 		step.OperationID = step.StepID
 	}

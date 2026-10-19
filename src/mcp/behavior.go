@@ -1,6 +1,8 @@
 // Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
+import "encoding/json"
+
 // ProgressNotification represents a progress event.
 type ProgressNotification struct {
 	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
@@ -66,8 +68,8 @@ type PaginatedResult struct {
 	Meta *Meta `json:"_meta,omitempty"`
 	// NextCursor is the opaque cursor for the next page of results.
 	NextCursor Cursor `json:"nextCursor,omitempty"`
-	// Items holds the paginated collection items.
-	Items any `json:"items"`
+	// Items holds the raw JSON paginated collection items.
+	Items []json.RawMessage `json:"items"`
 }
 
 // SamplingMessage represents a message for human-in-the-loop sampling.

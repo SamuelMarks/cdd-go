@@ -2,104 +2,113 @@ package mcp
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestSchemaResourcesStructs(t *testing.T) {
-	// Test Resource
-	res := Resource{URI: "file://test", Name: "TestRes"}
-	b, _ := json.Marshal(res)
-	if !strings.Contains(string(b), `"file://test"`) || !strings.Contains(string(b), `"TestRes"`) {
-		t.Errorf("expected uri and name")
+func TestSchemaResourcesStructsAndRoundTrip(t *testing.T) {
+	res := Resource{URI: "file://test", Name: "TestRes", Description: "desc", MimeType: "text/plain", Size: 42}
+	b, err := json.Marshal(res)
+	if err != nil || !strings.Contains(string(b), `"file://test"`) || !strings.Contains(string(b), `"TestRes"`) {
+		t.Fatalf("expected resource fields: %v", err)
+	}
+	var resOut Resource
+	if err := json.Unmarshal(b, &resOut); err != nil || !reflect.DeepEqual(res, resOut) {
+		t.Errorf("Resource round-trip mismatch: %+v vs %+v (%v)", res, resOut, err)
 	}
 
-	// Test ResourceTemplate
-	resTmpl := ResourceTemplate{URITemplate: "file://{path}", Name: "Tmpl"}
-	b, _ = json.Marshal(resTmpl)
-	if !strings.Contains(string(b), `"file://{path}"`) {
-		t.Errorf("expected uriTemplate")
+	tmpl := ResourceTemplate{URITemplate: "file://{path}", Name: "Tmpl"}
+	b, err = json.Marshal(tmpl)
+	if err != nil || !strings.Contains(string(b), `"file://{path}"`) {
+		t.Fatalf("expected resource template: %v", err)
+	}
+	var tmplOut ResourceTemplate
+	if err := json.Unmarshal(b, &tmplOut); err != nil || !reflect.DeepEqual(tmpl, tmplOut) {
+		t.Errorf("ResourceTemplate round-trip mismatch: %+v vs %+v (%v)", tmpl, tmplOut, err)
 	}
 
-	// Test ResourceReference
-	resRef := ResourceReference{Type: "ref/resource", URI: "file://ref"}
-	b, _ = json.Marshal(resRef)
-	if !strings.Contains(string(b), `"ref/resource"`) {
-		t.Errorf("expected ref/resource type")
+	ref := ResourceReference{Type: "ref/resource", URI: "file://ref"}
+	b, err = json.Marshal(ref)
+	if err != nil || !strings.Contains(string(b), `"file://ref"`) {
+		t.Fatalf("expected resource reference: %v", err)
 	}
 
-	// Test ReadResourceRequest
-	req := ReadResourceRequest{Method: "resources/read"}
-	req.Params.URI = "file://read"
-	b, _ = json.Marshal(req)
-	if !strings.Contains(string(b), `"resources/read"`) || !strings.Contains(string(b), `"file://read"`) {
-		t.Errorf("expected method and uri")
+	readReq := ReadResourceRequest{JSONRPC: "2.0", ID: NewIntRequestID(1), Method: "resources/read"}
+	readReq.Params.URI = "file://read"
+	b, err = json.Marshal(readReq)
+	if err != nil || !strings.Contains(string(b), `"resources/read"`) || !strings.Contains(string(b), `"file://read"`) {
+		t.Fatalf("expected read resource request: %v", err)
+	}
+	var readReqOut ReadResourceRequest
+	if err := json.Unmarshal(b, &readReqOut); err != nil || !reflect.DeepEqual(readReq, readReqOut) {
+		t.Errorf("ReadResourceRequest round-trip mismatch: %+v vs %+v (%v)", readReq, readReqOut, err)
 	}
 
-	// Test ReadResourceResult
-	resRead := ReadResourceResult{}
-	resRead.Contents = append(resRead.Contents, TextResourceContents{URI: "file://read", Text: "data"})
-	b, _ = json.Marshal(resRead)
-	if !strings.Contains(string(b), `"data"`) {
-		t.Errorf("expected content")
+	readRes := ReadResourceResult{}
+	readRes.Contents = append(readRes.Contents, TextResourceContents{URI: "file://read", Text: "content"})
+	b, err = json.Marshal(readRes)
+	if err != nil || !strings.Contains(string(b), `"content"`) {
+		t.Fatalf("expected read resource result: %v", err)
 	}
 
-	// Test ListResourcesRequest
-	listReq := ListResourcesRequest{Method: "resources/list"}
-	b, _ = json.Marshal(listReq)
-	if !strings.Contains(string(b), `"resources/list"`) {
-		t.Errorf("expected list method")
+	listReq := ListResourcesRequest{JSONRPC: "2.0", ID: NewIntRequestID(2), Method: "resources/list"}
+	listReq.Params.Cursor = "c1"
+	b, err = json.Marshal(listReq)
+	if err != nil || !strings.Contains(string(b), `"resources/list"`) {
+		t.Fatalf("expected list resources request: %v", err)
 	}
 
-	// Test ListResourcesResult
-	listRes := ListResourcesResult{Resources: []Resource{res}}
-	b, _ = json.Marshal(listRes)
-	if !strings.Contains(string(b), `"TestRes"`) {
-		t.Errorf("expected resource in result")
+	listRes := ListResourcesResult{NextCursor: "c1", Resources: []Resource{res}}
+	b, err = json.Marshal(listRes)
+	if err != nil || !strings.Contains(string(b), `"TestRes"`) {
+		t.Fatalf("expected list resources result: %v", err)
+	}
+	var listResOut ListResourcesResult
+	if err := json.Unmarshal(b, &listResOut); err != nil || !reflect.DeepEqual(listRes, listResOut) {
+		t.Errorf("ListResourcesResult round-trip mismatch: %+v vs %+v (%v)", listRes, listResOut, err)
 	}
 
-	// Test ListResourceTemplatesRequest
-	tmplReq := ListResourceTemplatesRequest{Method: "resources/templates/list"}
-	b, _ = json.Marshal(tmplReq)
-	if !strings.Contains(string(b), `"resources/templates/list"`) {
-		t.Errorf("expected templates/list method")
+	listTmplReq := ListResourceTemplatesRequest{JSONRPC: "2.0", ID: NewIntRequestID(3), Method: "resources/templates/list"}
+	b, err = json.Marshal(listTmplReq)
+	if err != nil || !strings.Contains(string(b), `"resources/templates/list"`) {
+		t.Fatalf("expected list resource templates request: %v", err)
 	}
 
-	// Test ListResourceTemplatesResult
-	tmplRes := ListResourceTemplatesResult{ResourceTemplates: []ResourceTemplate{resTmpl}}
-	b, _ = json.Marshal(tmplRes)
-	if !strings.Contains(string(b), `"Tmpl"`) {
-		t.Errorf("expected template in result")
+	listTmplRes := ListResourceTemplatesResult{ResourceTemplates: []ResourceTemplate{tmpl}}
+	b, err = json.Marshal(listTmplRes)
+	if err != nil || !strings.Contains(string(b), `"Tmpl"`) {
+		t.Fatalf("expected list resource templates result: %v", err)
+	}
+	var listTmplResOut ListResourceTemplatesResult
+	if err := json.Unmarshal(b, &listTmplResOut); err != nil || !reflect.DeepEqual(listTmplRes, listTmplResOut) {
+		t.Errorf("ListResourceTemplatesResult round-trip mismatch: %+v vs %+v (%v)", listTmplRes, listTmplResOut, err)
 	}
 
-	// Test ResourceListChangedNotification
-	listChangedNot := ResourceListChangedNotification{Method: "notifications/resources/list_changed"}
-	b, _ = json.Marshal(listChangedNot)
-	if !strings.Contains(string(b), `"notifications/resources/list_changed"`) {
-		t.Errorf("expected list_changed notification")
+	not := ResourceListChangedNotification{JSONRPC: "2.0", Method: "notifications/resources/list_changed"}
+	b, err = json.Marshal(not)
+	if err != nil || !strings.Contains(string(b), `"notifications/resources/list_changed"`) {
+		t.Fatalf("expected notification: %v", err)
 	}
 
-	// Test ResourceUpdatedNotification
-	updatedNot := ResourceUpdatedNotification{Method: "notifications/resources/updated"}
-	updatedNot.Params.URI = "file://updated"
-	b, _ = json.Marshal(updatedNot)
-	if !strings.Contains(string(b), `"file://updated"`) {
-		t.Errorf("expected updated notification with uri")
+	upNot := ResourceUpdatedNotification{JSONRPC: "2.0", Method: "notifications/resources/updated"}
+	upNot.Params.URI = "file://up"
+	b, err = json.Marshal(upNot)
+	if err != nil || !strings.Contains(string(b), `"file://up"`) {
+		t.Fatalf("expected updated notification: %v", err)
 	}
 
-	// Test SubscribeRequest
-	subReq := SubscribeRequest{Method: "resources/subscribe"}
+	subReq := SubscribeRequest{JSONRPC: "2.0", ID: NewIntRequestID(4), Method: "resources/subscribe"}
 	subReq.Params.URI = "file://sub"
-	b, _ = json.Marshal(subReq)
-	if !strings.Contains(string(b), `"resources/subscribe"`) || !strings.Contains(string(b), `"file://sub"`) {
-		t.Errorf("expected subscribe request")
+	b, err = json.Marshal(subReq)
+	if err != nil || !strings.Contains(string(b), `"resources/subscribe"`) || !strings.Contains(string(b), `"file://sub"`) {
+		t.Fatalf("expected subscribe request: %v", err)
 	}
 
-	// Test UnsubscribeRequest
-	unsubReq := UnsubscribeRequest{Method: "resources/unsubscribe"}
+	unsubReq := UnsubscribeRequest{JSONRPC: "2.0", ID: NewIntRequestID(5), Method: "resources/unsubscribe"}
 	unsubReq.Params.URI = "file://unsub"
-	b, _ = json.Marshal(unsubReq)
-	if !strings.Contains(string(b), `"resources/unsubscribe"`) || !strings.Contains(string(b), `"file://unsub"`) {
-		t.Errorf("expected unsubscribe request")
+	b, err = json.Marshal(unsubReq)
+	if err != nil || !strings.Contains(string(b), `"resources/unsubscribe"`) || !strings.Contains(string(b), `"file://unsub"`) {
+		t.Fatalf("expected unsubscribe request: %v", err)
 	}
 }

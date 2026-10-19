@@ -93,6 +93,12 @@ func TestEmitAndParseServerWorkflows(t *testing.T) {
 								NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// WorkflowID: routeOnlyWf"}},
 							},
 						},
+						&dst.ExprStmt{
+							X: &dst.CallExpr{
+								Fun:  &dst.SelectorExpr{X: dst.NewIdent("r"), Sel: dst.NewIdent("POST")},
+								Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"/workflows/astRouteWf"`}},
+							},
+						},
 					},
 				},
 			},
@@ -103,7 +109,7 @@ func TestEmitAndParseServerWorkflows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(manualWfs) != 3 {
-		t.Fatalf("expected 3 manual workflows, got %d", len(manualWfs))
+	if len(manualWfs) != 4 {
+		t.Fatalf("expected 4 manual workflows, got %d", len(manualWfs))
 	}
 }

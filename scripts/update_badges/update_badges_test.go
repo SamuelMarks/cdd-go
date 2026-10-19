@@ -73,32 +73,31 @@ func TestMainFunc(t *testing.T) {
 	os.Chmod("README.md", 0644)
 
 	// Make an invalid PATH to force exec to fail
-	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", "")
+	t.Setenv("PATH", "")
 
 	// Test getDocCov and getTestCov individually to ensure their error branches are hit
 	getTestCov()
 	getDocCov()
 
 	main()
-	os.Setenv("PATH", oldPath)
 }
+
 func TestGetDocCovErr(t *testing.T) {
-	// mock path again to trigger doc failure
-	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", "")
+	t.Setenv("PATH", "")
 	res := getDocCov()
 	if res != 0.0 {
 		t.Errorf("Expected 0.0 got %v", res)
 	}
-	os.Setenv("PATH", oldPath)
 }
 
 func TestGetDocCovFakeFail(t *testing.T) {
-	// Create a fake doc_cover.go that fails
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd)
+
 	os.MkdirAll("scripts/doc_cover", 0755)
 	os.WriteFile("scripts/doc_cover/doc_cover.go", []byte("package main\nfunc main() { panic(\"fail\") }"), 0644)
-	defer os.RemoveAll("scripts")
 
 	if getDocCov() != 0.0 {
 		t.Error("Expected 0.0")
@@ -106,9 +105,13 @@ func TestGetDocCovFakeFail(t *testing.T) {
 }
 
 func TestGetDocCovSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd)
+
 	os.MkdirAll("scripts/doc_cover", 0755)
 	os.WriteFile("scripts/doc_cover/doc_cover.go", []byte("package main\nimport \"fmt\"\nfunc main() { fmt.Print(\"100.0%\") }"), 0644)
-	defer os.RemoveAll("scripts")
 
 	if getDocCov() != 100.0 {
 		t.Error("Expected 100.0")

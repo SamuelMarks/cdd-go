@@ -86,6 +86,10 @@ func TestParseExternalDocsEmpty(t *testing.T) {
 					&dst.CompositeLit{
 						Elts: []dst.Expr{
 							dst.NewIdent("bad"),
+							&dst.KeyValueExpr{
+								Key:   dst.NewIdent("URL"),
+								Value: dst.NewIdent("notStr"),
+							},
 						},
 					},
 				},

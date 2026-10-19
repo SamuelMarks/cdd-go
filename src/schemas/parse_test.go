@@ -24,7 +24,7 @@ func TestParseSchema(t *testing.T) {
 							{
 								Names: []*dst.Ident{dst.NewIdent("Id")},
 								Type:  dst.NewIdent("string"),
-								Tag:   &dst.BasicLit{Kind: token.STRING, Value: "`json:\"id\"`"},
+								Tag:   &dst.BasicLit{Kind: token.STRING, Value: "`" + `json:"id"` + "`"},
 								Decs: dst.FieldDecorations{
 									NodeDecs: dst.NodeDecs{
 										Start: dst.Decorations{"// UUID"},
@@ -53,7 +53,7 @@ func TestParseSchema(t *testing.T) {
 							},
 							{
 								Names: []*dst.Ident{dst.NewIdent("Metadata")},
-								Type:  &dst.MapType{Value: dst.NewIdent("string")},
+								Type:  &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")},
 							},
 							{
 								Names: []*dst.Ident{dst.NewIdent("CreatedAt")},
@@ -74,7 +74,10 @@ func TestParseSchema(t *testing.T) {
 		},
 	}
 
-	name, schema := Parse(decl)
+	name, schema, err := Parse(decl)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if name != "User" {
 		t.Errorf("expected User")
 	}
@@ -123,12 +126,15 @@ func TestParseSchemaMapType(t *testing.T) {
 		Specs: []dst.Spec{
 			&dst.TypeSpec{
 				Name: dst.NewIdent("StringMap"),
-				Type: &dst.MapType{Value: dst.NewIdent("string")},
+				Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")},
 			},
 		},
 	}
 
-	name, schema := Parse(decl)
+	name, schema, err := Parse(decl)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if name != "StringMap" {
 		t.Errorf("expected StringMap")
 	}
@@ -138,30 +144,41 @@ func TestParseSchemaMapType(t *testing.T) {
 }
 
 func TestParseSchemaNilAndErrors(t *testing.T) {
-	n, s := Parse(nil)
-	if n != "" || s != nil {
+	n, s, err := Parse(nil)
+	if err != nil || n != "" || s != nil {
 		t.Errorf("expected nil")
 	}
 
-	n, s = Parse(&dst.GenDecl{Tok: token.VAR})
-	if n != "" || s != nil {
+	n, s, err = Parse(&dst.GenDecl{Tok: token.VAR})
+	if err != nil || n != "" || s != nil {
 		t.Errorf("expected nil for VAR")
 	}
 
-	n, s = Parse(&dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{&dst.ValueSpec{}}})
-	if n != "" || s != nil {
+	n, s, err = Parse(&dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{&dst.ValueSpec{}}})
+	if err != nil || n != "" || s != nil {
 		t.Errorf("expected nil for non-TypeSpec")
+	}
+
+	badMapDecl := &dst.GenDecl{
+		Tok: token.TYPE,
+		Specs: []dst.Spec{
+			&dst.TypeSpec{
+				Name: dst.NewIdent("BadMap"),
+				Type: &dst.MapType{Key: dst.NewIdent("int"), Value: dst.NewIdent("string")},
+			},
+		},
+	}
+	if _, _, err := Parse(badMapDecl); err == nil {
+		t.Errorf("expected error for non-string map key")
 	}
 }
 
 func TestParseTypeNilAndUnknown(t *testing.T) {
-	s := ParseType(nil)
-	if s.Type != "" {
-		t.Errorf("expected empty")
+	if _, err := ParseType(nil); err == nil {
+		t.Errorf("expected error for nil expr")
 	}
 
-	s = ParseType(&dst.BasicLit{})
-	if s.Type != "" {
-		t.Errorf("expected empty")
+	if _, err := ParseType(&dst.BasicLit{}); err == nil {
+		t.Errorf("expected error for BasicLit expr")
 	}
 }

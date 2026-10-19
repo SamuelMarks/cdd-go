@@ -157,15 +157,6 @@ func TestEmitTypeExpr(t *testing.T) {
 	}
 }
 
-func TestExportedName(t *testing.T) {
-	if exportedName("") != "" {
-		t.Errorf("expected empty string")
-	}
-	if exportedName("id") != "Id" {
-		t.Errorf("expected Id")
-	}
-}
-
 func TestEmitTypeNil(t *testing.T) {
 	_, err := EmitType("User", nil)
 	if err == nil {

@@ -95,18 +95,6 @@ func TestEmitHandlerInterfaceNil(t *testing.T) {
 	}
 }
 
-func TestToCamelCase(t *testing.T) {
-	if toCamelCase("/") != "Root" {
-		t.Errorf("expected Root")
-	}
-	if toCamelCase("/users") != "Users" {
-		t.Errorf("expected Users")
-	}
-	if toCamelCase("/users/{id}") != "UsersId" {
-		t.Errorf("expected UsersId")
-	}
-}
-
 func TestEmitMethodSignatureEmptyOp(t *testing.T) {
 	op := &openapi.Operation{}
 	f := emitMethodSignature("Put", op)

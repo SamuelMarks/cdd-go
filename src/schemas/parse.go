@@ -11,75 +11,54 @@ import (
 	"github.com/dave/dst"
 )
 
-// Parse extracts an OpenAPI Schema object from a type declaration.
-// Parameter decl is the AST generic declaration, and it returns the schema name and parsed OpenAPI Schema.
-func Parse(decl *dst.GenDecl) (string, *openapi.Schema) {
+// Parse extracts an OpenAPI Schema object from a Go AST type declaration.
+// Parameter decl is the AST generic declaration, and it returns the schema name, parsed OpenAPI Schema, and error.
+func Parse(decl *dst.GenDecl) (string, *openapi.Schema, error) {
 	if decl == nil || decl.Tok != token.TYPE {
-		return "", nil
+		return "", nil, nil
 	}
 
 	for _, spec := range decl.Specs {
-		if ts, ok := spec.(*dst.TypeSpec); ok {
-			name := ts.Name.Name
+		ts, ok := spec.(*dst.TypeSpec)
+		if !ok {
+			continue
+		}
+		name := ts.Name.Name
 
-			schema := &openapi.Schema{
-				Type:       "object",
-				Properties: make(map[string]openapi.Schema),
-			}
+		schema, err := classes.ParseType(ts)
+		if err != nil {
+			return "", nil, err
+		}
 
-			if len(decl.Decs.Start) > 0 {
-				schema.Description = strings.TrimSpace(docstrings.Parse(decl.Decs.Start))
-			}
+		if len(decl.Decs.Start) > 0 {
+			schema.Description = strings.TrimSpace(docstrings.Parse(decl.Decs.Start))
+		}
 
-			if st, ok := ts.Type.(*dst.StructType); ok && st.Fields != nil {
-				for _, f := range st.Fields.List {
-					if len(f.Names) == 0 {
-						continue
-					}
-
-					propName := f.Names[0].Name
-					propName = strings.ToLower(propName[:1]) + propName[1:]
-
-					if f.Tag != nil {
-						tagVal := strings.Trim(f.Tag.Value, "`")
-						if strings.HasPrefix(tagVal, "json:") {
-							parts := strings.Split(strings.TrimPrefix(tagVal, `json:"`), `"`)
-							if len(parts) > 0 {
-								jsonName := strings.Split(parts[0], ",")[0]
-								if jsonName != "" && jsonName != "-" {
-									propName = jsonName
-								}
-							}
-						}
-					}
-
-					propSchema := ParseType(f.Type)
-					if len(f.Decs.Start) > 0 {
-						propSchema.Description = strings.TrimSpace(docstrings.Parse(f.Decs.Start))
-					}
-
-					schema.Properties[propName] = *propSchema
+		if st, ok := ts.Type.(*dst.StructType); ok && st.Fields != nil {
+			for _, f := range st.Fields.List {
+				if len(f.Names) == 0 {
+					continue
 				}
-
-				return name, schema
-			} else if mt, ok := ts.Type.(*dst.MapType); ok {
-				schema.Type = "object"
-				schema.Properties = nil
-				schema.AdditionalProperties = ParseType(mt.Value)
-				return name, schema
+				rawName := f.Names[0].Name
+				lowerName := strings.ToLower(rawName[:1]) + rawName[1:]
+				hasJSONTag := f.Tag != nil && strings.Contains(f.Tag.Value, "json:")
+				if !hasJSONTag && rawName != lowerName {
+					if prop, exists := schema.Properties[rawName]; exists {
+						delete(schema.Properties, rawName)
+						schema.Properties[lowerName] = prop
+					}
+				}
 			}
 		}
+
+		return name, schema, nil
 	}
 
-	return "", nil
+	return "", nil, nil
 }
 
 // ParseType converts a Go AST type expression to an OpenAPI schema.
-// Parameter expr is the AST type expression, and it returns the parsed OpenAPI Schema.
-func ParseType(expr dst.Expr) *openapi.Schema {
-	s, err := classes.ParseExpr(expr)
-	if err != nil || s == nil {
-		return &openapi.Schema{}
-	}
-	return s
+// Parameter expr is the AST type expression, and it returns the parsed OpenAPI Schema and error.
+func ParseType(expr dst.Expr) (*openapi.Schema, error) {
+	return classes.ParseExpr(expr)
 }

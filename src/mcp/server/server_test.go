@@ -28,7 +28,7 @@ func TestMCPServer(t *testing.T) {
 	}
 
 	// Test HandleMessage without handler
-	msg := mcp.Message{JSONRPC: "2.0"}
+	msg := mcp.Message{JSONRPC: "2.0", ID: mcp.NewIntRequestID(1)}
 	b, _ := json.Marshal(msg)
 	reqMsg, _ := http.NewRequest("POST", "/mcp/message", bytes.NewBuffer(b))
 	rrMsg := httptest.NewRecorder()
@@ -39,13 +39,13 @@ func TestMCPServer(t *testing.T) {
 
 	// Test HandleMessage with Handler
 	s.Handler = func(req *mcp.Message) (*mcp.Response, error) {
-		return &mcp.Response{JSONRPC: "2.0", ID: req.ID, Result: "success"}, nil
+		return &mcp.Response{JSONRPC: "2.0", ID: req.ID, Result: json.RawMessage(`"success"`)}, nil
 	}
 	reqMsg, _ = http.NewRequest("POST", "/mcp/message", bytes.NewBuffer(b))
 	rrMsg = httptest.NewRecorder()
 	s.HandleMessage(rrMsg, reqMsg)
 	if !strings.Contains(rrMsg.Body.String(), `"success"`) {
-		t.Errorf("Expected success result")
+		t.Errorf("Expected success result, got %s", rrMsg.Body.String())
 	}
 
 	// Test HandleMessage error decode

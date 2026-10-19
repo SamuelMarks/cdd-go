@@ -42,8 +42,8 @@ type Error struct {
 	Code int `json:"code"`
 	// Message is a short description of the error.
 	Message string `json:"message"`
-	// Data contains optional additional error details.
-	Data any `json:"data,omitempty"`
+	// Data contains optional additional raw JSON error details.
+	Data json.RawMessage `json:"data,omitempty"`
 }
 
 // Error returns the string representation of the error.
@@ -59,8 +59,8 @@ type Request struct {
 	ID RequestID `json:"id"`
 	// Method is the RPC method name.
 	Method string `json:"method"`
-	// Params holds the request parameters.
-	Params any `json:"params,omitempty"`
+	// Params holds the raw JSON request parameters.
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // Response is a typed JSON-RPC response.
@@ -69,8 +69,8 @@ type Response struct {
 	JSONRPC string `json:"jsonrpc"`
 	// ID is the response identifier matching the request.
 	ID RequestID `json:"id"`
-	// Result holds the successful result payload.
-	Result any `json:"result,omitempty"`
+	// Result holds the raw JSON result payload.
+	Result json.RawMessage `json:"result,omitempty"`
 	// Error holds the error payload if the request failed.
 	Error *Error `json:"error,omitempty"`
 }
@@ -81,8 +81,8 @@ type Notification struct {
 	JSONRPC string `json:"jsonrpc"`
 	// Method is the notification method name.
 	Method string `json:"method"`
-	// Params holds the notification parameters.
-	Params any `json:"params,omitempty"`
+	// Params holds the raw JSON notification parameters.
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // Parse parses a raw JSON payload into a Message envelope.

@@ -11,18 +11,21 @@ import (
 	"github.com/dave/dst"
 )
 
-// Emit formats an OpenAPI Schema object into a struct representation.
+// Emit formats an OpenAPI Schema object into a Go AST type declaration.
 // Parameter name is the schema name, and schema is the OpenAPI Schema definition.
-func Emit(name string, schema *openapi.Schema) *dst.GenDecl {
-	if schema == nil || schema.Type != "object" {
-		return nil
+func Emit(name string, schema *openapi.Schema) (*dst.GenDecl, error) {
+	if schema == nil {
+		return nil, nil
 	}
 
-	ts, _ := classes.EmitTypeWithOptions(toPascalCase(name), schema, classes.EmitOptions{
+	ts, err := classes.EmitTypeWithOptions(naming.ToPascalCase(name), schema, classes.EmitOptions{
 		IncludeGormTags:         false,
 		OmitEmpty:               true,
 		UsePascalCaseFieldNames: true,
 	})
+	if err != nil {
+		return nil, err
+	}
 	ts.Decs.Start = nil
 
 	decl := &dst.GenDecl{
@@ -34,17 +37,11 @@ func Emit(name string, schema *openapi.Schema) *dst.GenDecl {
 		decl.Decs.Start = docstrings.Emit(schema.Description)
 	}
 
-	return decl
+	return decl, nil
 }
 
 // EmitType converts a schema to a Go type expression.
 // Parameter s is the OpenAPI Schema, and it returns the AST type expression.
 func EmitType(s *openapi.Schema) dst.Expr {
 	return classes.EmitTypeExpr(s)
-}
-
-// toPascalCase delegates identifier conversion to naming.ToPascalCase.
-// Parameter s is the input string, and it returns the PascalCase representation.
-func toPascalCase(s string) string {
-	return naming.ToPascalCase(s)
 }

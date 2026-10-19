@@ -16,8 +16,14 @@ func TestParseServers(t *testing.T) {
 				Values: []dst.Expr{
 					&dst.CompositeLit{
 						Elts: []dst.Expr{
+							dst.NewIdent("notComposite"),
 							&dst.CompositeLit{
 								Elts: []dst.Expr{
+									dst.NewIdent("notKV"),
+									&dst.KeyValueExpr{
+										Key:   dst.NewIdent("URL"),
+										Value: dst.NewIdent("notString"),
+									},
 									&dst.KeyValueExpr{
 										Key:   dst.NewIdent("URL"),
 										Value: &dst.BasicLit{Kind: token.STRING, Value: `"http://api"`},

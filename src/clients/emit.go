@@ -20,7 +20,7 @@ func EmitClientInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl,
 		return nil, fmt.Errorf("invalid path %q: must start with '/'", path)
 	}
 
-	interfaceName := "Client" + toCamelCase(path)
+	interfaceName := "Client" + naming.ToCamelCasePath(path)
 	iface := &dst.InterfaceType{
 		Methods: &dst.FieldList{},
 	}
@@ -91,12 +91,12 @@ func EmitClientInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl,
 			Params: &dst.FieldList{
 				List: []*dst.Field{
 					{Names: []*dst.Ident{dst.NewIdent("toolName")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("args")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("any")}},
+					{Names: []*dst.Ident{dst.NewIdent("args")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")}},
 				},
 			},
 			Results: &dst.FieldList{
 				List: []*dst.Field{
-					{Type: dst.NewIdent("any")},
+					{Type: dst.NewIdent("string")},
 					{Type: dst.NewIdent("error")},
 				},
 			},
@@ -180,10 +180,4 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 	}
 
 	return f
-}
-
-// toCamelCase delegates URL path to PascalCase conversion to naming.ToCamelCasePath.
-// Parameter s is the OpenAPI URL path, and it returns the PascalCase identifier.
-func toCamelCase(s string) string {
-	return naming.ToCamelCasePath(s)
 }

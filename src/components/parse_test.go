@@ -130,4 +130,14 @@ func TestParseComponentsNilAndEmpty(t *testing.T) {
 	if Parse(&dst.File{}) != nil {
 		t.Errorf("expected nil for empty file")
 	}
+	fileWithIgnored := &dst.File{
+		Decls: []dst.Decl{
+			&dst.FuncDecl{Name: dst.NewIdent("noop")},
+			&dst.GenDecl{Tok: token.VAR, Specs: []dst.Spec{&dst.TypeSpec{Name: dst.NewIdent("Ignored")}}},
+			&dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{&dst.ValueSpec{}}},
+		},
+	}
+	if Parse(fileWithIgnored) != nil {
+		t.Errorf("expected nil for file with only ignored decls")
+	}
 }

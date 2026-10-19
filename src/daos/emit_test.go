@@ -2,6 +2,7 @@ package daos
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
@@ -64,6 +65,19 @@ func TestEmitStubDAO(t *testing.T) {
 	if len(methods) != 5 {
 		t.Fatalf("expected 5 methods, got %d", len(methods))
 	}
+
+	var buf bytes.Buffer
+	file := &dst.File{
+		Name:  dst.NewIdent("daos"),
+		Decls: append([]dst.Decl{decl}, methods...),
+	}
+	if err := decorator.NewRestorer().Fprint(&buf, file); err != nil {
+		t.Fatalf("failed to render stub DAO: %v", err)
+	}
+	code := buf.String()
+	if !strings.Contains(code, "UserStubDAO") || !strings.Contains(code, "models.NewNotImplementedError()") {
+		t.Errorf("expected UserStubDAO and models.NewNotImplementedError() in rendered code")
+	}
 }
 
 func TestEmitConcreteDAO(t *testing.T) {
@@ -84,6 +98,21 @@ func TestEmitConcreteDAO(t *testing.T) {
 	}
 	if len(methods) != 5 {
 		t.Fatalf("expected 5 methods, got %d", len(methods))
+	}
+
+	var buf bytes.Buffer
+	file := &dst.File{
+		Name:  dst.NewIdent("daos"),
+		Decls: append([]dst.Decl{decl}, methods...),
+	}
+	if err := decorator.NewRestorer().Fprint(&buf, file); err != nil {
+		t.Fatalf("failed to render concrete DAO: %v", err)
+	}
+	code := buf.String()
+	for _, expected := range []string{"UserGormDAO", "WithContext(ctx)", ".Create(", ".First(", ".Save(", ".Delete(", ".Find("} {
+		if !strings.Contains(code, expected) {
+			t.Errorf("expected %q in rendered ConcreteDAO code", expected)
+		}
 	}
 }
 

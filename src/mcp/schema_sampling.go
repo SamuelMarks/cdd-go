@@ -1,6 +1,8 @@
 // Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
+import "encoding/json"
+
 // ModelHint provides a hint for model selection.
 type ModelHint struct {
 	// Name is the suggested model name or substring (e.g., "claude-3-5-sonnet").
@@ -36,7 +38,7 @@ type CreateMessageRequestParams struct {
 	// StopSequences lists sequences that halt token generation.
 	StopSequences []string `json:"stopSequences,omitempty"`
 	// Metadata holds provider-specific sampling metadata.
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
 }
 
 // FullCreateMessageRequest represents a full request to sample from an LLM.
@@ -63,4 +65,29 @@ type CreateMessageResult struct {
 	Model string `json:"model"`
 	// StopReason explains why generation stopped (e.g., "endTurn", "maxTokens").
 	StopReason string `json:"stopReason,omitempty"`
+}
+
+// UnmarshalJSON deserializes a CreateMessageResult and its polymorphic Content field.
+// Parameter data is the raw JSON bytes, and it returns any unmarshal error.
+func (cmr *CreateMessageResult) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Meta       *Meta           `json:"_meta,omitempty"`
+		Role       Role            `json:"role"`
+		Content    json.RawMessage `json:"content"`
+		Model      string          `json:"model"`
+		StopReason string          `json:"stopReason,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	c, err := UnmarshalContent(raw.Content)
+	if err != nil {
+		return err
+	}
+	cmr.Meta = raw.Meta
+	cmr.Role = raw.Role
+	cmr.Content = c
+	cmr.Model = raw.Model
+	cmr.StopReason = raw.StopReason
+	return nil
 }

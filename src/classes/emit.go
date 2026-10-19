@@ -78,7 +78,7 @@ func EmitTypeWithOptions(name string, schema *openapi.Schema, opts EmitOptions) 
 
 			for _, propName := range propNames {
 				propSchema := schema.Properties[propName]
-				fieldName := exportedName(propName)
+				fieldName := naming.ExportedName(propName)
 				if opts.UsePascalCaseFieldNames {
 					fieldName = naming.ToPascalCase(propName)
 				}
@@ -159,10 +159,4 @@ func EmitTypeExpr(schema *openapi.Schema) dst.Expr {
 	default:
 		return dst.NewIdent("interface{}")
 	}
-}
-
-// exportedName converts a json field name to an exported Go field name.
-// Parameter name is the JSON field name, and it returns the exported Go identifier.
-func exportedName(name string) string {
-	return naming.ExportedName(name)
 }

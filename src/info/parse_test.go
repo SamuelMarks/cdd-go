@@ -37,9 +37,15 @@ func TestParseInfo(t *testing.T) {
 								Value: &dst.BasicLit{Kind: token.STRING, Value: `"TOS"`},
 							},
 							&dst.KeyValueExpr{
+								Key:   dst.NewIdent("NonCompositeChild"),
+								Value: dst.NewIdent("someVar"),
+							},
+							&dst.KeyValueExpr{
 								Key: dst.NewIdent("Contact"),
 								Value: &dst.CompositeLit{
 									Elts: []dst.Expr{
+										dst.NewIdent("notKV"),
+										&dst.KeyValueExpr{Key: dst.NewIdent("Name"), Value: dst.NewIdent("notStr")},
 										&dst.KeyValueExpr{Key: dst.NewIdent("Name"), Value: &dst.BasicLit{Kind: token.STRING, Value: `"Name"`}},
 										&dst.KeyValueExpr{Key: dst.NewIdent("URL"), Value: &dst.BasicLit{Kind: token.STRING, Value: `"URL"`}},
 										&dst.KeyValueExpr{Key: dst.NewIdent("Email"), Value: &dst.BasicLit{Kind: token.STRING, Value: `"Email"`}},
@@ -50,6 +56,8 @@ func TestParseInfo(t *testing.T) {
 								Key: dst.NewIdent("License"),
 								Value: &dst.CompositeLit{
 									Elts: []dst.Expr{
+										dst.NewIdent("notKV"),
+										&dst.KeyValueExpr{Key: dst.NewIdent("Name"), Value: dst.NewIdent("notStr")},
 										&dst.KeyValueExpr{Key: dst.NewIdent("Name"), Value: &dst.BasicLit{Kind: token.STRING, Value: `"LName"`}},
 										&dst.KeyValueExpr{Key: dst.NewIdent("URL"), Value: &dst.BasicLit{Kind: token.STRING, Value: `"LURL"`}},
 										&dst.KeyValueExpr{Key: dst.NewIdent("Identifier"), Value: &dst.BasicLit{Kind: token.STRING, Value: `"LId"`}},

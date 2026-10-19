@@ -2,59 +2,64 @@ package mcp
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestLifecycleStructs(t *testing.T) {
-	// Test InitializeRequestParams
-	reqParams := InitializeRequestParams{ProtocolVersion: "1.0"}
-	reqParams.ClientInfo.Name = "testClient"
-	reqParams.ClientInfo.Version = "1.0.0"
-
-	// Test InitializeRequest
-	req := InitializeRequest{
-		JSONRPC: "2.0",
-		ID:      1,
-		Method:  "initialize",
-		Params:  reqParams,
-	}
-	b, _ := json.Marshal(req)
-	if !strings.Contains(string(b), `"initialize"`) {
-		t.Errorf("expected initialize method")
+func TestLifecycleStructsAndRoundTrip(t *testing.T) {
+	reqParams := InitializeRequestParams{
+		ProtocolVersion: "1.0",
+		Capabilities:    ClientCapabilities{Sampling: &struct{}{}},
+		ClientInfo:      Implementation{Name: "TestClient", Version: "0.1"},
 	}
 
-	// Test InitializeResult
-	res := InitializeResult{ProtocolVersion: "1.0", Instructions: "do things"}
-	res.ServerInfo.Name = "testServer"
-	b, _ = json.Marshal(res)
-	if !strings.Contains(string(b), `"testServer"`) {
-		t.Errorf("expected server name")
+	initReq := InitializeRequest{JSONRPC: "2.0", ID: NewIntRequestID(1), Method: "initialize", Params: reqParams}
+	b, err := json.Marshal(initReq)
+	if err != nil || !strings.Contains(string(b), `"TestClient"`) {
+		t.Fatalf("expected TestClient in json: %v", err)
 	}
-	if !strings.Contains(string(b), `"instructions":"do things"`) {
-		t.Errorf("expected instructions")
-	}
-
-	// Test InitializedNotification
-	not := InitializedNotification{JSONRPC: "2.0", Method: "initialized"}
-	b, _ = json.Marshal(not)
-	if !strings.Contains(string(b), `"initialized"`) {
-		t.Errorf("expected method")
+	var initReqOut InitializeRequest
+	if err := json.Unmarshal(b, &initReqOut); err != nil || !reflect.DeepEqual(initReq, initReqOut) {
+		t.Errorf("InitializeRequest round-trip mismatch: %+v vs %+v (%v)", initReq, initReqOut, err)
 	}
 
-	// Test PingRequest
-	ping := PingRequest{JSONRPC: "2.0", Method: "ping", ID: 1}
-	b, _ = json.Marshal(ping)
-	if !strings.Contains(string(b), `"ping"`) {
-		t.Errorf("expected ping method")
+	initRes := InitializeResult{
+		ProtocolVersion: "1.0",
+		Capabilities:    ServerCapabilities{Logging: &struct{}{}},
+		ServerInfo:      Implementation{Name: "TestServer", Version: "0.2"},
+		Instructions:    "Use wisely",
+	}
+	b, err = json.Marshal(initRes)
+	if err != nil || !strings.Contains(string(b), `"TestServer"`) {
+		t.Fatalf("expected TestServer in json: %v", err)
+	}
+	var initResOut InitializeResult
+	if err := json.Unmarshal(b, &initResOut); err != nil || !reflect.DeepEqual(initRes, initResOut) {
+		t.Errorf("InitializeResult round-trip mismatch: %+v vs %+v (%v)", initRes, initResOut, err)
 	}
 
-	// Test CancelledNotification
+	initNot := InitializedNotification{JSONRPC: "2.0", Method: "notifications/initialized"}
+	b, err = json.Marshal(initNot)
+	if err != nil || !strings.Contains(string(b), `"notifications/initialized"`) {
+		t.Fatalf("expected notifications/initialized: %v", err)
+	}
+
+	ping := PingRequest{JSONRPC: "2.0", ID: NewIntRequestID(2), Method: "ping"}
+	b, err = json.Marshal(ping)
+	if err != nil || !strings.Contains(string(b), `"ping"`) {
+		t.Fatalf("expected ping: %v", err)
+	}
+
 	cancel := CancelledNotification{JSONRPC: "2.0", Method: "$/cancelRequest"}
-	cancel.Params.RequestID = 1
+	cancel.Params.RequestID = NewIntRequestID(1)
 	cancel.Params.Reason = "user cancelled"
-	b, _ = json.Marshal(cancel)
-	if !strings.Contains(string(b), `"requestId":1`) {
-		t.Errorf("expected request id")
+	b, err = json.Marshal(cancel)
+	if err != nil || !strings.Contains(string(b), `"requestId":1`) {
+		t.Fatalf("expected request id: %v, %s", err, string(b))
+	}
+	var cancelOut CancelledNotification
+	if err := json.Unmarshal(b, &cancelOut); err != nil || !reflect.DeepEqual(cancel, cancelOut) {
+		t.Errorf("CancelledNotification round-trip mismatch: %+v vs %+v (%v)", cancel, cancelOut, err)
 	}
 }

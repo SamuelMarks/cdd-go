@@ -1,6 +1,8 @@
 // Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
+import "encoding/json"
+
 // PromptArgument describes an argument for a prompt.
 type PromptArgument struct {
 	// Name is the argument identifier.
@@ -27,6 +29,25 @@ type PromptMessage struct {
 	Role Role `json:"role"`
 	// Content holds the message content block.
 	Content Content `json:"content"`
+}
+
+// UnmarshalJSON deserializes a PromptMessage and its polymorphic Content field.
+// Parameter data is the raw JSON bytes, and it returns any unmarshal error.
+func (pm *PromptMessage) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Role    Role            `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	c, err := UnmarshalContent(raw.Content)
+	if err != nil {
+		return err
+	}
+	pm.Role = raw.Role
+	pm.Content = c
+	return nil
 }
 
 // PromptReference refers to a prompt.

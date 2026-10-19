@@ -49,4 +49,31 @@ func TestParseWebhookEmptyDecl(t *testing.T) {
 	if name != "" || wh != nil {
 		t.Errorf("expected nil")
 	}
+
+	decl.Specs = []dst.Spec{
+		&dst.ValueSpec{
+			Names: []*dst.Ident{dst.NewIdent("WebhookEmptyContent")},
+			Values: []dst.Expr{
+				&dst.CompositeLit{
+					Elts: []dst.Expr{
+						dst.NewIdent("notKV"),
+						&dst.KeyValueExpr{Key: &dst.BasicLit{Kind: token.STRING, Value: `"newPet"`}, Value: dst.NewIdent("notCl")},
+						&dst.KeyValueExpr{
+							Key: &dst.BasicLit{Kind: token.STRING, Value: `"newOrder"`},
+							Value: &dst.CompositeLit{
+								Elts: []dst.Expr{
+									dst.NewIdent("notKV"),
+									&dst.KeyValueExpr{Key: dst.NewIdent("Summary"), Value: dst.NewIdent("notStr")},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	name, wh = Parse(decl)
+	if name != "" || wh != nil {
+		t.Errorf("expected nil for empty webhook content")
+	}
 }

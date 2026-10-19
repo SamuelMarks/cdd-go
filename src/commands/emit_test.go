@@ -78,24 +78,6 @@ func TestEmitCommandNil(t *testing.T) {
 	}
 }
 
-func TestToPascalCaseEmpty(t *testing.T) {
-	if toPascalCase("") != "" {
-		t.Errorf("expected empty")
-	}
-	if toPascalCase("Test") != "Test" {
-		t.Errorf("expected Test")
-	}
-}
-
-func TestToSnakeCaseEmpty(t *testing.T) {
-	if toSnakeCase("") != "" {
-		t.Errorf("expected empty")
-	}
-	if toSnakeCase("CamelCase") != "camel_case" {
-		t.Errorf("expected camel_case, got %s", toSnakeCase("CamelCase"))
-	}
-}
-
 func TestEmitMcpCmd(t *testing.T) {
 	decl := EmitMcpCmd()
 	if decl == nil {
@@ -129,13 +111,13 @@ func TestEmitMcpCmd(t *testing.T) {
 	if !strings.Contains(out, `Use: "mcp"`) {
 		t.Errorf("missing use")
 	}
-	if !strings.Contains(out, `_ = os.Stdin`) {
-		t.Errorf("missing os.Stdin")
+	if !strings.Contains(out, `cmd.SetIn(os.Stdin)`) {
+		t.Errorf("missing cmd.SetIn(os.Stdin), got %s", out)
 	}
-	if !strings.Contains(out, `_ = os.Stdout`) {
-		t.Errorf("missing os.Stdout")
+	if !strings.Contains(out, `cmd.SetOut(os.Stdout)`) {
+		t.Errorf("missing cmd.SetOut(os.Stdout), got %s", out)
 	}
-	if !strings.Contains(out, `print("MCP server started on stdio\n")`) {
-		t.Errorf("missing print statement")
+	if !strings.Contains(out, `cmd.Println("MCP server started on stdio")`) {
+		t.Errorf("missing cmd.Println statement, got %s", out)
 	}
 }

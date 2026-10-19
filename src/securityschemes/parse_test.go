@@ -142,6 +142,10 @@ func TestParseSecuritySchemeBadFormats(t *testing.T) {
 								Key:   dst.NewIdent("Type"),
 								Value: dst.NewIdent("bad_val"), // not a basic lit
 							},
+							&dst.KeyValueExpr{
+								Key:   dst.NewIdent("UnknownField"),
+								Value: &dst.BasicLit{Kind: token.STRING, Value: `"ignored"`},
+							},
 						},
 					},
 				},

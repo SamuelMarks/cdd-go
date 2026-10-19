@@ -3,59 +3,51 @@ package links
 
 import (
 	"go/token"
-	"strconv"
-	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/astutil"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // Parse extracts an OpenAPI Link object from a struct representation.
+// Parameter decl is the generic AST declaration, and it returns the link name and parsed Link object.
 func Parse(decl *dst.GenDecl) (string, *openapi.Link) {
 	if decl == nil || decl.Tok != token.VAR {
 		return "", nil
 	}
+	rawName, cl := astutil.FindValueCompositeLit(decl, "", "Link")
+	if cl == nil {
+		return "", nil
+	}
 
-	for _, spec := range decl.Specs {
-		if vs, ok := spec.(*dst.ValueSpec); ok {
-			if len(vs.Names) > 0 && strings.HasPrefix(vs.Names[0].Name, "Link") && len(vs.Values) > 0 {
-				if cl, ok := vs.Values[0].(*dst.CompositeLit); ok {
-					name := strings.TrimPrefix(vs.Names[0].Name, "Link")
-					if name != "" {
-						name = strings.ToLower(name[:1]) + name[1:]
-					}
+	name := astutil.LowerCamelTrimPrefix(rawName, "Link")
+	link := &openapi.Link{}
+	hasContent := false
 
-					link := &openapi.Link{}
-					hasContent := false
-
-					for _, elt := range cl.Elts {
-						if kv, ok := elt.(*dst.KeyValueExpr); ok {
-							if keyIdent, ok := kv.Key.(*dst.Ident); ok {
-								if valLit, ok := kv.Value.(*dst.BasicLit); ok && valLit.Kind == token.STRING {
-									val, _ := strconv.Unquote(valLit.Value)
-									switch keyIdent.Name {
-									case "OperationRef":
-										link.OperationRef = val
-										hasContent = true
-									case "OperationID":
-										link.OperationID = val
-										hasContent = true
-									case "Description":
-										link.Description = val
-										hasContent = true
-									}
-								}
-							}
-						}
-					}
-
-					if hasContent {
-						return name, link
-					}
-				}
-			}
+	for _, elt := range cl.Elts {
+		key, valExpr, ok := astutil.IdentKeyValue(elt)
+		if !ok {
+			continue
+		}
+		val, isStr := astutil.StringLit(valExpr)
+		if !isStr {
+			continue
+		}
+		switch key {
+		case "OperationRef":
+			link.OperationRef = val
+			hasContent = true
+		case "OperationID":
+			link.OperationID = val
+			hasContent = true
+		case "Description":
+			link.Description = val
+			hasContent = true
 		}
 	}
 
-	return "", nil
+	if !hasContent {
+		return "", nil
+	}
+	return name, link
 }

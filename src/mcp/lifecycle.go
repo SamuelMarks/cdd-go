@@ -1,6 +1,8 @@
 // Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
+import "encoding/json"
+
 // InitializeRequest represents the request for the initialize handshake.
 type InitializeRequest struct {
 	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
@@ -18,14 +20,9 @@ type InitializeRequestParams struct {
 	// ProtocolVersion is the MCP protocol version requested by the client.
 	ProtocolVersion string `json:"protocolVersion"`
 	// Capabilities describes the client capabilities.
-	Capabilities any `json:"capabilities"`
+	Capabilities ClientCapabilities `json:"capabilities"`
 	// ClientInfo identifies the client application name and version.
-	ClientInfo struct {
-		// Name is the client name.
-		Name string `json:"name"`
-		// Version is the client version.
-		Version string `json:"version"`
-	} `json:"clientInfo"`
+	ClientInfo Implementation `json:"clientInfo"`
 }
 
 // InitializeResult represents the result of the initialize handshake.
@@ -35,14 +32,9 @@ type InitializeResult struct {
 	// ProtocolVersion is the MCP protocol version negotiated by the server.
 	ProtocolVersion string `json:"protocolVersion"`
 	// Capabilities describes the server capabilities.
-	Capabilities any `json:"capabilities"`
+	Capabilities ServerCapabilities `json:"capabilities"`
 	// ServerInfo identifies the server application name and version.
-	ServerInfo struct {
-		// Name is the server name.
-		Name string `json:"name"`
-		// Version is the server version.
-		Version string `json:"version"`
-	} `json:"serverInfo"`
+	ServerInfo Implementation `json:"serverInfo"`
 	// Instructions provides optional usage instructions for the client.
 	Instructions string `json:"instructions,omitempty"`
 }
@@ -53,8 +45,8 @@ type InitializedNotification struct {
 	JSONRPC string `json:"jsonrpc"`
 	// Method is "notifications/initialized".
 	Method string `json:"method"`
-	// Params holds optional notification parameters.
-	Params any `json:"params,omitempty"`
+	// Params holds optional raw JSON notification parameters.
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // PingRequest represents a liveness check.
@@ -65,8 +57,8 @@ type PingRequest struct {
 	ID RequestID `json:"id"`
 	// Method is "ping".
 	Method string `json:"method"`
-	// Params holds optional ping parameters.
-	Params any `json:"params,omitempty"`
+	// Params holds optional raw JSON ping parameters.
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // CancelledNotification represents a request cancellation.

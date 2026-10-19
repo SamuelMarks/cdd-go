@@ -20,7 +20,7 @@ func EmitHandlerInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl
 		return nil, fmt.Errorf("invalid path %q: must start with '/'", path)
 	}
 
-	interfaceName := "Handler" + toCamelCase(path)
+	interfaceName := "Handler" + naming.ToCamelCasePath(path)
 	iface := &dst.InterfaceType{
 		Methods: &dst.FieldList{},
 	}
@@ -215,7 +215,7 @@ func EmitHandlerStruct(path string, pathItem *openapi.PathItem) ([]dst.Decl, err
 		return nil, fmt.Errorf("invalid path %q: must start with '/'", path)
 	}
 
-	camelName := toCamelCase(path)
+	camelName := naming.ToCamelCasePath(path)
 	interfaceName := "Handler" + camelName
 	structName := "handler" + camelName
 
@@ -354,10 +354,4 @@ func EmitHandlerStruct(path string, pathItem *openapi.PathItem) ([]dst.Decl, err
 	decls = append(decls, registerFunc)
 
 	return decls, nil
-}
-
-// toCamelCase delegates URL path to PascalCase conversion to naming.ToCamelCasePath.
-// Parameter s is the OpenAPI URL path, and it returns the PascalCase identifier.
-func toCamelCase(s string) string {
-	return naming.ToCamelCasePath(s)
 }

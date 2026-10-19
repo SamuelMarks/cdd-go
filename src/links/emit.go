@@ -46,16 +46,10 @@ func Emit(name string, link *openapi.Link) *dst.GenDecl {
 		Tok: token.VAR,
 		Specs: []dst.Spec{
 			&dst.ValueSpec{
-				Names:  []*dst.Ident{dst.NewIdent("Link" + toPascalCase(name))},
+				Names:  []*dst.Ident{dst.NewIdent("Link" + naming.ToPascalCase(name))},
 				Values: []dst.Expr{cl},
 			},
 		},
 	}
 	return decl
-}
-
-// toPascalCase converts an identifier string to PascalCase.
-// Parameter s is the input string, and it returns the PascalCase representation.
-func toPascalCase(s string) string {
-	return naming.ToPascalCase(s)
 }

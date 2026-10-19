@@ -51,4 +51,22 @@ func TestParseLinkEmptyDecl(t *testing.T) {
 	if name != "" || link != nil {
 		t.Errorf("expected nil")
 	}
+
+	decl.Specs = []dst.Spec{
+		&dst.ValueSpec{
+			Names: []*dst.Ident{dst.NewIdent("LinkEmptyContent")},
+			Values: []dst.Expr{
+				&dst.CompositeLit{
+					Elts: []dst.Expr{
+						dst.NewIdent("notKV"),
+						&dst.KeyValueExpr{Key: dst.NewIdent("OperationID"), Value: dst.NewIdent("notStr")},
+					},
+				},
+			},
+		},
+	}
+	name, link = Parse(decl)
+	if name != "" || link != nil {
+		t.Errorf("expected nil for empty link content")
+	}
 }

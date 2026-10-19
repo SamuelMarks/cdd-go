@@ -68,15 +68,3 @@ func TestEmitSecuritySchemeNil(t *testing.T) {
 		t.Errorf("expected nil")
 	}
 }
-
-func TestToPascalCaseEmpty(t *testing.T) {
-	if toPascalCase("") != "" {
-		t.Errorf("expected empty")
-	}
-	if toPascalCase("Test") != "Test" {
-		t.Errorf("expected Test")
-	}
-	if toPascalCase("test") != "Test" {
-		t.Errorf("expected Test from test")
-	}
-}

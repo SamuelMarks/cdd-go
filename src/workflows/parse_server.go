@@ -102,6 +102,16 @@ func parseWorkflowRouteStmt(stmt dst.Stmt) (arazzo.Workflow, bool) {
 			wf.WorkflowID = strings.TrimSpace(strings.TrimPrefix(line, "WorkflowID:"))
 		}
 	}
+	if wf.WorkflowID == "" {
+		if call, ok := es.X.(*dst.CallExpr); ok && len(call.Args) > 0 {
+			if lit, ok := call.Args[0].(*dst.BasicLit); ok {
+				rawPath := strings.Trim(lit.Value, `"`)
+				if strings.HasPrefix(rawPath, "/workflows/") {
+					wf.WorkflowID = strings.TrimPrefix(rawPath, "/workflows/")
+				}
+			}
+		}
+	}
 	if wf.WorkflowID != "" {
 		wf.Steps = []arazzo.Step{{StepID: "routeStep", OperationID: wf.WorkflowID}}
 		return wf, true

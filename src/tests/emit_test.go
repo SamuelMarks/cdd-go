@@ -1,12 +1,32 @@
 package tests
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
 )
+
+// renderFuncDecl renders a dst.FuncDecl into Go source code for behavioral assertions.
+func renderFuncDecl(t *testing.T, fd *dst.FuncDecl) string {
+	t.Helper()
+	if fd == nil {
+		t.Fatal("expected non-nil FuncDecl")
+	}
+	f := &dst.File{
+		Name:  dst.NewIdent("tests"),
+		Decls: []dst.Decl{fd},
+	}
+	var buf bytes.Buffer
+	if err := decorator.NewRestorer().Fprint(&buf, f); err != nil {
+		t.Fatalf("failed to render FuncDecl: %v", err)
+	}
+	return buf.String()
+}
 
 func TestEmitTestNil(t *testing.T) {
 	_, err := EmitTest("/test", "get", nil)
@@ -26,6 +46,10 @@ func TestEmitTestNoOpID(t *testing.T) {
 	if fd.Name.Name != "TestGetTestPath" {
 		t.Errorf("expected TestGetTestPath, got %s", fd.Name.Name)
 	}
+	code := renderFuncDecl(t, fd)
+	if !strings.Contains(code, `http.NewRequest("GET", baseURL+"/test/path", nil)`) {
+		t.Errorf("expected GET request to /test/path, got: %s", code)
+	}
 }
 
 func TestEmitTestWithBodyAndPathParams(t *testing.T) {
@@ -36,9 +60,16 @@ func TestEmitTestWithBodyAndPathParams(t *testing.T) {
 			{Name: "body", In: "body", Schema: &openapi.Schema{Type: "array"}},
 		},
 	}
-	_, err := EmitTest("/test/{id}", "post", op)
+	fd, err := EmitTest("/test/{id}", "post", op)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	code := renderFuncDecl(t, fd)
+	if !strings.Contains(code, `http.NewRequest("POST", baseURL+"/test/1"`) {
+		t.Errorf("expected interpolated path /test/1, got: %s", code)
+	}
+	if !strings.Contains(code, `\"id\":1`) {
+		t.Errorf("expected synthesized JSON array body, got: %s", code)
 	}
 }
 
@@ -53,18 +84,13 @@ func TestEmitTestRequestBodyArray(t *testing.T) {
 			},
 		},
 	}
-	_, err := EmitTest("/test2", "post", op)
+	fd, err := EmitTest("/test2", "post", op)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-}
-
-func TestToCamelCase(t *testing.T) {
-	if toCamelCase("/") != "Root" {
-		t.Errorf("expected Root")
-	}
-	if toCamelCase("/test/{id}") != "TestId" {
-		t.Errorf("expected TestId")
+	code := renderFuncDecl(t, fd)
+	if !strings.Contains(code, `req.Header.Set("Content-Type", "application/json")`) {
+		t.Errorf("expected Content-Type header, got: %s", code)
 	}
 }
 
@@ -75,9 +101,13 @@ func TestEmitTestBodyParamGet(t *testing.T) {
 			{Name: "body", In: "body"},
 		},
 	}
-	_, err := EmitTest("/test", "get", op)
+	fd, err := EmitTest("/test", "get", op)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	code := renderFuncDecl(t, fd)
+	if !strings.Contains(code, `strings.NewReader`) {
+		t.Errorf("expected body reader in GET with body param, got: %s", code)
 	}
 }
 
@@ -85,9 +115,13 @@ func TestEmitTestFindByStatusGet(t *testing.T) {
 	op := &openapi.Operation{
 		OperationID: "findByStatus",
 	}
-	_, err := EmitTest("/items/findByStatus", "get", op)
+	fd, err := EmitTest("/items/findByStatus", "get", op)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	code := renderFuncDecl(t, fd)
+	if !strings.Contains(code, "func TestFindByStatus(t *testing.T)") {
+		t.Errorf("expected TestFindByStatus function, got: %s", code)
 	}
 }
 
@@ -167,8 +201,13 @@ func TestEmitTestCoverageExtras(t *testing.T) {
 			{Name: "id3", In: "path", Type: "string"},
 		},
 	}
-	if fd, err := EmitTest("/user/{username}/{userId}/{id2}/{id3}", "get", op1); err != nil || fd == nil {
-		t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
+	fd1, err := EmitTest("/user/{username}/{userId}/{id2}/{id3}", "get", op1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	code1 := renderFuncDecl(t, fd1)
+	if !strings.Contains(code1, `/user/dummy/1/dummy/dummy`) {
+		t.Errorf("expected interpolated path parameters, got: %s", code1)
 	}
 
 	op2 := &openapi.Operation{
@@ -178,8 +217,13 @@ func TestEmitTestCoverageExtras(t *testing.T) {
 			{Name: "limit", In: "query", Required: true, Type: "integer"},
 		},
 	}
-	if fd, err := EmitTest("/test", "get", op2); err != nil || fd == nil {
-		t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
+	fd2, err := EmitTest("/test", "get", op2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	code2 := renderFuncDecl(t, fd2)
+	if !strings.Contains(code2, `/test?status=dummy&limit=1`) {
+		t.Errorf("expected query parameters in URL, got: %s", code2)
 	}
 
 	for _, isArray := range []bool{true, false} {
@@ -193,9 +237,11 @@ func TestEmitTestCoverageExtras(t *testing.T) {
 				{Name: "body", In: "body", Schema: &openapi.Schema{Type: schemaType}},
 			},
 		}
-		if fd, err := EmitTest("/resource", "post", op); err != nil || fd == nil {
-			t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
+		fd, err := EmitTest("/resource", "post", op)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
+		_ = renderFuncDecl(t, fd)
 	}
 
 	contentTypes := []string{"application/x-www-form-urlencoded", "multipart/form-data", "text/plain"}
@@ -207,8 +253,13 @@ func TestEmitTestCoverageExtras(t *testing.T) {
 				{Name: "body", In: "body", Schema: &openapi.Schema{Type: "object"}},
 			},
 		}
-		if fd, err := EmitTest("/test", "post", op); err != nil || fd == nil {
-			t.Errorf("expected non-nil FuncDecl and nil err for %s, got %v, %v", cType, fd, err)
+		fd, err := EmitTest("/test", "post", op)
+		if err != nil {
+			t.Fatalf("unexpected error for %s: %v", cType, err)
+		}
+		code := renderFuncDecl(t, fd)
+		if !strings.Contains(code, cType) {
+			t.Errorf("expected Content-Type %s in generated code: %s", cType, code)
 		}
 	}
 }
@@ -221,7 +272,12 @@ func TestEmitTestCoverageExtrasBreakLoop(t *testing.T) {
 			{Name: "body", In: "body"},
 		},
 	}
-	if fd, err := EmitTest("/test", "post", op); err != nil || fd == nil {
-		t.Errorf("expected non-nil FuncDecl and nil err, got %v, %v", fd, err)
+	fd, err := EmitTest("/test", "post", op)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	code := renderFuncDecl(t, fd)
+	if !strings.Contains(code, `"application/json"`) {
+		t.Errorf("expected application/json Content-Type, got: %s", code)
 	}
 }

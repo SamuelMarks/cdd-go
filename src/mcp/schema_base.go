@@ -30,8 +30,8 @@ type BlobResourceContents struct {
 	Blob string `json:"blob"`
 }
 
-// IsResourceContents marks BlobResourceContents as a valid ResourceContents implementation.
-func (BlobResourceContents) IsResourceContents() {}
+// IsResourceContents returns the resource contents kind ("blob").
+func (BlobResourceContents) IsResourceContents() string { return "blob" }
 
 // TextResourceContents represents text resource contents.
 type TextResourceContents struct {
@@ -43,13 +43,13 @@ type TextResourceContents struct {
 	Text string `json:"text"`
 }
 
-// IsResourceContents marks TextResourceContents as a valid ResourceContents implementation.
-func (TextResourceContents) IsResourceContents() {}
+// IsResourceContents returns the resource contents kind ("text").
+func (TextResourceContents) IsResourceContents() string { return "text" }
 
 // ResourceContents can be either BlobResourceContents or TextResourceContents.
 type ResourceContents interface {
-	// IsResourceContents is a sealed marker method for ResourceContents implementations.
-	IsResourceContents()
+	// IsResourceContents returns the sealed resource contents kind ("blob" or "text").
+	IsResourceContents() string
 }
 
 // UnmarshalResourceContents unmarshals raw JSON into a concrete TextResourceContents or BlobResourceContents.
@@ -85,8 +85,27 @@ type EmbeddedResource struct {
 	Resource ResourceContents `json:"resource"`
 }
 
-// IsContent marks EmbeddedResource as a valid Content implementation.
-func (EmbeddedResource) IsContent() {}
+// IsContent returns the content block type ("resource").
+func (EmbeddedResource) IsContent() string { return "resource" }
+
+// UnmarshalJSON deserializes an EmbeddedResource and its polymorphic ResourceContents field.
+// Parameter data is the raw JSON bytes, and it returns any unmarshal error.
+func (er *EmbeddedResource) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Annotated
+		Type     string          `json:"type"`
+		Resource json.RawMessage `json:"resource"`
+	}
+	_ = json.Unmarshal(data, &raw)
+	rc, err := UnmarshalResourceContents(raw.Resource)
+	if err != nil {
+		return err
+	}
+	er.Annotated = raw.Annotated
+	er.Type = raw.Type
+	er.Resource = rc
+	return nil
+}
 
 // TextContent represents text content within a message.
 type TextContent struct {
@@ -97,8 +116,8 @@ type TextContent struct {
 	Text string `json:"text"`
 }
 
-// IsContent marks TextContent as a valid Content implementation.
-func (TextContent) IsContent() {}
+// IsContent returns the content block type ("text").
+func (TextContent) IsContent() string { return "text" }
 
 // ImageContent represents image content within a message.
 type ImageContent struct {
@@ -111,21 +130,20 @@ type ImageContent struct {
 	MimeType string `json:"mimeType"`
 }
 
-// IsContent marks ImageContent as a valid Content implementation.
-func (ImageContent) IsContent() {}
+// IsContent returns the content block type ("image").
+func (ImageContent) IsContent() string { return "image" }
 
 // Content can be TextContent, ImageContent, or EmbeddedResource.
 type Content interface {
-	// IsContent is a sealed marker method for Content implementations.
-	IsContent()
+	// IsContent returns the sealed content block type ("text", "image", or "resource").
+	IsContent() string
 }
 
 // UnmarshalContent unmarshals raw JSON into a concrete TextContent, ImageContent, or EmbeddedResource.
 // Parameter data is the raw JSON payload, and it returns the decoded Content and error.
 func UnmarshalContent(data []byte) (Content, error) {
 	var header struct {
-		Type     string          `json:"type"`
-		Resource json.RawMessage `json:"resource"`
+		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(data, &header); err != nil {
 		return nil, err
@@ -144,23 +162,11 @@ func UnmarshalContent(data []byte) (Content, error) {
 		}
 		return ic, nil
 	case "resource":
-		var er struct {
-			Annotated
-			Type     string          `json:"type"`
-			Resource json.RawMessage `json:"resource"`
-		}
+		var er EmbeddedResource
 		if err := json.Unmarshal(data, &er); err != nil {
 			return nil, err
 		}
-		rc, err := UnmarshalResourceContents(er.Resource)
-		if err != nil {
-			return nil, err
-		}
-		return EmbeddedResource{
-			Annotated: er.Annotated,
-			Type:      er.Type,
-			Resource:  rc,
-		}, nil
+		return er, nil
 	default:
 		return nil, fmt.Errorf("unsupported content type: %q", header.Type)
 	}

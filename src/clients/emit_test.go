@@ -100,8 +100,8 @@ func TestEmitClientInterface(t *testing.T) {
 	if !strings.Contains(out, "GetResources() ([]string, error)") {
 		t.Errorf("expected GetResources method for MCP integration")
 	}
-	if !strings.Contains(out, "ExecuteTool(toolName string, args map[string]any) (any, error)") {
-		t.Errorf("expected ExecuteTool method for MCP integration")
+	if !strings.Contains(out, "ExecuteTool(toolName string, args map[string]string) (string, error)") {
+		t.Errorf("expected ExecuteTool method for MCP integration, got %s", out)
 	}
 }
 
@@ -113,18 +113,6 @@ func TestEmitClientInterfaceNil(t *testing.T) {
 	_, err = EmitClientInterface("invalid-path", &openapi.PathItem{})
 	if err == nil {
 		t.Errorf("expected error for path without leading slash")
-	}
-}
-
-func TestToCamelCase(t *testing.T) {
-	if toCamelCase("/") != "Root" {
-		t.Errorf("expected Root")
-	}
-	if toCamelCase("/users") != "Users" {
-		t.Errorf("expected Users")
-	}
-	if toCamelCase("/users/{id}") != "UsersId" {
-		t.Errorf("expected UsersId")
 	}
 }
 

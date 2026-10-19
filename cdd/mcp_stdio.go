@@ -10,29 +10,11 @@ import (
 	"github.com/SamuelMarks/cdd-go/src/mcp"
 )
 
-// MCPRequest represents an incoming MCP tool call.
-type MCPRequest struct {
-	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
-	JSONRPC string `json:"jsonrpc"`
-	// Method is the MCP method name (e.g., "initialize", "tools/list", "tools/call").
-	Method string `json:"method"`
-	// ID is the unique request identifier.
-	ID mcp.RequestID `json:"id"`
-	// Params holds the raw JSON parameters.
-	Params json.RawMessage `json:"params"`
-}
+// MCPRequest is an alias for mcp.Request representing an incoming MCP tool call.
+type MCPRequest = mcp.Request
 
-// MCPResponse represents an outgoing MCP response.
-type MCPResponse struct {
-	// JSONRPC specifies the JSON-RPC protocol version ("2.0").
-	JSONRPC string `json:"jsonrpc"`
-	// ID is the response identifier matching the request.
-	ID mcp.RequestID `json:"id"`
-	// Result holds the successful execution payload.
-	Result any `json:"result,omitempty"`
-	// Error holds the JSON-RPC error object if the call failed.
-	Error *mcp.Error `json:"error,omitempty"`
-}
+// MCPResponse is an alias for mcp.Response representing an outgoing MCP response.
+type MCPResponse = mcp.Response
 
 // MCPToolParams represents the arguments passed to cdd_generate_sdk or cdd_sync_schema.
 type MCPToolParams struct {
@@ -50,10 +32,19 @@ type MCPCallToolParams struct {
 	Arguments MCPToolParams `json:"arguments"`
 }
 
+// mcpStdin is an injectable reader for ServeMCPStdio.
+var mcpStdin io.Reader = os.Stdin
+
+// mcpStdout is an injectable writer for ServeMCPStdio.
+var mcpStdout io.Writer = os.Stdout
+
+// mcpStderr is an injectable error writer for ServeMCPStdio.
+var mcpStderr io.Writer = os.Stderr
+
 // ServeMCPStdio serves the MCP tool interface via standard I/O.
 // Parameter args is the slice of CLI arguments, and it returns any execution error.
 func ServeMCPStdio(args []string) error {
-	return ServeMCP(os.Stdin, os.Stdout, os.Stderr)
+	return ServeMCP(mcpStdin, mcpStdout, mcpStderr)
 }
 
 // ServeMCP serves the MCP tool interface over the provided reader, writer, and error writer.
@@ -72,7 +63,7 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 			break
 		}
 
-		var result any
+		var resultRaw json.RawMessage
 		var errResp *mcp.Error
 
 		switch req.Method {
@@ -86,17 +77,17 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 			}
 			initRes.ServerInfo.Name = "cdd-generator-mcp"
 			initRes.ServerInfo.Version = "0.0.4"
-			result = initRes
+			resultRaw, _ = json.Marshal(initRes)
 		case "tools/list":
-			inputSchema := map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"input":  map[string]string{"type": "string"},
-					"output": map[string]string{"type": "string"},
+			inputSchema := mcp.ToolInputSchema{
+				Type: "object",
+				Properties: map[string]mcp.ToolPropertySchema{
+					"input":  {Type: "string"},
+					"output": {Type: "string"},
 				},
-				"required": []string{"input", "output"},
+				Required: []string{"input", "output"},
 			}
-			result = mcp.ListToolsResult{
+			listRes := mcp.ListToolsResult{
 				Tools: []mcp.Tool{
 					{
 						Name:        "cdd_generate_sdk",
@@ -120,6 +111,7 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 					},
 				},
 			}
+			resultRaw, _ = json.Marshal(listRes)
 		case "tools/call":
 			var params MCPCallToolParams
 			if err := json.Unmarshal(req.Params, &params); err == nil {
@@ -128,41 +120,41 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 					if err := FromOpenAPI("to_sdk", params.Arguments.Input, params.Arguments.Output, false, false, false, false); err != nil {
 						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 					} else {
-						result = mcp.CallToolResult{
+						resultRaw, _ = json.Marshal(mcp.CallToolResult{
 							Content: []mcp.Content{
 								mcp.TextContent{Type: "text", Text: "SDK successfully generated"},
 							},
-						}
+						})
 					}
 				case "cdd_sync_schema":
 					if err := ToOpenAPI(params.Arguments.Input, params.Arguments.Output); err != nil {
 						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 					} else {
-						result = mcp.CallToolResult{
+						resultRaw, _ = json.Marshal(mcp.CallToolResult{
 							Content: []mcp.Content{
 								mcp.TextContent{Type: "text", Text: "OpenAPI schema successfully extracted"},
 							},
-						}
+						})
 					}
 				case "cdd_generate_arazzo_sdk":
 					if err := FromArazzo("to_sdk", params.Arguments.Input, params.Arguments.Output, false, false, false); err != nil {
 						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 					} else {
-						result = mcp.CallToolResult{
+						resultRaw, _ = json.Marshal(mcp.CallToolResult{
 							Content: []mcp.Content{
 								mcp.TextContent{Type: "text", Text: "Arazzo SDK successfully generated"},
 							},
-						}
+						})
 					}
 				case "cdd_sync_arazzo":
 					if err := ToArazzo(params.Arguments.Input, params.Arguments.Output); err != nil {
 						errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 					} else {
-						result = mcp.CallToolResult{
+						resultRaw, _ = json.Marshal(mcp.CallToolResult{
 							Content: []mcp.Content{
 								mcp.TextContent{Type: "text", Text: "Arazzo specification successfully extracted"},
 							},
-						}
+						})
 					}
 				default:
 					errResp = mcp.MapErrorCode(mcp.ErrMethodNotFound, "")
@@ -177,7 +169,7 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 		resp := MCPResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
-			Result:  result,
+			Result:  resultRaw,
 			Error:   errResp,
 		}
 

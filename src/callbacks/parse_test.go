@@ -49,4 +49,31 @@ func TestParseCallbackEmptyDecl(t *testing.T) {
 	if name != "" || cb != nil {
 		t.Errorf("expected nil")
 	}
+
+	decl.Specs = []dst.Spec{
+		&dst.ValueSpec{
+			Names: []*dst.Ident{dst.NewIdent("CallbackEmptyContent")},
+			Values: []dst.Expr{
+				&dst.CompositeLit{
+					Elts: []dst.Expr{
+						dst.NewIdent("notKV"),
+						&dst.KeyValueExpr{Key: &dst.BasicLit{Kind: token.STRING, Value: `"http://a"`}, Value: dst.NewIdent("notCl")},
+						&dst.KeyValueExpr{
+							Key: &dst.BasicLit{Kind: token.STRING, Value: `"http://b"`},
+							Value: &dst.CompositeLit{
+								Elts: []dst.Expr{
+									dst.NewIdent("notKV"),
+									&dst.KeyValueExpr{Key: dst.NewIdent("Summary"), Value: dst.NewIdent("notStr")},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	name, cb = Parse(decl)
+	if name != "" || cb != nil {
+		t.Errorf("expected nil for empty callback content")
+	}
 }

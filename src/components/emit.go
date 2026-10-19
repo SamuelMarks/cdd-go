@@ -54,7 +54,7 @@ func Emit(comp *openapi.Components) []dst.Decl {
 					Tok: token.VAR,
 					Specs: []dst.Spec{
 						&dst.ValueSpec{
-							Names: []*dst.Ident{dst.NewIdent("Param" + toPascalCase(name))},
+							Names: []*dst.Ident{dst.NewIdent("Param" + naming.ToPascalCase(name))},
 							Type:  pDecl.Type,
 						},
 					},
@@ -81,7 +81,7 @@ func Emit(comp *openapi.Components) []dst.Decl {
 					Tok: token.VAR,
 					Specs: []dst.Spec{
 						&dst.ValueSpec{
-							Names: []*dst.Ident{dst.NewIdent("Header" + toPascalCase(name))},
+							Names: []*dst.Ident{dst.NewIdent("Header" + naming.ToPascalCase(name))},
 							Type:  hDecl.Type,
 						},
 					},
@@ -108,7 +108,7 @@ func Emit(comp *openapi.Components) []dst.Decl {
 					Tok: token.TYPE,
 					Specs: []dst.Spec{
 						&dst.TypeSpec{
-							Name: dst.NewIdent("RequestBody" + toPascalCase(name)),
+							Name: dst.NewIdent("RequestBody" + naming.ToPascalCase(name)),
 							Type: rbDecl.Type,
 						},
 					},
@@ -148,7 +148,7 @@ func Emit(comp *openapi.Components) []dst.Decl {
 					Tok: token.TYPE,
 					Specs: []dst.Spec{
 						&dst.TypeSpec{
-							Name: dst.NewIdent("Response" + toPascalCase(name)),
+							Name: dst.NewIdent("Response" + naming.ToPascalCase(name)),
 							Type: rType,
 						},
 					},
@@ -167,17 +167,11 @@ func Emit(comp *openapi.Components) []dst.Decl {
 		sort.Strings(keys)
 		for _, name := range keys {
 			schema := comp.Schemas[name]
-			if decl := schemas.Emit(name, &schema); decl != nil {
+			if decl, err := schemas.Emit(name, &schema); err == nil && decl != nil {
 				decls = append(decls, decl)
 			}
 		}
 	}
 
 	return decls
-}
-
-// toPascalCase converts an identifier string to PascalCase.
-// Parameter s is the input string, and it returns the PascalCase representation.
-func toPascalCase(s string) string {
-	return naming.ToPascalCase(s)
 }

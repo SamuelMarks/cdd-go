@@ -85,6 +85,22 @@ var F int
 	if cov != 60.0 {
 		t.Errorf("expected 60.0%% coverage, got %f", cov)
 	}
+
+	// Hit InterfaceType methods: File doc (1/1) + Type Iface (1/1) + Method DocM (1/1) + Method UndocM (0/1) + embedded A = 3/4 -> Total 9/14
+	os.WriteFile(filepath.Join(dir, "d.go"), []byte(`// Package a
+package a
+// Iface doc
+type Iface interface {
+	// DocM doc
+	DocM()
+	UndocM()
+	A
+}
+`), 0644)
+	_, err = calculateCoverage(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestMainCoverage(t *testing.T) {

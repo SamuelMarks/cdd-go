@@ -129,10 +129,10 @@ func TestFromArazzoAndToArazzo(t *testing.T) {
 	}
 
 	// Test ExecuteGeneratorRouter for Arazzo tools
-	if msg, err := ExecuteGeneratorRouter("cdd_generate_arazzo_sdk", map[string]any{"input": arazzoSpecPath, "output": filepath.Join(tmpDir, "router_sdk")}); err != nil || !strings.Contains(msg, "Arazzo") {
+	if msg, err := ExecuteGeneratorRouter("cdd_generate_arazzo_sdk", MCPToolParams{Input: arazzoSpecPath, Output: filepath.Join(tmpDir, "router_sdk")}); err != nil || !strings.Contains(msg, "Arazzo") {
 		t.Errorf("unexpected ExecuteGeneratorRouter result: %q, %v", msg, err)
 	}
-	if msg, err := ExecuteGeneratorRouter("cdd_sync_arazzo", map[string]any{"input": sdkDir, "output": filepath.Join(tmpDir, "router_arazzo.json")}); err != nil || !strings.Contains(msg, "Arazzo") {
+	if msg, err := ExecuteGeneratorRouter("cdd_sync_arazzo", MCPToolParams{Input: sdkDir, Output: filepath.Join(tmpDir, "router_arazzo.json")}); err != nil || !strings.Contains(msg, "Arazzo") {
 		t.Errorf("unexpected ExecuteGeneratorRouter result: %q, %v", msg, err)
 	}
 

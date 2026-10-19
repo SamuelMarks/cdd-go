@@ -47,10 +47,13 @@ type DocsCode struct {
 	Snippet string `json:"snippet"`
 }
 
-// ToDocsJSON generates JSON documentation with code snippets for an OpenAPI specification and writes it to out or os.Stdout.
+// docsDefaultStdout is an injectable writer for ToDocsJSON when out is empty.
+var docsDefaultStdout io.Writer = os.Stdout
+
+// ToDocsJSON generates JSON documentation with code snippets for an OpenAPI specification and writes it to out or docsDefaultStdout.
 // Parameter in is the input OpenAPI file path, out is the optional output file path, noImports omits imports, and noWrapping omits main() wrapping.
 func ToDocsJSON(in string, out string, noImports bool, noWrapping bool) error {
-	var outTarget io.Writer = os.Stdout
+	var outTarget io.Writer = docsDefaultStdout
 	if out != "" {
 		fileTarget, err := os.Create(out)
 		if err != nil {
@@ -153,10 +156,12 @@ func ToDocsJSONWriter(in string, w io.Writer, noImports bool, noWrapping bool) e
 			if opID == "" {
 				opID = "request"
 			}
+			clientIface := "Client" + naming.ToCamelCasePath(path)
+			methodName := naming.ToPascalCase(opID)
 
 			var imports *string
 			if !noImports {
-				i := "import (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n\t\"github.com/your/client\"\n)"
+				i := "import (\n\t\"context\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"os\"\n\t\"generated_sdk/client\"\n)"
 				imports = &i
 			}
 
@@ -169,15 +174,7 @@ func ToDocsJSONWriter(in string, w io.Writer, noImports bool, noWrapping bool) e
 				wrapperEnd = &we
 			}
 
-			snippet := fmt.Sprintf(`client := client.NewAPIClient(client.NewConfiguration())
-resp, r, err := client.DefaultApi.%s(context.Background()).Execute()
-if err != nil {
-	fmt.Fprintf(os.Stderr, "Error: %%v
-", err)
-	os.Exit(1)
-}
-fmt.Fprintf(os.Stdout, "Response: %%v
-", resp)`, opID)
+			snippet := fmt.Sprintf("var sdk client.%s\nreq, _ := http.NewRequestWithContext(context.Background(), %q, %q, nil)\n// OperationID: %s\nresp, err := sdk.%s(req)\nif err != nil {\n\tfmt.Fprintf(os.Stderr, \"Error: %%v\\n\", err)\n\tos.Exit(1)\n}\nfmt.Fprintf(os.Stdout, \"Response: %%v\\n\", resp)", clientIface, strings.ToUpper(method), path, opID, methodName)
 
 			operations = append(operations, DocsOperation{
 				Method:      strings.ToUpper(method),

@@ -3,9 +3,11 @@ package cdd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/parser"
 	"go/token"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,6 +21,7 @@ import (
 	"github.com/SamuelMarks/cdd-go/src/externaldocs"
 	"github.com/SamuelMarks/cdd-go/src/info"
 	"github.com/SamuelMarks/cdd-go/src/links"
+	"github.com/SamuelMarks/cdd-go/src/mcp"
 	"github.com/SamuelMarks/cdd-go/src/mocks"
 	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
@@ -59,107 +62,131 @@ func GenerateSDK(config Config) error {
 	return FromOpenAPI("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests, config.Mcp)
 }
 
-// FromOpenAPI generates code from an OpenAPI specification.
-// Parameter subsubcommand selects the target ("to_sdk", "to_server", "to_sdk_cli"), in is the spec path, outDir is the destination directory, noGithubActions omits CI workflow files, noInstallablePackage omits go.mod, tests enables test generation, and mcp enables MCP bindings.
-func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests, mcp bool) error {
-	if in == "" {
-		return fmt.Errorf("input file or directory is required")
+// loadAndNormalizeOpenAPI opens and parses an OpenAPI specification file.
+// Parameter inputPath is the file path to the OpenAPI spec, and it returns the parsed OpenAPI document and error.
+func loadAndNormalizeOpenAPI(inputPath string) (*openapi.OpenAPI, error) {
+	if inputPath == "" {
+		return nil, fmt.Errorf("input file or directory is required")
 	}
-
-	f, err := os.Open(in)
+	f, err := os.Open(inputPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
 	oa, err := openapi.Parse(f)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fmt.Println("Parsed OpenAPI Version:", oa.OpenAPI)
 	fmt.Println("API Title:", oa.Info.Title)
+	return oa, nil
+}
+
+// emitSDKPackages generates the Go SDK models, client interfaces, and optional tests/mocks.
+// Parameter oa is the OpenAPI document, outDir is the destination directory, and tests enables test/mock generation.
+func emitSDKPackages(oa *openapi.OpenAPI, outDir string, tests bool) error {
+	if err := GenerateClasses(oa, outDir); err != nil {
+		return err
+	}
+	if err := GenerateClients(oa, outDir); err != nil {
+		return err
+	}
+	if tests {
+		if err := GenerateTests(oa, outDir); err != nil {
+			return err
+		}
+		if err := GenerateMocks(oa, outDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitServerPackages generates the Go Gin server, GORM database/DAOs, middlewares, IdP, and optional tests/mocks/seeder.
+// Parameter oa is the OpenAPI document, outDir is the destination directory, and tests enables test/mock/seeder generation.
+func emitServerPackages(oa *openapi.OpenAPI, outDir string, tests bool) error {
+	if err := GenerateClasses(oa, outDir); err != nil {
+		return err
+	}
+	if err := GenerateMiddlewares(outDir); err != nil {
+		return err
+	}
+	if err := GenerateIdP(outDir); err != nil {
+		return err
+	}
+	if err := GenerateDatabase(oa, outDir); err != nil {
+		return err
+	}
+	if err := GenerateDAOs(oa, outDir); err != nil {
+		return err
+	}
+	if err := GenerateRoutes(oa, outDir); err != nil {
+		return err
+	}
+	if err := GenerateServerMain(oa, outDir, true, tests, true); err != nil {
+		return err
+	}
+	if tests {
+		if err := GenerateTests(oa, outDir); err != nil {
+			return err
+		}
+		if err := GenerateMocks(oa, outDir); err != nil {
+			return err
+		}
+		if err := GenerateSeeder(oa, outDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitSDKCLIPackages generates the Go SDK, Cobra CLI commands, and optional tests/mocks.
+// Parameter oa is the OpenAPI document, outDir is the destination directory, and tests enables test/mock generation.
+func emitSDKCLIPackages(oa *openapi.OpenAPI, outDir string, tests bool) error {
+	if err := emitSDKPackages(oa, outDir, false); err != nil {
+		return err
+	}
+	if err := GenerateCLI(oa, outDir); err != nil {
+		return err
+	}
+	if tests {
+		if err := GenerateTests(oa, outDir); err != nil {
+			return err
+		}
+		if err := GenerateMocks(oa, outDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FromOpenAPI generates code from an OpenAPI specification.
+// Parameter subsubcommand selects the target ("to_sdk", "to_server", "to_sdk_cli"), in is the spec path, outDir is the destination directory, noGithubActions omits CI workflow files, noInstallablePackage omits go.mod, tests enables test generation, and mcp enables MCP bindings.
+func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests, mcp bool) error {
+	oa, err := loadAndNormalizeOpenAPI(in)
+	if err != nil {
+		return err
+	}
 
 	_ = os.MkdirAll(outDir, 0755)
-
 	if !noInstallablePackage {
 		GenerateGoMod(outDir)
 	}
-
 	if !noGithubActions {
 		GenerateGithubActions(outDir)
 	}
 
 	switch subsubcommand {
 	case "to_sdk":
-		if err := GenerateClasses(oa, outDir); err != nil {
-			return err
-		}
-		if err := GenerateClients(oa, outDir); err != nil {
-			return err
-		}
-		if tests {
-			if err := GenerateTests(oa, outDir); err != nil {
-				return err
-			}
-			if err := GenerateMocks(oa, outDir); err != nil {
-				return err
-			}
-		}
+		return emitSDKPackages(oa, outDir, tests)
 	case "to_server":
-		if err := GenerateClasses(oa, outDir); err != nil {
-			return err
-		}
-		if err := GenerateMiddlewares(outDir); err != nil {
-			return err
-		}
-		if err := GenerateIdP(outDir); err != nil {
-			return err
-		}
-		if err := GenerateDatabase(oa, outDir); err != nil {
-			return err
-		}
-		if err := GenerateDAOs(oa, outDir); err != nil {
-			return err
-		}
-		if err := GenerateRoutes(oa, outDir); err != nil {
-			return err
-		}
-		if err := GenerateServerMain(oa, outDir, true, tests, true); err != nil {
-			return err
-		}
-		if tests {
-			if err := GenerateTests(oa, outDir); err != nil {
-				return err
-			}
-			if err := GenerateMocks(oa, outDir); err != nil {
-				return err
-			}
-			if err := GenerateSeeder(oa, outDir); err != nil {
-				return err
-			}
-		}
+		return emitServerPackages(oa, outDir, tests)
 	case "to_sdk_cli":
-		if err := GenerateClasses(oa, outDir); err != nil {
-			return err
-		}
-		if err := GenerateClients(oa, outDir); err != nil {
-			return err
-		}
-		if err := GenerateCLI(oa, outDir); err != nil {
-			return err
-		}
-		if tests {
-			if err := GenerateTests(oa, outDir); err != nil {
-				return err
-			}
-			if err := GenerateMocks(oa, outDir); err != nil {
-				return err
-			}
-		}
+		return emitSDKCLIPackages(oa, outDir, tests)
 	default:
 		return fmt.Errorf("unknown subsubcommand: %s", subsubcommand)
 	}
-	return nil
 }
 
 // GenerateGoMod creates a go.mod file in the output directory if it does not already exist.
@@ -281,6 +308,165 @@ func extractPathComment(decs dst.Decorations, fallbackName string) string {
 	return "/" + strings.ToLower(fallbackName)
 }
 
+// mergeComponentsFileIntoOpenAPI merges reusable components parsed from components.go into oa.Components.
+// Parameter f is the parsed DST file, and oa is the target OpenAPI document.
+func mergeComponentsFileIntoOpenAPI(f *dst.File, oa *openapi.OpenAPI) {
+	parsedComp := components.Parse(f)
+	if parsedComp == nil {
+		return
+	}
+	if oa.Components.SecuritySchemes == nil {
+		oa.Components.SecuritySchemes = make(map[string]openapi.SecurityScheme)
+	}
+	if oa.Components.Parameters == nil {
+		oa.Components.Parameters = make(map[string]openapi.Parameter)
+	}
+	if oa.Components.Headers == nil {
+		oa.Components.Headers = make(map[string]openapi.Header)
+	}
+	if oa.Components.RequestBodies == nil {
+		oa.Components.RequestBodies = make(map[string]openapi.RequestBody)
+	}
+	if oa.Components.Responses == nil {
+		oa.Components.Responses = make(map[string]openapi.Response)
+	}
+	for k, v := range parsedComp.SecuritySchemes {
+		oa.Components.SecuritySchemes[k] = v
+	}
+	for k, v := range parsedComp.Parameters {
+		oa.Components.Parameters[k] = v
+	}
+	for k, v := range parsedComp.Headers {
+		oa.Components.Headers[k] = v
+	}
+	for k, v := range parsedComp.RequestBodies {
+		oa.Components.RequestBodies[k] = v
+	}
+	for k, v := range parsedComp.Responses {
+		oa.Components.Responses[k] = v
+	}
+}
+
+// parseTypeDeclIntoOpenAPI extracts interfaces (Client/Handler) and struct/alias schemas from a TYPE declaration into oa.
+// Parameter d is the TYPE AST declaration, and oa is the target OpenAPI document.
+func parseTypeDeclIntoOpenAPI(d *dst.GenDecl, oa *openapi.OpenAPI) {
+	for _, spec := range d.Specs {
+		if ts, ok := spec.(*dst.TypeSpec); ok {
+			if _, isIface := ts.Type.(*dst.InterfaceType); isIface {
+				allDecs := append(dst.Decorations{}, d.Decs.Start...)
+				allDecs = append(allDecs, ts.Decs.Start...)
+				if strings.HasPrefix(ts.Name.Name, "Client") {
+					if pi, err := clients.ParseClientInterface(ts); err == nil && pi != nil {
+						name := strings.TrimPrefix(ts.Name.Name, "Client")
+						path := extractPathComment(allDecs, name)
+						oa.Paths[path] = *pi
+					}
+				} else {
+					if pi, err := routes.ParseHandlerInterface(ts); err == nil && pi != nil {
+						name := strings.TrimPrefix(ts.Name.Name, "Handler")
+						path := extractPathComment(allDecs, name)
+						oa.Paths[path] = *pi
+					}
+				}
+			} else if schema, err := classes.ParseType(ts); err == nil && schema != nil {
+				oa.Components.Schemas[ts.Name.Name] = *schema
+			}
+		}
+	}
+}
+
+// parseVarOrConstDeclIntoOpenAPI extracts Info, Servers, Tags, ExternalDocs, Webhooks, Callbacks, Links, Commands, and Examples from a VAR or CONST declaration.
+// Parameter d is the VAR/CONST AST declaration, and oa is the target OpenAPI document.
+func parseVarOrConstDeclIntoOpenAPI(d *dst.GenDecl, oa *openapi.OpenAPI) {
+	if parsedInfo, err := info.Parse(d); err == nil && parsedInfo != nil {
+		oa.Info = *parsedInfo
+		return
+	}
+	if parsedServers, err := servers.Parse(d); err == nil && parsedServers != nil {
+		oa.Servers = parsedServers
+		return
+	}
+	if parsedTags, err := tags.Parse(d); err == nil && parsedTags != nil {
+		oa.Tags = parsedTags
+		return
+	}
+	if parsedExtDocs, err := externaldocs.Parse(d); err == nil && parsedExtDocs != nil {
+		oa.ExternalDocs = parsedExtDocs
+		return
+	}
+	if whName, parsedWh := webhooks.Parse(d); parsedWh != nil && whName != "" {
+		if oa.Webhooks == nil {
+			oa.Webhooks = make(map[string]openapi.PathItem)
+		}
+		for k, v := range parsedWh {
+			oa.Webhooks[k] = v
+		}
+		return
+	}
+	if cbName, parsedCb := callbacks.Parse(d); parsedCb != nil && cbName != "" {
+		if oa.Components.Callbacks == nil {
+			oa.Components.Callbacks = make(map[string]openapi.Callback)
+		}
+		oa.Components.Callbacks[cbName] = *parsedCb
+		return
+	}
+	if linkName, parsedLink := links.Parse(d); parsedLink != nil && linkName != "" {
+		if oa.Components.Links == nil {
+			oa.Components.Links = make(map[string]openapi.Link)
+		}
+		oa.Components.Links[linkName] = *parsedLink
+		return
+	}
+	if method, path, op := commands.Parse(d); op != nil && method != "" && path != "" {
+		pi := oa.Paths[path]
+		switch strings.ToLower(method) {
+		case "get":
+			pi.Get = op
+		case "post":
+			pi.Post = op
+		case "put":
+			pi.Put = op
+		case "delete":
+			pi.Delete = op
+		case "patch":
+			pi.Patch = op
+		case "options":
+			pi.Options = op
+		case "head":
+			pi.Head = op
+		case "trace":
+			pi.Trace = op
+		}
+		oa.Paths[path] = pi
+		return
+	}
+	for _, spec := range d.Specs {
+		if vs, ok := spec.(*dst.ValueSpec); ok {
+			if ex, err := mocks.ParseExample(vs); err == nil && ex != nil {
+				oa.Components.Examples[vs.Names[0].Name] = *ex
+			}
+		}
+	}
+}
+
+// parseASTFileIntoOpenAPI processes all declarations in file and merges extracted OpenAPI constructs into oa.
+// Parameter file is the parsed Go AST file, isComponentsFile indicates whether the file is components.go, and oa is the target OpenAPI document.
+func parseASTFileIntoOpenAPI(file *dst.File, isComponentsFile bool, oa *openapi.OpenAPI) {
+	if isComponentsFile {
+		mergeComponentsFileIntoOpenAPI(file, oa)
+	}
+	for _, decl := range file.Decls {
+		if d, ok := decl.(*dst.GenDecl); ok {
+			switch d.Tok {
+			case token.TYPE:
+				parseTypeDeclIntoOpenAPI(d, oa)
+			case token.VAR, token.CONST:
+				parseVarOrConstDeclIntoOpenAPI(d, oa)
+			}
+		}
+	}
+}
+
 // GenerateOpenAPI analyzes the input path (file or directory) and generates an OpenAPI JSON specification.
 // Parameter inputPath is the Go file or directory to analyze, outPath is the output OpenAPI file path, and it returns any error.
 func GenerateOpenAPI(inputPath string, outPath string) error {
@@ -322,158 +508,11 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 
 	fset := token.NewFileSet()
 	for _, fpath := range files {
-		if strings.HasSuffix(fpath, "components.go") {
-			f, err := decorator.ParseFile(fset, fpath, nil, parser.ParseComments)
-			if err == nil {
-				if parsedComp := components.Parse(f); parsedComp != nil {
-					if oa.Components.SecuritySchemes == nil {
-						oa.Components.SecuritySchemes = make(map[string]openapi.SecurityScheme)
-					}
-					if oa.Components.Parameters == nil {
-						oa.Components.Parameters = make(map[string]openapi.Parameter)
-					}
-					if oa.Components.Headers == nil {
-						oa.Components.Headers = make(map[string]openapi.Header)
-					}
-					if oa.Components.RequestBodies == nil {
-						oa.Components.RequestBodies = make(map[string]openapi.RequestBody)
-					}
-					if oa.Components.Responses == nil {
-						oa.Components.Responses = make(map[string]openapi.Response)
-					}
-					for k, v := range parsedComp.SecuritySchemes {
-						oa.Components.SecuritySchemes[k] = v
-					}
-					for k, v := range parsedComp.Parameters {
-						oa.Components.Parameters[k] = v
-					}
-					for k, v := range parsedComp.Headers {
-						oa.Components.Headers[k] = v
-					}
-					for k, v := range parsedComp.RequestBodies {
-						oa.Components.RequestBodies[k] = v
-					}
-					for k, v := range parsedComp.Responses {
-						oa.Components.Responses[k] = v
-					}
-				}
-			}
-		}
 		file, err := decorator.ParseFile(fset, fpath, nil, parser.ParseComments)
 		if err != nil {
 			return fmt.Errorf("failed to parse %s: %w", fpath, err)
 		}
-		for _, decl := range file.Decls {
-			if d, ok := decl.(*dst.GenDecl); ok {
-				if d.Tok == token.TYPE {
-					for _, spec := range d.Specs {
-						if ts, ok := spec.(*dst.TypeSpec); ok {
-							if _, isIface := ts.Type.(*dst.InterfaceType); isIface {
-								allDecs := append(dst.Decorations{}, d.Decs.Start...)
-								allDecs = append(allDecs, ts.Decs.Start...)
-								if strings.HasPrefix(ts.Name.Name, "Client") {
-									pi, err := clients.ParseClientInterface(ts)
-									if err == nil && pi != nil {
-										name := strings.TrimPrefix(ts.Name.Name, "Client")
-										path := extractPathComment(allDecs, name)
-										oa.Paths[path] = *pi
-									}
-								} else {
-									pi, err := routes.ParseHandlerInterface(ts)
-									if err == nil && pi != nil {
-										name := strings.TrimPrefix(ts.Name.Name, "Handler")
-										path := extractPathComment(allDecs, name)
-										oa.Paths[path] = *pi
-									}
-								}
-							} else {
-								schema, err := classes.ParseType(ts)
-								if err == nil && schema != nil {
-									oa.Components.Schemas[ts.Name.Name] = *schema
-								}
-							}
-						}
-					}
-				} else if d.Tok == token.VAR || d.Tok == token.CONST {
-					if parsedInfo, err := info.Parse(d); err == nil && parsedInfo != nil {
-						oa.Info = *parsedInfo
-						continue
-					}
-					if parsedServers, err := servers.Parse(d); err == nil && parsedServers != nil {
-						oa.Servers = parsedServers
-						continue
-					}
-					if parsedTags, err := tags.Parse(d); err == nil && parsedTags != nil {
-						oa.Tags = parsedTags
-						continue
-					}
-					if parsedExtDocs, err := externaldocs.Parse(d); err == nil && parsedExtDocs != nil {
-						oa.ExternalDocs = parsedExtDocs
-						continue
-					}
-					if whName, parsedWh := webhooks.Parse(d); parsedWh != nil && whName != "" {
-						if oa.Webhooks == nil {
-							oa.Webhooks = make(map[string]openapi.PathItem)
-						}
-						for k, v := range parsedWh {
-							oa.Webhooks[k] = v
-						}
-						continue
-					}
-					if cbName, parsedCb := callbacks.Parse(d); parsedCb != nil && cbName != "" {
-						if oa.Components.Callbacks == nil {
-							oa.Components.Callbacks = make(map[string]openapi.Callback)
-						}
-						oa.Components.Callbacks[cbName] = *parsedCb
-						continue
-					}
-					if linkName, parsedLink := links.Parse(d); parsedLink != nil && linkName != "" {
-						if oa.Components.Links == nil {
-							oa.Components.Links = make(map[string]openapi.Link)
-						}
-						oa.Components.Links[linkName] = *parsedLink
-						continue
-					}
-
-					method, path, op := commands.Parse(d)
-					if op != nil && method != "" && path != "" {
-						if _, ok := oa.Paths[path]; !ok {
-							oa.Paths[path] = openapi.PathItem{}
-						}
-						pi := oa.Paths[path]
-						switch strings.ToLower(method) {
-						case "get":
-							pi.Get = op
-						case "post":
-							pi.Post = op
-						case "put":
-							pi.Put = op
-						case "delete":
-							pi.Delete = op
-						case "patch":
-							pi.Patch = op
-						case "options":
-							pi.Options = op
-						case "head":
-							pi.Head = op
-						case "trace":
-							pi.Trace = op
-						}
-						oa.Paths[path] = pi
-						continue
-					}
-
-					for _, spec := range d.Specs {
-						if vs, ok := spec.(*dst.ValueSpec); ok {
-							ex, err := mocks.ParseExample(vs)
-							if err == nil && ex != nil {
-								oa.Components.Examples[vs.Names[0].Name] = *ex
-							}
-						}
-					}
-				}
-			}
-		}
+		parseASTFileIntoOpenAPI(file, strings.HasSuffix(fpath, "components.go"), oa)
 	}
 
 	_ = os.MkdirAll(filepath.Dir(outPath), 0755)
@@ -769,8 +808,45 @@ func GenerateMocks(oa *openapi.OpenAPI, outDir string) error {
 	return WriteDstFile(filepath.Join(mocksDir, "mocks.go"), file)
 }
 
-// ServeJSONRPC exposes the CLI interface as a JSON-RPC server.
-// Parameter port is the TCP port number, listen is the bind address, and it returns any error.
+// cddHTTPListenAndServe is an injectable function variable wrapping http.ListenAndServe for ServeJSONRPC.
+var cddHTTPListenAndServe = http.ListenAndServe
+
+// NewJSONRPCHandler constructs an http.Handler serving JSON-RPC 2.0 requests for version and tool execution.
+// It returns the configured http.Handler.
+func NewJSONRPCHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req MCPRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		resp := MCPResponse{JSONRPC: "2.0", ID: req.ID}
+		switch req.Method {
+		case "version":
+			resp.Result = json.RawMessage(`"0.0.4"`)
+		default:
+			var params MCPToolParams
+			if err := json.Unmarshal(req.Params, &params); err != nil {
+				resp.Error = &mcp.Error{Code: mcp.ErrInvalidParams, Message: "Invalid params"}
+			} else if msg, err := ExecuteGeneratorRouter(req.Method, params); err != nil {
+				resp.Error = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
+			} else {
+				resp.Result, _ = json.Marshal(msg)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	return mux
+}
+
+// ServeJSONRPC exposes the CLI interface as a JSON-RPC HTTP server.
+// Parameter port is the TCP port number, listen is the bind address, and it returns any server error.
 func ServeJSONRPC(port int, listen string) error {
 	if port <= 0 || port > 65535 {
 		return fmt.Errorf("invalid port: %d", port)
@@ -778,7 +854,8 @@ func ServeJSONRPC(port int, listen string) error {
 	if strings.TrimSpace(listen) == "" {
 		return fmt.Errorf("listen address is required")
 	}
-	return nil
+	addr := fmt.Sprintf("%s:%d", listen, port)
+	return cddHTTPListenAndServe(addr, NewJSONRPCHandler())
 }
 
 // GetGeneratorResources returns available in-memory AST and Schema resources to the MCP.
@@ -788,25 +865,17 @@ func GetGeneratorResources() ([]string, error) {
 }
 
 // ExecuteGeneratorRouter processes tool calls natively within the generator core via MCP.
-// Parameter toolName is the MCP tool name, args is the map of tool parameters, and it returns the status string and error.
-func ExecuteGeneratorRouter(toolName string, args map[string]any) (string, error) {
+// Parameter toolName is the MCP tool name, args is the strongly-typed MCPToolParams, and it returns the status string and error.
+func ExecuteGeneratorRouter(toolName string, args MCPToolParams) (string, error) {
 	switch toolName {
 	case "cdd_generate_sdk":
-		in, _ := args["input"].(string)
-		out, _ := args["output"].(string)
-		return "SDK Generated", FromOpenAPI("to_sdk", in, out, false, false, false, false)
+		return "SDK Generated", FromOpenAPI("to_sdk", args.Input, args.Output, false, false, false, false)
 	case "cdd_sync_schema":
-		in, _ := args["input"].(string)
-		out, _ := args["output"].(string)
-		return "Schema Synced", ToOpenAPI(in, out)
+		return "Schema Synced", ToOpenAPI(args.Input, args.Output)
 	case "cdd_generate_arazzo_sdk":
-		in, _ := args["input"].(string)
-		out, _ := args["output"].(string)
-		return "Arazzo SDK Generated", FromArazzo("to_sdk", in, out, false, false, false)
+		return "Arazzo SDK Generated", FromArazzo("to_sdk", args.Input, args.Output, false, false, false)
 	case "cdd_sync_arazzo":
-		in, _ := args["input"].(string)
-		out, _ := args["output"].(string)
-		return "Arazzo Synced", ToArazzo(in, out)
+		return "Arazzo Synced", ToArazzo(args.Input, args.Output)
 	default:
 		return "", fmt.Errorf("unknown generator tool: %s", toolName)
 	}

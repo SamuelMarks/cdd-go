@@ -1,6 +1,8 @@
 // Package mcp provides strongly-typed Model Context Protocol (MCP) 1.0.0 and JSON-RPC 2.0 schemas, transports, and handlers.
 package mcp
 
+import "encoding/json"
+
 // LoggingLevel represents the severity of a log message.
 type LoggingLevel string
 
@@ -40,8 +42,8 @@ type LoggingMessageNotification struct {
 		Level LoggingLevel `json:"level"`
 		// Logger is the optional name of the logger emitting the message.
 		Logger string `json:"logger,omitempty"`
-		// Data is the arbitrary serializable log payload.
-		Data any `json:"data"`
+		// Data is the raw JSON serializable log payload.
+		Data json.RawMessage `json:"data"`
 	} `json:"params"`
 }
 
