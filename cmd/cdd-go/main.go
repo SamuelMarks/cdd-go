@@ -88,6 +88,11 @@ func run(args []string) error {
 		fmt.Println("0.0.4")
 		return nil
 	case "mcp":
+		if len(args) > 1 && (args[1] == "-h" || args[1] == "--help" || args[1] == "help") {
+			fmt.Println("Usage of mcp:")
+			fmt.Println("  Run the Model Context Protocol (MCP) server over standard I/O (stdio).")
+			return nil
+		}
 		return cdd.ServeMCPStdio(args[1:])
 	case "serve_json_rpc":
 		return runServeJSONRPC(args[1:])
@@ -96,6 +101,11 @@ func run(args []string) error {
 			return fmt.Errorf("expected 'to_sdk', 'to_sdk_cli', or 'to_server' subcommands for from_openapi")
 		}
 		subsubcommand := args[1]
+		if subsubcommand == "-h" || subsubcommand == "--help" || subsubcommand == "help" {
+			fmt.Println("Usage of from_openapi:")
+			fmt.Println("  cdd-go from_openapi [to_sdk | to_sdk_cli | to_server] [flags]")
+			return nil
+		}
 		fs := flag.NewFlagSet("from_openapi "+subsubcommand, flag.ContinueOnError)
 		fs.SetOutput(stderr)
 
@@ -115,6 +125,9 @@ func run(args []string) error {
 		fs.BoolVar(&mcp, "mcp", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
 
 		if err := fs.Parse(args[2:]); err != nil {
+			if err == flag.ErrHelp {
+				return nil
+			}
 			return err
 		}
 		if out == "" {
@@ -137,6 +150,9 @@ func run(args []string) error {
 		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", "openapi.json"), "Output file or directory path.")
 		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", "openapi.json"), "Output file or directory path.")
 		if err := fs.Parse(args[1:]); err != nil {
+			if err == flag.ErrHelp {
+				return nil
+			}
 			return err
 		}
 
@@ -146,6 +162,11 @@ func run(args []string) error {
 			return fmt.Errorf("expected 'to_sdk', 'to_sdk_cli', or 'to_server' subcommands for from_arazzo")
 		}
 		subsubcommand := args[1]
+		if subsubcommand == "-h" || subsubcommand == "--help" || subsubcommand == "help" {
+			fmt.Println("Usage of from_arazzo:")
+			fmt.Println("  cdd-go from_arazzo [to_sdk | to_sdk_cli | to_server] [flags]")
+			return nil
+		}
 		fs := flag.NewFlagSet("from_arazzo "+subsubcommand, flag.ContinueOnError)
 		fs.SetOutput(stderr)
 
@@ -163,6 +184,9 @@ func run(args []string) error {
 		fs.BoolVar(&tests, "tests", envOrDefaultBool("CDD_TESTS", false), "Generate workflow E2E tests.")
 
 		if err := fs.Parse(args[2:]); err != nil {
+			if err == flag.ErrHelp {
+				return nil
+			}
 			return err
 		}
 		if out == "" {
@@ -185,6 +209,9 @@ func run(args []string) error {
 		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", "arazzo.json"), "Output file or directory path.")
 		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", "arazzo.json"), "Output file or directory path.")
 		if err := fs.Parse(args[1:]); err != nil {
+			if err == flag.ErrHelp {
+				return nil
+			}
 			return err
 		}
 
@@ -197,9 +224,12 @@ func run(args []string) error {
 		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", "openapi.json"), "Output file or directory path.")
 		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", "openapi.json"), "Output file or directory path.")
 		var truth string
-		fs.StringVar(&truth, "t", envOrDefault("CDD_TRUTH", "code"), "Source of truth: 'code' (or 'go'), 'openapi' (or 'spec', 'swagger').")
-		fs.StringVar(&truth, "truth", envOrDefault("CDD_TRUTH", "code"), "Source of truth: 'code' (or 'go'), 'openapi' (or 'spec', 'swagger').")
+		fs.StringVar(&truth, "t", envOrDefault("CDD_TRUTH", "code"), "Source of truth: 'code' (or 'go'), 'openapi' (or 'spec', 'swagger'), 'arazzo'.")
+		fs.StringVar(&truth, "truth", envOrDefault("CDD_TRUTH", "code"), "Source of truth: 'code' (or 'go'), 'openapi' (or 'spec', 'swagger'), 'arazzo'.")
 		if err := fs.Parse(args[1:]); err != nil {
+			if err == flag.ErrHelp {
+				return nil
+			}
 			return err
 		}
 

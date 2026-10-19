@@ -349,6 +349,28 @@ func TestRunHelpAndVersion(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
+	if err := run([]string{"mcp", "--help"}); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if err := run([]string{"from_openapi", "--help"}); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if err := run([]string{"from_arazzo", "--help"}); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	for _, args := range [][]string{
+		{"from_openapi", "to_sdk", "--help"},
+		{"to_openapi", "--help"},
+		{"from_arazzo", "to_sdk", "--help"},
+		{"to_arazzo", "--help"},
+		{"sync", "--help"},
+		{"to_docs_json", "--help"},
+		{"serve_json_rpc", "--help"},
+	} {
+		if err := run(args); err != nil {
+			t.Errorf("unexpected error for %v: %v", args, err)
+		}
+	}
 
 	err = run([]string{"-v"})
 	if err != nil {

@@ -200,6 +200,9 @@ func runServeJSONRPC(args []string) error {
 	fs.StringVar(&listen, "listen", envOrDefault("CDD_LISTEN", "127.0.0.1"), "Address to listen on")
 	fs.StringVar(&listen, "l", envOrDefault("CDD_LISTEN", "127.0.0.1"), "Address to listen on (shorthand)")
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
 		return err
 	}
 

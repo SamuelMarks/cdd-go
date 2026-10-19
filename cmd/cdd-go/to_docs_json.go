@@ -32,6 +32,9 @@ func runToDocsJSONWriter(args []string, defaultOut io.Writer) error {
 	fs.BoolVar(&noWrapping, "no-wrapping", envOrDefaultBool("CDD_NO_WRAPPING", false), "Omit the wrapper fields.")
 
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
 		return err
 	}
 

@@ -1,4 +1,4 @@
-.PHONY: all default help install_base install_deps build_docs docs build test run build_wasm build_docker run_docker
+.PHONY: all default help install_base install_deps deps build_docs docs build test run build_wasm build_docker run_docker
 
 default: all
 
@@ -7,7 +7,7 @@ all: help
 help:
 	@echo "Available tasks:"
 	@echo "  install_base   Install language runtime & tools"
-	@echo "  install_deps   Install dependencies"
+	@echo "  install_deps   Install dependencies (alias: deps)"
 	@echo "  build_docs     Build the API docs (specify DOCS_DIR=... for alternative)"
 	@echo "  docs           Generate Go API docs into docs/html"
 	@echo "  build          Build the CLI binary (specify BIN_DIR=... for alternative)"
@@ -20,6 +20,8 @@ help:
 install_base:
 	@echo "Installing base tools..."
 	go version || (echo "Please install Go 1.25+"; exit 1)
+
+deps: install_deps
 
 install_deps:
 	go mod tidy

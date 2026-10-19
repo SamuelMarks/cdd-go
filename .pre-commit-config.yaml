@@ -46,13 +46,6 @@ repos:
         pass_filenames: false
         files: \.go$
 
-      - id: ground-ml-framework-snapshots
-        name: Ground via ../ml-framework-snapshots
-        entry: go run scripts/ground_snapshots/ground_snapshots.go -snapshots-dir ../ml-framework-snapshots
-        language: system
-        pass_filenames: false
-        files: \.go$
-
       - id: update-badges
         name: Update README shields
         entry: go run scripts/update_badges/update_badges.go
