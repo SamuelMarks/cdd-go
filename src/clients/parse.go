@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/docstrings"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
@@ -22,18 +23,7 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 	}
 
 	pathItem := &openapi.PathItem{}
-
-	if len(ts.Decs.Start) > 0 {
-		desc := ""
-		for _, doc := range ts.Decs.Start {
-			line := strings.TrimSpace(strings.TrimPrefix(doc, "//"))
-			if strings.HasPrefix(line, "Path:") {
-				continue
-			}
-			desc += line + " "
-		}
-		pathItem.Summary = strings.TrimSpace(desc)
-	}
+	pathItem.Summary, _ = docstrings.ParseSummaryAndTag(ts.Decs.Start, "Path:")
 
 	mcpExt := make(map[string]bool)
 
@@ -55,23 +45,12 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 			continue
 		}
 
+		summary, rawVerb := docstrings.ParseSummaryAndTag(method.Decs.Start, "METHOD:")
 		op := &openapi.Operation{
 			OperationID: strings.ToLower(methodName[:1]) + methodName[1:],
+			Summary:     summary,
 		}
-
-		var httpVerb string
-		if len(method.Decs.Start) > 0 {
-			desc := ""
-			for _, doc := range method.Decs.Start {
-				line := strings.TrimSpace(strings.TrimPrefix(doc, "//"))
-				if strings.HasPrefix(line, "METHOD:") {
-					httpVerb = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(line, "METHOD:")))
-					continue
-				}
-				desc += line + " "
-			}
-			op.Summary = strings.TrimSpace(desc)
-		}
+		httpVerb := strings.ToLower(rawVerb)
 
 		nameLower := strings.ToLower(methodName)
 		if httpVerb == "" {
@@ -82,25 +61,11 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 				}
 			}
 		}
-
-		switch httpVerb {
-		case "get":
-			pathItem.Get = op
-		case "post":
-			pathItem.Post = op
-		case "put":
-			pathItem.Put = op
-		case "delete":
-			pathItem.Delete = op
-		case "patch":
-			pathItem.Patch = op
-		case "options":
-			pathItem.Options = op
-		case "head":
-			pathItem.Head = op
-		case "trace":
-			pathItem.Trace = op
+		if httpVerb == "" {
+			httpVerb = "post"
 		}
+
+		pathItem.SetOperation(httpVerb, op)
 	}
 
 	if len(mcpExt) > 0 {

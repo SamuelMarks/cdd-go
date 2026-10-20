@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
@@ -247,19 +246,12 @@ func buildTestRequestBodyAST(method string, op *openapi.Operation, schemas map[s
 }
 
 // buildTestHTTPRequestStmts constructs the AST statements that initialize baseURL, create the HTTP request, execute it, and assert the response.
-// Parameter method is the HTTP verb, urlStr is the quoted URL path, hasBody indicates body presence, bodyExpr is the body reader AST, and contentType is the MIME type.
-func buildTestHTTPRequestStmts(method, urlStr string, hasBody bool, bodyExpr dst.Expr, contentType string) []dst.Stmt {
+// Parameter method is the HTTP verb, urlStr is the quoted URL path, hasBody indicates body presence, bodyExpr is the body reader AST, contentType is the MIME type, and defaultBaseURL is the fallback server URL.
+func buildTestHTTPRequestStmts(method, urlStr string, hasBody bool, bodyExpr dst.Expr, contentType string, defaultBaseURL string) []dst.Stmt {
+	if defaultBaseURL == "" {
+		defaultBaseURL = "http://localhost:8080"
+	}
 	stmts := []dst.Stmt{
-		&dst.AssignStmt{
-			Lhs: []dst.Expr{dst.NewIdent("_")},
-			Tok: token.ASSIGN,
-			Rhs: []dst.Expr{
-				&dst.CallExpr{
-					Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
-					Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `""`}},
-				},
-			},
-		},
 		&dst.AssignStmt{
 			Lhs: []dst.Expr{dst.NewIdent("baseURL")},
 			Tok: token.DEFINE,
@@ -281,7 +273,7 @@ func buildTestHTTPRequestStmts(method, urlStr string, hasBody bool, bodyExpr dst
 					&dst.AssignStmt{
 						Lhs: []dst.Expr{dst.NewIdent("baseURL")},
 						Tok: token.ASSIGN,
-						Rhs: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"http://localhost:8080/v2"`}},
+						Rhs: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(defaultBaseURL)}},
 					},
 				},
 			},
@@ -357,7 +349,6 @@ func buildTestHTTPRequestStmts(method, urlStr string, hasBody bool, bodyExpr dst
 		},
 	)
 	stmts = append(stmts, buildResponseAssertionStmts()...)
-	stmts = append(stmts, buildReqHeaderStmt("X-Random-Cache-Buster", fmt.Sprintf("%d", time.Now().UnixNano())))
 	return stmts
 }
 
@@ -401,45 +392,14 @@ func buildIfErrFatalStmt(errVar string) dst.Stmt {
 }
 
 // buildResponseAssertionStmts constructs the status code and JSON body assertion AST statements.
+// It returns the slice of AST assertion statements.
 func buildResponseAssertionStmts() []dst.Stmt {
 	return []dst.Stmt{
 		&dst.IfStmt{
 			Cond: &dst.BinaryExpr{
-				X: &dst.BinaryExpr{
-					X: &dst.BinaryExpr{
-						X: &dst.BinaryExpr{
-							X: &dst.BinaryExpr{
-								X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-								Op: token.GTR,
-								Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
-							},
-							Op: token.LAND,
-							Y: &dst.BinaryExpr{
-								X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-								Op: token.NEQ,
-								Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
-							},
-						},
-						Op: token.LAND,
-						Y: &dst.BinaryExpr{
-							X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-							Op: token.NEQ,
-							Y:  &dst.BasicLit{Kind: token.INT, Value: "405"},
-						},
-					},
-					Op: token.LAND,
-					Y: &dst.BinaryExpr{
-						X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-						Op: token.NEQ,
-						Y:  &dst.BasicLit{Kind: token.INT, Value: "415"},
-					},
-				},
-				Op: token.LAND,
-				Y: &dst.BinaryExpr{
-					X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-					Op: token.NEQ,
-					Y:  &dst.BasicLit{Kind: token.INT, Value: "422"},
-				},
+				X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
+				Op: token.GEQ,
+				Y:  &dst.BasicLit{Kind: token.INT, Value: "400"},
 			},
 			Body: &dst.BlockStmt{
 				List: []dst.Stmt{
@@ -453,26 +413,6 @@ func buildResponseAssertionStmts() []dst.Stmt {
 							},
 						},
 					},
-				},
-			},
-		},
-		&dst.IfStmt{
-			Cond: &dst.BinaryExpr{
-				X: &dst.BinaryExpr{
-					X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-					Op: token.EQL,
-					Y:  &dst.BasicLit{Kind: token.INT, Value: "404"},
-				},
-				Op: token.LOR,
-				Y: &dst.BinaryExpr{
-					X:  &dst.SelectorExpr{X: dst.NewIdent("resp"), Sel: dst.NewIdent("StatusCode")},
-					Op: token.EQL,
-					Y:  &dst.BasicLit{Kind: token.INT, Value: "415"},
-				},
-			},
-			Body: &dst.BlockStmt{
-				List: []dst.Stmt{
-					&dst.ReturnStmt{},
 				},
 			},
 		},
@@ -528,8 +468,15 @@ func EmitTest(path string, method string, op *openapi.Operation) (*dst.FuncDecl,
 // EmitTestWithSchemas generates a dst.FuncDecl for testing an OpenAPI operation with component schema resolution.
 // Parameter path is the URL path, method is the HTTP verb, op is the OpenAPI Operation, and schemas is the component schemas map.
 func EmitTestWithSchemas(path string, method string, op *openapi.Operation, schemas map[string]openapi.Schema) (*dst.FuncDecl, error) {
+	fd, _, err := EmitTestWithConfig(path, method, op, schemas, "http://localhost:8080")
+	return fd, err
+}
+
+// EmitTestWithConfig generates a dst.FuncDecl for testing an OpenAPI operation with component schema resolution and a configurable default base URL.
+// Parameter path is the URL path, method is the HTTP verb, op is the OpenAPI Operation, schemas is the component schemas map, and defaultBaseURL is the fallback server URL.
+func EmitTestWithConfig(path string, method string, op *openapi.Operation, schemas map[string]openapi.Schema, defaultBaseURL string) (*dst.FuncDecl, bool, error) {
 	if op == nil {
-		return nil, fmt.Errorf("Operation is nil")
+		return nil, false, fmt.Errorf("Operation is nil")
 	}
 
 	name := resolveTestOperationMethodName(path, method, op)
@@ -554,15 +501,15 @@ func EmitTestWithSchemas(path string, method string, op *openapi.Operation, sche
 			},
 		},
 		Body: &dst.BlockStmt{
-			List: buildTestHTTPRequestStmts(method, urlStr, hasBody, bodyExpr, contentType),
+			List: buildTestHTTPRequestStmts(method, urlStr, hasBody, bodyExpr, contentType, defaultBaseURL),
 		},
 	}
 
 	if op.Summary != "" {
-		fd.Decs.Start.Append(fmt.Sprintf("// %s tests the %s operation. %d", name, op.Summary, time.Now().UnixNano()))
+		fd.Decs.Start.Append(fmt.Sprintf("// %s tests the %s operation.", name, op.Summary))
 	} else {
-		fd.Decs.Start.Append(fmt.Sprintf("// %s tests the operation. %d", name, time.Now().UnixNano()))
+		fd.Decs.Start.Append(fmt.Sprintf("// %s tests the operation.", name))
 	}
 
-	return fd, nil
+	return fd, hasBody, nil
 }

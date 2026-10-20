@@ -16,37 +16,51 @@ import (
 // GenerateDAOs generates the DAO interfaces, stubs, concrete GORM implementations, and factory.
 // Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
-	if oa.Components == nil || oa.Components.Schemas == nil {
-		return nil
-	}
-
 	daosDir := filepath.Join(outDir, "daos")
 	if err := os.MkdirAll(daosDir, 0755); err != nil {
 		return err
 	}
 
-	schemaNames := make([]string, 0, len(oa.Components.Schemas))
-	for name := range oa.Components.Schemas {
+	var schemas map[string]openapi.Schema
+	if oa != nil && oa.Components != nil && oa.Components.Schemas != nil {
+		schemas = oa.Components.Schemas
+	} else {
+		schemas = make(map[string]openapi.Schema)
+	}
+
+	if len(schemas) > 0 {
+		modelsDir := filepath.Join(outDir, "models")
+		if err := os.MkdirAll(modelsDir, 0755); err != nil {
+			return err
+		}
+		if err := WriteDstFile(filepath.Join(modelsDir, "errors.go"), daos.EmitModelsErrorsFile()); err != nil {
+			return err
+		}
+	}
+
+	schemaNames := make([]string, 0, len(schemas))
+	for name := range schemas {
 		schemaNames = append(schemaNames, name)
 	}
 	sort.Strings(schemaNames)
 
 	for _, name := range schemaNames {
-		s := oa.Components.Schemas[name]
+		s := schemas[name]
 
-		// DAO Interface
-		decl, err := daos.EmitDAOInterface(name, &s)
+		bundle, err := daos.EmitSchemaDAOs(name, &s)
 		if err != nil {
 			return err
 		}
+
+		// DAO Interface
 		file := &dst.File{
 			Name: dst.NewIdent("daos"),
 			Decls: []dst.Decl{
 				&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
-					&dst.ImportSpec{Name: dst.NewIdent(name), Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
 				}},
-				decl,
+				bundle.InterfaceDecl,
 			},
 		}
 		if err := WriteDstFile(filepath.Join(daosDir, strings.ToLower(name)+"_dao.go"), file); err != nil {
@@ -54,33 +68,31 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 		}
 
 		// Stub DAO
-		stubDecl, stubMethods, _ := daos.EmitStubDAO(name, &s)
 		stubFile := &dst.File{
 			Name: dst.NewIdent("daos"),
 			Decls: append([]dst.Decl{
 				&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
-					&dst.ImportSpec{Name: dst.NewIdent(name), Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
 				}},
-				stubDecl,
-			}, stubMethods...),
+				bundle.StubDecl,
+			}, bundle.StubMethods...),
 		}
 		if err := WriteDstFile(filepath.Join(daosDir, strings.ToLower(name)+"_stub.go"), stubFile); err != nil {
 			return err
 		}
 
 		// Concrete DAO
-		concreteDecl, concreteMethods, _ := daos.EmitConcreteDAO(name, &s)
 		concreteFile := &dst.File{
 			Name: dst.NewIdent("daos"),
 			Decls: append([]dst.Decl{
 				&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
-					&dst.ImportSpec{Name: dst.NewIdent(name), Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
 				}},
-				concreteDecl,
-			}, concreteMethods...),
+				bundle.ConcreteDecl,
+			}, bundle.ConcreteMethods...),
 		}
 		if err := WriteDstFile(filepath.Join(daosDir, strings.ToLower(name)+"_gorm.go"), concreteFile); err != nil {
 			return err
@@ -88,7 +100,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 	}
 
 	// Factory Interface
-	factoryDecl := daos.EmitFactoryInterface(oa.Components.Schemas)
+	factoryDecl := daos.EmitFactoryInterface(schemas)
 	factoryFile := &dst.File{
 		Name: dst.NewIdent("daos"),
 		Decls: []dst.Decl{
@@ -100,7 +112,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 	}
 
 	// Concrete Factory
-	concreteFactoryDecl, concreteFactoryMethods := daos.EmitConcreteFactory(oa.Components.Schemas)
+	concreteFactoryDecl, concreteFactoryMethods := daos.EmitConcreteFactory(schemas)
 	concreteFactoryFile := &dst.File{
 		Name: dst.NewIdent("daos"),
 		Decls: append([]dst.Decl{
@@ -114,24 +126,26 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 		return err
 	}
 
-	// Generate tests
-	_, factoryTestMethods := daos.EmitFactoryTests(oa.Components.Schemas)
-	daoTestMethods := daos.EmitConcreteDAOTests(oa.Components.Schemas)
+	if len(schemas) > 0 {
+		// Generate tests
+		_, factoryTestMethods := daos.EmitFactoryTests(schemas)
+		daoTestMethods := daos.EmitConcreteDAOTests(schemas)
 
-	testFile := &dst.File{
-		Name: dst.NewIdent("daos"),
-		Decls: append(append([]dst.Decl{
-			&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"testing"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/sqlite"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
-			}},
-		}, factoryTestMethods...), daoTestMethods...),
-	}
-	if err := WriteDstFile(filepath.Join(daosDir, "daos_test.go"), testFile); err != nil {
-		return err
+		testFile := &dst.File{
+			Name: dst.NewIdent("daos"),
+			Decls: append(append([]dst.Decl{
+				&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"testing"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/sqlite"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+				}},
+			}, factoryTestMethods...), daoTestMethods...),
+		}
+		if err := WriteDstFile(filepath.Join(daosDir, "daos_test.go"), testFile); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -1,8 +1,11 @@
 package cdd
 
 import (
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
@@ -13,32 +16,62 @@ func TestGenerateDAOs(t *testing.T) {
 	oa := &openapi.OpenAPI{
 		Components: &openapi.Components{
 			Schemas: map[string]openapi.Schema{
-				"User": {Type: "object"},
+				"User": {
+					Type: "object",
+					Properties: map[string]openapi.Schema{
+						"id":   {Type: "string"},
+						"name": {Type: "string"},
+					},
+				},
 			},
 		},
 	}
 
+	if err := GenerateClasses(oa, outDir); err != nil {
+		t.Fatalf("unexpected GenerateClasses error: %v", err)
+	}
 	if err := GenerateDAOs(oa, outDir); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expectedFiles := []string{
-		"user_dao.go", "user_stub.go", "user_gorm.go", "factory.go", "factory_impl.go",
+		"user_dao.go", "user_stub.go", "user_gorm.go", "factory.go", "factory_impl.go", "daos_test.go",
 	}
 
+	fset := token.NewFileSet()
 	for _, f := range expectedFiles {
-		if _, err := os.Stat(filepath.Join(outDir, "daos", f)); os.IsNotExist(err) {
-			t.Errorf("expected file %s to exist", f)
+		p := filepath.Join(outDir, "daos", f)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("expected file %s to exist: %v", f, err)
+		}
+		if _, err := parser.ParseFile(fset, p, b, parser.ParseComments); err != nil {
+			t.Errorf("generated file %s is not valid Go syntax: %v", f, err)
 		}
 	}
 
-	if err := GenerateDAOs(&openapi.OpenAPI{}, outDir); err != nil {
+	daoContent, _ := os.ReadFile(filepath.Join(outDir, "daos", "user_dao.go"))
+	if !strings.Contains(string(daoContent), `"generated_sdk/models"`) || strings.Contains(string(daoContent), `User "generated_sdk/models"`) {
+		t.Errorf("expected unaliased generated_sdk/models import in user_dao.go, got:\n%s", string(daoContent))
+	}
+	if !strings.Contains(string(daoContent), `*models.User`) {
+		t.Errorf("expected *models.User in user_dao.go, got:\n%s", string(daoContent))
+	}
+
+	if _, err := os.Stat(filepath.Join(outDir, "models", "errors.go")); os.IsNotExist(err) {
+		t.Errorf("expected models/errors.go to be generated")
+	}
+
+	emptyDir := t.TempDir()
+	if err := GenerateDAOs(&openapi.OpenAPI{}, emptyDir); err != nil {
 		t.Errorf("unexpected error with empty openapi: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(emptyDir, "daos", "factory.go")); os.IsNotExist(err) {
+		t.Errorf("expected factory.go even with empty schemas")
 	}
 }
 
 func TestGenerateDAOs_Errors(t *testing.T) {
-	// Test MkdirAll error
 	oa := &openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"User": {Type: "object"}}}}
 	if err := GenerateDAOs(oa, "/dev/null/invalid"); err == nil {
 		t.Errorf("expected error for invalid directory")
@@ -47,6 +80,20 @@ func TestGenerateDAOs_Errors(t *testing.T) {
 	outDir := t.TempDir()
 	daosDir := filepath.Join(outDir, "daos")
 	os.MkdirAll(daosDir, 0755)
+
+	// Block creating models directory
+	os.WriteFile(filepath.Join(outDir, "models"), []byte("blocker"), 0644)
+	if err := GenerateDAOs(oa, outDir); err == nil {
+		t.Errorf("expected error when models is a file")
+	}
+	os.RemoveAll(filepath.Join(outDir, "models"))
+
+	// Block writing models/errors.go
+	os.MkdirAll(filepath.Join(outDir, "models", "errors.go"), 0755)
+	if err := GenerateDAOs(oa, outDir); err == nil {
+		t.Errorf("expected error when models/errors.go is a directory")
+	}
+	os.RemoveAll(filepath.Join(outDir, "models", "errors.go"))
 
 	// Block writing user_dao.go
 	os.MkdirAll(filepath.Join(daosDir, "user_dao.go"), 0755)
@@ -90,20 +137,9 @@ func TestGenerateDAOs_Errors(t *testing.T) {
 	}
 	os.RemoveAll(filepath.Join(daosDir, "daos_test.go"))
 
-	// Test Emit error paths (simulated via missing required schema components or unknown type in emit helpers if they handled it, but here we can just pass an empty map element to trigger schema == nil error where applicable)
 	oaErr := &openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"ErrorSchema": {Type: "unknown-error-emit"}}}}
 	if err := GenerateDAOs(oaErr, outDir); err == nil {
 		t.Errorf("expected error for unknown-error")
-	}
-
-	oaErrStub := &openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"ErrorSchema": {Type: "unknown-error-stub-emit"}}}}
-	if err := GenerateDAOs(oaErrStub, outDir); err == nil {
-		t.Errorf("expected error for unknown-error-stub")
-	}
-
-	oaErrConcrete := &openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"ErrorSchema": {Type: "unknown-error-concrete-emit"}}}}
-	if err := GenerateDAOs(oaErrConcrete, outDir); err == nil {
-		t.Errorf("expected error for unknown-error-concrete")
 	}
 }
 
@@ -121,8 +157,13 @@ func TestGenerateDatabase(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(outDir, "database", "database.go")); os.IsNotExist(err) {
-		t.Errorf("expected database.go to exist")
+	dbPath := filepath.Join(outDir, "database", "database.go")
+	b, err := os.ReadFile(dbPath)
+	if err != nil {
+		t.Fatalf("expected database.go to exist: %v", err)
+	}
+	if !strings.Contains(string(b), "AutoMigrate(&models.User{})") {
+		t.Errorf("expected AutoMigrate(&models.User{}) in database.go, got:\n%s", string(b))
 	}
 }
 
@@ -145,7 +186,13 @@ func TestGenerateSeeder(t *testing.T) {
 	oa := &openapi.OpenAPI{
 		Components: &openapi.Components{
 			Schemas: map[string]openapi.Schema{
-				"User": {Type: "object"},
+				"User": {
+					Type: "object",
+					Properties: map[string]openapi.Schema{
+						"id":   {Type: "string"},
+						"name": {Type: "string"},
+					},
+				},
 			},
 		},
 	}
@@ -154,8 +201,13 @@ func TestGenerateSeeder(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(outDir, "seeder", "seeder.go")); os.IsNotExist(err) {
-		t.Errorf("expected seeder.go to exist")
+	seederPath := filepath.Join(outDir, "seeder", "seeder.go")
+	b, err := os.ReadFile(seederPath)
+	if err != nil {
+		t.Fatalf("expected seeder.go to exist: %v", err)
+	}
+	if !strings.Contains(string(b), "*models.User") || !strings.Contains(string(b), "&models.User{") {
+		t.Errorf("expected qualified *models.User and &models.User in seeder.go, got:\n%s", string(b))
 	}
 
 	if err := GenerateSeeder(&openapi.OpenAPI{}, outDir); err != nil {
@@ -179,14 +231,24 @@ func TestGenerateSeeder_Errors(t *testing.T) {
 
 func TestGenerateServerMain(t *testing.T) {
 	outDir := t.TempDir()
-	oa := &openapi.OpenAPI{}
+	oa := &openapi.OpenAPI{
+		Paths: openapi.Paths{
+			"/users": openapi.PathItem{
+				Get: &openapi.Operation{OperationID: "listUsers"},
+			},
+		},
+	}
 
 	if err := GenerateServerMain(oa, outDir, false, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(outDir, "cmd", "server", "main.go")); os.IsNotExist(err) {
-		t.Errorf("expected main.go to exist")
+	main1, err := os.ReadFile(filepath.Join(outDir, "cmd", "server", "main.go"))
+	if err != nil {
+		t.Fatalf("expected main.go to exist: %v", err)
+	}
+	if !strings.Contains(string(main1), "routes.NewHandlerUsers(nil).Register(r)") {
+		t.Errorf("expected route registration with nil DAO factory in main.go, got:\n%s", string(main1))
 	}
 
 	outDir2 := t.TempDir()
@@ -194,8 +256,12 @@ func TestGenerateServerMain(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(outDir2, "cmd", "server", "main.go")); os.IsNotExist(err) {
-		t.Errorf("expected main.go to exist")
+	main2, err := os.ReadFile(filepath.Join(outDir2, "cmd", "server", "main.go"))
+	if err != nil {
+		t.Fatalf("expected main.go to exist: %v", err)
+	}
+	if !strings.Contains(string(main2), "routes.NewHandlerUsers(daoFactory).Register(r)") {
+		t.Errorf("expected route registration with daoFactory in main.go, got:\n%s", string(main2))
 	}
 }
 
@@ -204,6 +270,13 @@ func TestGenerateDatabase_EmptySchemas(t *testing.T) {
 	oa := &openapi.OpenAPI{}
 	if err := GenerateDatabase(oa, outDir); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(outDir, "database", "database.go"))
+	if err != nil {
+		t.Fatalf("expected database.go: %v", err)
+	}
+	if strings.Contains(string(b), `"generated_sdk/models"`) {
+		t.Errorf("did not expect unused generated_sdk/models import when schemas is empty:\n%s", string(b))
 	}
 }
 

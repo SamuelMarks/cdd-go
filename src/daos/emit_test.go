@@ -41,8 +41,28 @@ func TestEmitDAOInterface(t *testing.T) {
 	if !bytes.Contains([]byte(code), []byte("UserDAO")) {
 		t.Errorf("missing UserDAO in code")
 	}
-	if !bytes.Contains([]byte(code), []byte("Create(ctx context.Context, item *User) error")) {
-		t.Errorf("missing Create method in code")
+	if !bytes.Contains([]byte(code), []byte("Create(ctx context.Context, item *models.User) error")) {
+		t.Errorf("missing Create method with *models.User in code: %s", code)
+	}
+	if !bytes.Contains([]byte(code), []byte("List(ctx context.Context) ([]*models.User, error)")) {
+		t.Errorf("missing List method with []*models.User in code: %s", code)
+	}
+
+	bundle, err := EmitSchemaDAOs("User", schema)
+	if err != nil || bundle == nil || bundle.InterfaceDecl == nil || bundle.StubDecl == nil || bundle.ConcreteDecl == nil {
+		t.Fatalf("expected valid SchemaDAOBundle, got %+v, %v", bundle, err)
+	}
+	if _, err := EmitSchemaDAOs("", schema); err == nil {
+		t.Errorf("expected error from EmitSchemaDAOs with empty name")
+	}
+
+	errFile := EmitModelsErrorsFile()
+	var errBuf bytes.Buffer
+	if err := restorer.Fprint(&errBuf, errFile); err != nil {
+		t.Fatalf("failed to print models errors file: %v", err)
+	}
+	if !strings.Contains(errBuf.String(), "func NewNotImplementedError() error") {
+		t.Errorf("expected NewNotImplementedError in models/errors.go, got: %s", errBuf.String())
 	}
 }
 

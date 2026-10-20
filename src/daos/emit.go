@@ -11,6 +11,7 @@ import (
 )
 
 // isValidDAOSchemaType checks whether an OpenAPI schema type is valid for DAO generation.
+// Parameter t is the schema type string, and it returns true if valid.
 func isValidDAOSchemaType(t string) bool {
 	switch t {
 	case "", "object", "string", "integer", "number", "boolean", "array":
@@ -20,8 +21,100 @@ func isValidDAOSchemaType(t string) bool {
 	}
 }
 
+// modelExpr returns a qualified models.<name> AST selector expression.
+// Parameter name is the model struct name, and it returns the selector expression.
+func modelExpr(name string) dst.Expr {
+	return &dst.SelectorExpr{
+		X:   dst.NewIdent("models"),
+		Sel: dst.NewIdent(name),
+	}
+}
+
+// modelPtrExpr returns a pointer to a qualified *models.<name> AST expression.
+// Parameter name is the model struct name, and it returns the star expression.
+func modelPtrExpr(name string) dst.Expr {
+	return &dst.StarExpr{
+		X: modelExpr(name),
+	}
+}
+
+// SchemaDAOBundle holds all emitted AST declarations for a single schema's DAO interface, stub, and GORM implementation.
+type SchemaDAOBundle struct {
+	// InterfaceDecl is the abstract <Name>DAO interface declaration.
+	InterfaceDecl *dst.GenDecl
+	// StubDecl is the <Name>StubDAO struct declaration.
+	StubDecl *dst.GenDecl
+	// StubMethods are the <Name>StubDAO method declarations.
+	StubMethods []dst.Decl
+	// ConcreteDecl is the <Name>GormDAO struct declaration.
+	ConcreteDecl *dst.GenDecl
+	// ConcreteMethods are the <Name>GormDAO method declarations.
+	ConcreteMethods []dst.Decl
+}
+
+// EmitSchemaDAOs validates a schema once and emits its interface, stub DAO, and concrete GORM DAO declarations.
+// Parameter name is the schema model name, schema is the OpenAPI Schema, and it returns the bundle of AST declarations and any error.
+func EmitSchemaDAOs(name string, schema *openapi.Schema) (*SchemaDAOBundle, error) {
+	ifaceDecl, err := EmitDAOInterface(name, schema)
+	if err != nil {
+		return nil, err
+	}
+	stubDecl, stubMethods, _ := EmitStubDAO(name, schema)
+	concreteDecl, concreteMethods, _ := EmitConcreteDAO(name, schema)
+	return &SchemaDAOBundle{
+		InterfaceDecl:   ifaceDecl,
+		StubDecl:        stubDecl,
+		StubMethods:     stubMethods,
+		ConcreteDecl:    concreteDecl,
+		ConcreteMethods: concreteMethods,
+	}, nil
+}
+
+// EmitModelsErrorsFile emits the AST for models/errors.go providing NewNotImplementedError for stub DAOs.
+// It returns a complete dst.File for package models.
+func EmitModelsErrorsFile() *dst.File {
+	fn := &dst.FuncDecl{
+		Name: dst.NewIdent("NewNotImplementedError"),
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{},
+			Results: &dst.FieldList{
+				List: []*dst.Field{{Type: dst.NewIdent("error")}},
+			},
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.ReturnStmt{
+					Results: []dst.Expr{
+						&dst.CallExpr{
+							Fun:  &dst.SelectorExpr{X: dst.NewIdent("errors"), Sel: dst.NewIdent("New")},
+							Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"not implemented"`}},
+						},
+					},
+				},
+			},
+		},
+	}
+	fn.Decs.Start.Append("// NewNotImplementedError returns an error indicating a stubbed DAO operation is not implemented.")
+
+	f := &dst.File{
+		Name: dst.NewIdent("models"),
+		Decls: []dst.Decl{
+			&dst.GenDecl{
+				Tok: token.IMPORT,
+				Specs: []dst.Spec{
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"errors"`}},
+				},
+			},
+			fn,
+		},
+	}
+	f.Decs.Start.Append("// Package models provides generated domain data models and error constructors.")
+	return f
+}
+
 // EmitDAOInterface generates the abstract DAO interface for a given schema.
 // It defines standard CRUD operations: Create, Get, Update, Delete, List.
+// Parameter name is the schema model name, schema is the OpenAPI Schema, and it returns the AST declaration and any error.
 func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
@@ -34,14 +127,14 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 
 	fields := &dst.FieldList{
 		List: []*dst.Field{
-			// Create(ctx context.Context, item *Model) error
+			// Create(ctx context.Context, item *models.Model) error
 			{
 				Names: []*dst.Ident{dst.NewIdent("Create")},
 				Type: &dst.FuncType{
 					Params: &dst.FieldList{
 						List: []*dst.Field{
 							{Names: []*dst.Ident{dst.NewIdent("ctx")}, Type: &dst.SelectorExpr{X: dst.NewIdent("context"), Sel: dst.NewIdent("Context")}},
-							{Names: []*dst.Ident{dst.NewIdent("item")}, Type: &dst.StarExpr{X: dst.NewIdent(name)}},
+							{Names: []*dst.Ident{dst.NewIdent("item")}, Type: modelPtrExpr(name)},
 						},
 					},
 					Results: &dst.FieldList{
@@ -54,7 +147,7 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 					},
 				},
 			},
-			// Get(ctx context.Context, id string) (*Model, error)
+			// Get(ctx context.Context, id string) (*models.Model, error)
 			{
 				Names: []*dst.Ident{dst.NewIdent("Get")},
 				Type: &dst.FuncType{
@@ -66,7 +159,7 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 					},
 					Results: &dst.FieldList{
 						List: []*dst.Field{
-							{Type: &dst.StarExpr{X: dst.NewIdent(name)}},
+							{Type: modelPtrExpr(name)},
 							{Type: dst.NewIdent("error")},
 						},
 					},
@@ -77,7 +170,7 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 					},
 				},
 			},
-			// Update(ctx context.Context, id string, item *Model) error
+			// Update(ctx context.Context, id string, item *models.Model) error
 			{
 				Names: []*dst.Ident{dst.NewIdent("Update")},
 				Type: &dst.FuncType{
@@ -85,7 +178,7 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 						List: []*dst.Field{
 							{Names: []*dst.Ident{dst.NewIdent("ctx")}, Type: &dst.SelectorExpr{X: dst.NewIdent("context"), Sel: dst.NewIdent("Context")}},
 							{Names: []*dst.Ident{dst.NewIdent("id")}, Type: dst.NewIdent("string")},
-							{Names: []*dst.Ident{dst.NewIdent("item")}, Type: &dst.StarExpr{X: dst.NewIdent(name)}},
+							{Names: []*dst.Ident{dst.NewIdent("item")}, Type: modelPtrExpr(name)},
 						},
 					},
 					Results: &dst.FieldList{
@@ -118,7 +211,7 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 					},
 				},
 			},
-			// List(ctx context.Context) ([]*Model, error)
+			// List(ctx context.Context) ([]*models.Model, error)
 			{
 				Names: []*dst.Ident{dst.NewIdent("List")},
 				Type: &dst.FuncType{
@@ -129,7 +222,7 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 					},
 					Results: &dst.FieldList{
 						List: []*dst.Field{
-							{Type: &dst.ArrayType{Elt: &dst.StarExpr{X: dst.NewIdent(name)}}},
+							{Type: &dst.ArrayType{Elt: modelPtrExpr(name)}},
 							{Type: dst.NewIdent("error")},
 						},
 					},
@@ -159,6 +252,7 @@ func EmitDAOInterface(name string, schema *openapi.Schema) (*dst.GenDecl, error)
 }
 
 // EmitStubDAO generates the stub implementation of the DAO interface for a given schema.
+// Parameter name is the schema model name, schema is the OpenAPI Schema, and it returns the struct declaration, method declarations, and any error.
 func EmitStubDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.Decl, error) {
 	if schema == nil {
 		return nil, nil, fmt.Errorf("schema is nil")
@@ -194,6 +288,7 @@ func EmitStubDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.Decl,
 }
 
 // emitStubMethod generates a stub CRUD method declaration for a stub DAO.
+// Parameter receiver is the stub struct name, method is the CRUD method name, model is the schema name, hasItem indicates item param, and returnsModel indicates model return.
 func emitStubMethod(receiver string, method string, model string, hasItem bool, returnsModel bool) *dst.FuncDecl {
 	params := &dst.FieldList{
 		List: []*dst.Field{
@@ -205,12 +300,12 @@ func emitStubMethod(receiver string, method string, model string, hasItem bool, 
 		params.List = append(params.List, &dst.Field{Names: []*dst.Ident{dst.NewIdent("id")}, Type: dst.NewIdent("string")})
 	}
 	if method == "Create" || method == "Update" {
-		params.List = append(params.List, &dst.Field{Names: []*dst.Ident{dst.NewIdent("item")}, Type: &dst.StarExpr{X: dst.NewIdent(model)}})
+		params.List = append(params.List, &dst.Field{Names: []*dst.Ident{dst.NewIdent("item")}, Type: modelPtrExpr(model)})
 	}
 
 	results := &dst.FieldList{List: []*dst.Field{}}
 	if returnsModel {
-		results.List = append(results.List, &dst.Field{Type: &dst.StarExpr{X: dst.NewIdent(model)}})
+		results.List = append(results.List, &dst.Field{Type: modelPtrExpr(model)})
 	}
 	results.List = append(results.List, &dst.Field{Type: dst.NewIdent("error")})
 
@@ -252,6 +347,7 @@ func emitStubMethod(receiver string, method string, model string, hasItem bool, 
 }
 
 // emitStubListMethod generates the stub List method declaration for a stub DAO.
+// Parameter receiver is the stub struct name, model is the schema name, and it returns the AST function declaration.
 func emitStubListMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -268,7 +364,7 @@ func emitStubListMethod(receiver string, model string) *dst.FuncDecl {
 			},
 			Results: &dst.FieldList{
 				List: []*dst.Field{
-					{Type: &dst.ArrayType{Elt: &dst.StarExpr{X: dst.NewIdent(model)}}},
+					{Type: &dst.ArrayType{Elt: modelPtrExpr(model)}},
 					{Type: dst.NewIdent("error")},
 				},
 			},
@@ -292,6 +388,7 @@ func emitStubListMethod(receiver string, model string) *dst.FuncDecl {
 }
 
 // EmitConcreteDAO generates the GORM-backed implementation of the DAO interface for a given schema.
+// Parameter name is the schema model name, schema is the OpenAPI Schema, and it returns the struct declaration, method declarations, and any error.
 func EmitConcreteDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.Decl, error) {
 	if schema == nil {
 		return nil, nil, fmt.Errorf("schema is nil")
@@ -302,13 +399,18 @@ func EmitConcreteDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.D
 
 	concreteName := name + "GormDAO"
 
+	dbField := &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("DB")},
+		Type:  &dst.StarExpr{X: &dst.SelectorExpr{X: dst.NewIdent("gorm"), Sel: dst.NewIdent("DB")}},
+		Tag:   &dst.BasicLit{Kind: token.STRING, Value: "`json:\"-\"`"},
+	}
+	dbField.Decs.Start.Append("// DB is the underlying GORM database connection.")
+
 	ts := &dst.TypeSpec{
 		Name: dst.NewIdent(concreteName),
 		Type: &dst.StructType{
 			Fields: &dst.FieldList{
-				List: []*dst.Field{
-					{Names: []*dst.Ident{dst.NewIdent("DB")}, Type: &dst.StarExpr{X: &dst.SelectorExpr{X: dst.NewIdent("gorm"), Sel: dst.NewIdent("DB")}}, Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"-\"`"}},
-				},
+				List: []*dst.Field{dbField},
 			},
 		},
 	}
@@ -331,6 +433,7 @@ func EmitConcreteDAO(name string, schema *openapi.Schema) (*dst.GenDecl, []dst.D
 }
 
 // emitConcreteCreateMethod generates the GORM Create method declaration for a concrete DAO.
+// Parameter receiver is the concrete DAO struct name, model is the schema name, and it returns the AST function declaration.
 func emitConcreteCreateMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -341,7 +444,7 @@ func emitConcreteCreateMethod(receiver string, model string) *dst.FuncDecl {
 			Params: &dst.FieldList{
 				List: []*dst.Field{
 					{Names: []*dst.Ident{dst.NewIdent("ctx")}, Type: &dst.SelectorExpr{X: dst.NewIdent("context"), Sel: dst.NewIdent("Context")}},
-					{Names: []*dst.Ident{dst.NewIdent("item")}, Type: &dst.StarExpr{X: dst.NewIdent(model)}},
+					{Names: []*dst.Ident{dst.NewIdent("item")}, Type: modelPtrExpr(model)},
 				},
 			},
 			Results: &dst.FieldList{List: []*dst.Field{{Type: dst.NewIdent("error")}}},
@@ -373,6 +476,7 @@ func emitConcreteCreateMethod(receiver string, model string) *dst.FuncDecl {
 }
 
 // emitConcreteGetMethod generates the GORM Get method declaration for a concrete DAO.
+// Parameter receiver is the concrete DAO struct name, model is the schema name, and it returns the AST function declaration.
 func emitConcreteGetMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -387,7 +491,7 @@ func emitConcreteGetMethod(receiver string, model string) *dst.FuncDecl {
 				},
 			},
 			Results: &dst.FieldList{
-				List: []*dst.Field{{Type: &dst.StarExpr{X: dst.NewIdent(model)}}, {Type: dst.NewIdent("error")}},
+				List: []*dst.Field{{Type: modelPtrExpr(model)}, {Type: dst.NewIdent("error")}},
 			},
 		},
 		Body: &dst.BlockStmt{
@@ -396,7 +500,7 @@ func emitConcreteGetMethod(receiver string, model string) *dst.FuncDecl {
 					Decl: &dst.GenDecl{
 						Tok: token.VAR,
 						Specs: []dst.Spec{
-							&dst.ValueSpec{Names: []*dst.Ident{dst.NewIdent("item")}, Type: dst.NewIdent(model)},
+							&dst.ValueSpec{Names: []*dst.Ident{dst.NewIdent("item")}, Type: modelExpr(model)},
 						},
 					},
 				},
@@ -430,6 +534,7 @@ func emitConcreteGetMethod(receiver string, model string) *dst.FuncDecl {
 }
 
 // emitConcreteUpdateMethod generates the GORM Update method declaration for a concrete DAO.
+// Parameter receiver is the concrete DAO struct name, model is the schema name, and it returns the AST function declaration.
 func emitConcreteUpdateMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -441,7 +546,7 @@ func emitConcreteUpdateMethod(receiver string, model string) *dst.FuncDecl {
 				List: []*dst.Field{
 					{Names: []*dst.Ident{dst.NewIdent("ctx")}, Type: &dst.SelectorExpr{X: dst.NewIdent("context"), Sel: dst.NewIdent("Context")}},
 					{Names: []*dst.Ident{dst.NewIdent("id")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("item")}, Type: &dst.StarExpr{X: dst.NewIdent(model)}},
+					{Names: []*dst.Ident{dst.NewIdent("item")}, Type: modelPtrExpr(model)},
 				},
 			},
 			Results: &dst.FieldList{List: []*dst.Field{{Type: dst.NewIdent("error")}}},
@@ -473,6 +578,7 @@ func emitConcreteUpdateMethod(receiver string, model string) *dst.FuncDecl {
 }
 
 // emitConcreteDeleteMethod generates the GORM Delete method declaration for a concrete DAO.
+// Parameter receiver is the concrete DAO struct name, model is the schema name, and it returns the AST function declaration.
 func emitConcreteDeleteMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -502,7 +608,7 @@ func emitConcreteDeleteMethod(receiver string, model string) *dst.FuncDecl {
 									Sel: dst.NewIdent("Delete"),
 								},
 								Args: []dst.Expr{
-									&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent(model + "{}")},
+									&dst.UnaryExpr{Op: token.AND, X: &dst.CompositeLit{Type: modelExpr(model)}},
 									dst.NewIdent("id"),
 								},
 							},
@@ -518,6 +624,7 @@ func emitConcreteDeleteMethod(receiver string, model string) *dst.FuncDecl {
 }
 
 // emitConcreteListMethod generates the GORM List method declaration for a concrete DAO.
+// Parameter receiver is the concrete DAO struct name, model is the schema name, and it returns the AST function declaration.
 func emitConcreteListMethod(receiver string, model string) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Recv: &dst.FieldList{
@@ -532,7 +639,7 @@ func emitConcreteListMethod(receiver string, model string) *dst.FuncDecl {
 			},
 			Results: &dst.FieldList{
 				List: []*dst.Field{
-					{Type: &dst.ArrayType{Elt: &dst.StarExpr{X: dst.NewIdent(model)}}},
+					{Type: &dst.ArrayType{Elt: modelPtrExpr(model)}},
 					{Type: dst.NewIdent("error")},
 				},
 			},
@@ -543,7 +650,7 @@ func emitConcreteListMethod(receiver string, model string) *dst.FuncDecl {
 					Decl: &dst.GenDecl{
 						Tok: token.VAR,
 						Specs: []dst.Spec{
-							&dst.ValueSpec{Names: []*dst.Ident{dst.NewIdent("items")}, Type: &dst.ArrayType{Elt: &dst.StarExpr{X: dst.NewIdent(model)}}},
+							&dst.ValueSpec{Names: []*dst.Ident{dst.NewIdent("items")}, Type: &dst.ArrayType{Elt: modelPtrExpr(model)}},
 						},
 					},
 				},

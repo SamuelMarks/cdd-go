@@ -2,7 +2,6 @@
 package workflows
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/token"
 	"sort"
@@ -105,7 +104,6 @@ func emitCLIWorkflowSubcommand(wf arazzo.Workflow, wfPascal string) *dst.GenDecl
 		})
 	}
 
-	// RunE body instantiates workflows.NewWorkflowClient(os.Getenv("BASE_URL")) and calls client.Execute<WfPascal>(context.Background(), workflows.<WfPascal>Input{})
 	runE := &dst.KeyValueExpr{
 		Key: dst.NewIdent("RunE"),
 		Value: &dst.FuncLit{
@@ -209,8 +207,21 @@ func emitCLIWorkflowSubcommand(wf arazzo.Workflow, wfPascal string) *dst.GenDecl
 			decl.Decs.Start.Append(fmt.Sprintf("// FlagInput: %s:%s", k, prop.Type))
 		}
 	}
-	wfJSON, _ := json.Marshal(wf)
-	decl.Decs.Start.Append(fmt.Sprintf("// WorkflowJSON: %s", string(wfJSON)))
+	for _, step := range wf.Steps {
+		target := step.OperationID
+		kind := "operationId"
+		if target == "" && step.OperationPath != "" {
+			target = step.OperationPath
+			kind = "operationPath"
+		} else if target == "" && step.ChannelPath != "" {
+			target = step.ChannelPath
+			kind = "channelPath"
+		} else if target == "" && step.WorkflowID != "" {
+			target = step.WorkflowID
+			kind = "workflowId"
+		}
+		decl.Decs.Start.Append(fmt.Sprintf("// Step: %s (%s=%s)", step.StepID, kind, target))
+	}
 
 	return decl
 }

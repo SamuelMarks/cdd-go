@@ -12,6 +12,7 @@ import (
 )
 
 // GenerateDatabase generates the database connection and migration routines.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateDatabase(oa *openapi.OpenAPI, outDir string) error {
 	dbDir := filepath.Join(outDir, "database")
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
@@ -20,20 +21,25 @@ func GenerateDatabase(oa *openapi.OpenAPI, outDir string) error {
 
 	configDecl := database.EmitDatabaseConfig()
 	initDBDecl := database.EmitInitDB()
-	var migrateDecl *dst.FuncDecl
-	if oa.Components != nil && oa.Components.Schemas != nil {
-		migrateDecl = database.EmitMigrate(oa.Components.Schemas)
+	var schemas map[string]openapi.Schema
+	if oa.Components != nil && len(oa.Components.Schemas) > 0 {
+		schemas = oa.Components.Schemas
 	} else {
-		migrateDecl = database.EmitMigrate(make(map[string]openapi.Schema))
+		schemas = make(map[string]openapi.Schema)
+	}
+	migrateDecl := database.EmitMigrate(schemas)
+
+	importSpecs := []dst.Spec{
+		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
+		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/sqlite"`}},
+		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/postgres"`}},
+	}
+	if len(schemas) > 0 {
+		importSpecs = append(importSpecs, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}})
 	}
 
 	decls := []dst.Decl{
-		&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
-			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
-			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/sqlite"`}},
-			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/postgres"`}},
-			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
-		}},
+		&dst.GenDecl{Tok: token.IMPORT, Specs: importSpecs},
 		configDecl,
 		initDBDecl,
 		migrateDecl,

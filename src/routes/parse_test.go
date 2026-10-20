@@ -145,6 +145,13 @@ func TestParseHandlerInterfaceExtraVerbs(t *testing.T) {
 							Results: &dst.FieldList{},
 						},
 					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("CustomAction")},
+						Type: &dst.FuncType{
+							Params:  &dst.FieldList{},
+							Results: &dst.FieldList{},
+						},
+					},
 				},
 			},
 		},

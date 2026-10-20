@@ -318,4 +318,32 @@ func TestParseExprMap(t *testing.T) {
 	if err != nil || sOther.Type != "" {
 		t.Errorf("expected empty schema for other selector, got %+v, %v", sOther, err)
 	}
+
+	inlineStruct := &dst.StructType{
+		Fields: &dst.FieldList{
+			List: []*dst.Field{
+				{Names: []*dst.Ident{dst.NewIdent("Count32")}, Type: dst.NewIdent("int32")},
+				{Names: []*dst.Ident{dst.NewIdent("Count64")}, Type: dst.NewIdent("int64")},
+				{Names: []*dst.Ident{dst.NewIdent("Ratio")}, Type: dst.NewIdent("float32")},
+			},
+		},
+	}
+	sInline, err := ParseExpr(inlineStruct)
+	if err != nil || len(sInline.Properties) != 3 || sInline.Properties["Count32"].Format != "int32" || sInline.Properties["Count64"].Format != "int64" || sInline.Properties["Ratio"].Format != "float" {
+		t.Errorf("expected inline struct properties with formats, got %+v, %v", sInline, err)
+	}
+
+	badInlineStruct := &dst.StructType{
+		Fields: &dst.FieldList{
+			List: []*dst.Field{
+				{Names: []*dst.Ident{dst.NewIdent("Bad")}, Type: &dst.ChanType{Value: dst.NewIdent("int")}},
+			},
+		},
+	}
+	if _, err := ParseExpr(badInlineStruct); err == nil {
+		t.Errorf("expected error for unsupported field in inline struct")
+	}
+	if props, err := parseStructFields(nil); err != nil || len(props) != 0 {
+		t.Errorf("expected empty props for nil struct, got %+v, %v", props, err)
+	}
 }

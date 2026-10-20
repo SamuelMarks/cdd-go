@@ -12,8 +12,9 @@ import (
 )
 
 // GenerateSeeder generates the seeding routines to populate an ephemeral DB with fake data.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateSeeder(oa *openapi.OpenAPI, outDir string) error {
-	if oa.Components == nil || oa.Components.Schemas == nil {
+	if oa.Components == nil || len(oa.Components.Schemas) == 0 {
 		return nil
 	}
 

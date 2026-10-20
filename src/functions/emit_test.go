@@ -12,6 +12,23 @@ func TestEmitOperation(t *testing.T) {
 		OperationID: "CreateUser",
 		Summary:     "Creates a new user",
 		Description: "Detailed description",
+		Parameters: []openapi.Parameter{
+			{Name: "id", In: "path", Schema: &openapi.Schema{Type: "string"}},
+		},
+		RequestBody: &openapi.RequestBody{
+			Required: true,
+			Content: map[string]openapi.MediaType{
+				"application/json": {Schema: &openapi.Schema{Type: "object"}},
+			},
+		},
+		Responses: openapi.Responses{
+			"200": {
+				Description: "OK",
+				Content: map[string]openapi.MediaType{
+					"application/json": {Schema: &openapi.Schema{Type: "string"}},
+				},
+			},
+		},
 	}
 
 	fd, err := EmitOperation(op)

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/arazzo"
-	"github.com/SamuelMarks/cdd-go/src/openapi"
 )
 
 func TestFromArazzoAndToArazzo(t *testing.T) {
@@ -207,5 +206,11 @@ func TestFromArazzoAndToArazzo(t *testing.T) {
 		t.Error("expected error when sdk_workflow_cli.go is a directory")
 	}
 
-	_ = openapi.Schema{}
+	wfCode, err := os.ReadFile(filepath.Join(sdkDir, "workflows", "workflows.go"))
+	if err != nil {
+		t.Fatalf("failed to read generated workflows.go: %v", err)
+	}
+	if strings.Contains(string(wfCode), "WorkflowJSON:") || strings.Contains(string(wfCode), "StepJSON:") {
+		t.Errorf("did not expect comment-stuffed WorkflowJSON or StepJSON in generated workflows.go")
+	}
 }

@@ -93,6 +93,9 @@ func TestEmitHandlerInterfaceNil(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for path without leading slash")
 	}
+	if decl, err := EmitHandlerInterfaceWithOptions("/users", &openapi.PathItem{Get: &openapi.Operation{}}, false); err != nil || decl == nil {
+		t.Errorf("expected valid handler interface without MCP, got %v, %v", decl, err)
+	}
 }
 
 func TestEmitMethodSignatureEmptyOp(t *testing.T) {
@@ -135,12 +138,44 @@ func TestEmitHandlerStruct(t *testing.T) {
 		Head:    &openapi.Operation{OperationID: "headUser"},
 		Trace:   &openapi.Operation{OperationID: "traceUser"},
 	}
-	decls, err := EmitHandlerStruct("/users", pathItem)
+	decls, err := EmitHandlerStruct("/users/{id}", pathItem)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(decls) == 0 {
 		t.Errorf("expected decls")
+	}
+
+	var buf bytes.Buffer
+	file := &dst.File{
+		Name:  dst.NewIdent("routes"),
+		Decls: decls,
+	}
+	if err := decorator.NewRestorer().Fprint(&buf, file); err != nil {
+		t.Fatalf("failed to render handler struct: %v", err)
+	}
+	code := buf.String()
+	for _, expected := range []string{
+		`r.GET("/users/:id", h.GetUser)`,
+		`r.POST("/users/:id", h.PostUser)`,
+		`r.PUT("/users/:id", h.PutUser)`,
+		`r.DELETE("/users/:id", h.DeleteUser)`,
+		`r.PATCH("/users/:id", h.PatchUser)`,
+		`r.OPTIONS("/users/:id", h.OptionsUser)`,
+		`r.HEAD("/users/:id", h.HeadUser)`,
+		`r.Handle("TRACE", "/users/:id", h.TraceUser)`,
+	} {
+		if !strings.Contains(code, expected) {
+			t.Errorf("expected %q in rendered Register method, got:\n%s", expected, code)
+		}
+	}
+
+	ifaceDecl, structDecls, err := EmitRouteBundle("/users/{id}", pathItem)
+	if err != nil || ifaceDecl == nil || len(structDecls) == 0 {
+		t.Fatalf("expected valid EmitRouteBundle output, got %v, %v, %v", ifaceDecl, structDecls, err)
+	}
+	if _, _, err := EmitRouteBundle("invalid", pathItem); err == nil {
+		t.Errorf("expected error from EmitRouteBundle with invalid path")
 	}
 
 	pathItemEmpty := &openapi.PathItem{

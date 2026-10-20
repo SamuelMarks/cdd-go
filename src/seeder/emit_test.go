@@ -15,12 +15,21 @@ func TestEmitSeeder(t *testing.T) {
 			Type: "object",
 			Properties: map[string]openapi.Schema{
 				"id":     {Type: "string"},
-				"ID":     {Type: "string"}, // hits "id" check
+				"ID":     {Type: "string"},
 				"name":   {Type: "string"},
 				"count":  {Type: "integer"},
+				"score":  {Type: "number"},
 				"active": {Type: "boolean"},
-				"other":  {Type: "object"}, // hits default fallback
-				"":       {Type: "string"}, // hits empty string check
+				"tags":   {Type: "array", Items: &openapi.Schema{Type: "string"}},
+				"parent": {Ref: "#/components/schemas/User"},
+				"other":  {Type: "object"},
+				"":       {Type: "string"},
+			},
+		},
+		"AuditLog": {
+			Type: "object",
+			Properties: map[string]openapi.Schema{
+				"message": {Type: "string"},
 			},
 		},
 	}
@@ -47,8 +56,11 @@ func TestEmitSeeder(t *testing.T) {
 	if !bytes.Contains([]byte(code), []byte("SeedDatabase(db *gorm.DB)")) {
 		t.Errorf("missing SeedDatabase func in code")
 	}
-	if !bytes.Contains([]byte(code), []byte("FakeUser(pool EntityPool)")) {
-		t.Errorf("missing FakeUser func in code")
+	if !bytes.Contains([]byte(code), []byte("FakeUser(pool EntityPool) *models.User")) {
+		t.Errorf("missing FakeUser func returning *models.User in code: %s", code)
+	}
+	if !bytes.Contains([]byte(code), []byte("&models.User{")) {
+		t.Errorf("missing &models.User composite literal in code: %s", code)
 	}
 	if !bytes.Contains([]byte(code), []byte("gofakeit.UUID()")) {
 		t.Errorf("missing gofakeit.UUID() in code")
@@ -58,6 +70,9 @@ func TestEmitSeeder(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(code), []byte("gofakeit.Number(1, 100)")) {
 		t.Errorf("missing gofakeit.Number(1, 100) in code")
+	}
+	if !bytes.Contains([]byte(code), []byte("gofakeit.Float64Range(1.0, 100.0)")) {
+		t.Errorf("missing gofakeit.Float64Range(1.0, 100.0) in code")
 	}
 	if !bytes.Contains([]byte(code), []byte("gofakeit.Bool()")) {
 		t.Errorf("missing gofakeit.Bool() in code")

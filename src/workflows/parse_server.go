@@ -2,7 +2,6 @@
 package workflows
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -42,17 +41,6 @@ func ParseServerWorkflows(file *dst.File) ([]arazzo.Workflow, error) {
 // parseWorkflowTestFunc extracts an arazzo.Workflow from a `TestWorkflow<Name>` AST function declaration.
 // Parameter fn is the FuncDecl AST node, and it returns the reconstructed arazzo.Workflow.
 func parseWorkflowTestFunc(fn *dst.FuncDecl) arazzo.Workflow {
-	for _, c := range fn.Decs.Start {
-		line := strings.TrimSpace(strings.TrimPrefix(c, "//"))
-		if strings.HasPrefix(line, "WorkflowJSON:") {
-			raw := strings.TrimSpace(strings.TrimPrefix(line, "WorkflowJSON:"))
-			var wf arazzo.Workflow
-			if json.Unmarshal([]byte(raw), &wf) == nil && wf.WorkflowID != "" {
-				return wf
-			}
-		}
-	}
-
 	wfPascal := strings.TrimPrefix(fn.Name.Name, "TestWorkflow")
 	wf := arazzo.Workflow{
 		WorkflowID: strings.ToLower(wfPascal[:1]) + wfPascal[1:],
@@ -61,6 +49,11 @@ func parseWorkflowTestFunc(fn *dst.FuncDecl) arazzo.Workflow {
 		line := strings.TrimSpace(strings.TrimPrefix(c, "//"))
 		if strings.HasPrefix(line, "WorkflowID:") {
 			wf.WorkflowID = strings.TrimSpace(strings.TrimPrefix(line, "WorkflowID:"))
+		} else if strings.HasPrefix(line, "DependsOn:") {
+			csv := strings.TrimSpace(strings.TrimPrefix(line, "DependsOn:"))
+			if csv != "" {
+				wf.DependsOn = strings.Split(csv, ",")
+			}
 		}
 	}
 
@@ -93,13 +86,30 @@ func parseWorkflowRouteStmt(stmt dst.Stmt) (arazzo.Workflow, bool) {
 	var wf arazzo.Workflow
 	for _, c := range es.Decs.Start {
 		line := strings.TrimSpace(strings.TrimPrefix(c, "//"))
-		if strings.HasPrefix(line, "WorkflowJSON:") {
-			raw := strings.TrimSpace(strings.TrimPrefix(line, "WorkflowJSON:"))
-			if json.Unmarshal([]byte(raw), &wf) == nil && wf.WorkflowID != "" {
-				return wf, true
-			}
-		} else if strings.HasPrefix(line, "WorkflowID:") {
+		if strings.HasPrefix(line, "WorkflowID:") {
 			wf.WorkflowID = strings.TrimSpace(strings.TrimPrefix(line, "WorkflowID:"))
+		} else if strings.HasPrefix(line, "Step:") {
+			rest := strings.TrimSpace(strings.TrimPrefix(line, "Step:"))
+			step := arazzo.Step{}
+			if openIdx := strings.Index(rest, "("); openIdx != -1 && strings.HasSuffix(rest, ")") {
+				step.StepID = strings.TrimSpace(rest[:openIdx])
+				meta := rest[openIdx+1 : len(rest)-1]
+				if kv := strings.SplitN(meta, "=", 2); len(kv) == 2 {
+					switch kv[0] {
+					case "operationPath":
+						step.OperationPath = kv[1]
+					case "channelPath":
+						step.ChannelPath = kv[1]
+					case "workflowId":
+						step.WorkflowID = kv[1]
+					default:
+						step.OperationID = kv[1]
+					}
+				}
+			}
+			if step.StepID != "" {
+				wf.Steps = append(wf.Steps, step)
+			}
 		}
 	}
 	if wf.WorkflowID == "" {
@@ -113,7 +123,9 @@ func parseWorkflowRouteStmt(stmt dst.Stmt) (arazzo.Workflow, bool) {
 		}
 	}
 	if wf.WorkflowID != "" {
-		wf.Steps = []arazzo.Step{{StepID: "routeStep", OperationID: wf.WorkflowID}}
+		if len(wf.Steps) == 0 {
+			wf.Steps = []arazzo.Step{{StepID: "routeStep", OperationID: wf.WorkflowID}}
+		}
 		return wf, true
 	}
 	return arazzo.Workflow{}, false

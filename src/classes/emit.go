@@ -139,8 +139,18 @@ func EmitTypeExpr(schema *openapi.Schema) dst.Expr {
 	case "string":
 		return dst.NewIdent("string")
 	case "integer":
-		return dst.NewIdent("int")
+		switch schema.Format {
+		case "int32":
+			return dst.NewIdent("int32")
+		case "int64":
+			return dst.NewIdent("int64")
+		default:
+			return dst.NewIdent("int")
+		}
 	case "number":
+		if schema.Format == "float" {
+			return dst.NewIdent("float32")
+		}
 		return dst.NewIdent("float64")
 	case "boolean":
 		return dst.NewIdent("bool")
@@ -154,6 +164,24 @@ func EmitTypeExpr(schema *openapi.Schema) dst.Expr {
 				Key:   dst.NewIdent("string"),
 				Value: EmitTypeExpr(schema.AdditionalProperties),
 			}
+		}
+		if len(schema.Properties) > 0 {
+			fields := &dst.FieldList{}
+			propNames := make([]string, 0, len(schema.Properties))
+			for propName := range schema.Properties {
+				propNames = append(propNames, propName)
+			}
+			sort.Strings(propNames)
+			for _, propName := range propNames {
+				propSchema := schema.Properties[propName]
+				f := &dst.Field{
+					Names: []*dst.Ident{dst.NewIdent(naming.ExportedName(propName))},
+					Type:  EmitTypeExpr(&propSchema),
+					Tag:   &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("`json:%q`", propName)},
+				}
+				fields.List = append(fields.List, f)
+			}
+			return &dst.StructType{Fields: fields}
 		}
 		return dst.NewIdent("interface{}")
 	default:

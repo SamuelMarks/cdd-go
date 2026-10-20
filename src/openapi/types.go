@@ -2,7 +2,10 @@
 // It complies with the OpenAPI Specification Version 3.2.0.
 package openapi
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // OpenAPI is the root object of the OpenAPI Description.
 type OpenAPI struct {
@@ -234,6 +237,71 @@ type PathItem struct {
 	Parameters []Parameter `json:"parameters,omitempty"`
 }
 
+// MethodOperation pairs a lowercase HTTP verb with its corresponding OpenAPI Operation.
+type MethodOperation struct {
+	// Method is the lowercase HTTP verb ("get", "post", "put", "delete", "patch", "options", "head", "trace").
+	Method string
+	// Operation is the non-nil OpenAPI Operation pointer for that HTTP verb.
+	Operation *Operation
+}
+
+// PathItemOperations returns all non-nil HTTP operations on a PathItem in canonical verb order.
+// Parameter item is the PathItem to inspect, and it returns the slice of active MethodOperation pairs.
+func PathItemOperations(item *PathItem) []MethodOperation {
+	if item == nil {
+		return nil
+	}
+	var ops []MethodOperation
+	if item.Get != nil {
+		ops = append(ops, MethodOperation{Method: "get", Operation: item.Get})
+	}
+	if item.Post != nil {
+		ops = append(ops, MethodOperation{Method: "post", Operation: item.Post})
+	}
+	if item.Put != nil {
+		ops = append(ops, MethodOperation{Method: "put", Operation: item.Put})
+	}
+	if item.Delete != nil {
+		ops = append(ops, MethodOperation{Method: "delete", Operation: item.Delete})
+	}
+	if item.Patch != nil {
+		ops = append(ops, MethodOperation{Method: "patch", Operation: item.Patch})
+	}
+	if item.Options != nil {
+		ops = append(ops, MethodOperation{Method: "options", Operation: item.Options})
+	}
+	if item.Head != nil {
+		ops = append(ops, MethodOperation{Method: "head", Operation: item.Head})
+	}
+	if item.Trace != nil {
+		ops = append(ops, MethodOperation{Method: "trace", Operation: item.Trace})
+	}
+	return ops
+}
+
+// SetOperation assigns an Operation pointer to the corresponding HTTP verb field on the PathItem.
+// Parameter method is the case-insensitive HTTP verb, and op is the Operation pointer to assign.
+func (p *PathItem) SetOperation(method string, op *Operation) {
+	switch strings.ToLower(method) {
+	case "get":
+		p.Get = op
+	case "post":
+		p.Post = op
+	case "put":
+		p.Put = op
+	case "delete":
+		p.Delete = op
+	case "patch":
+		p.Patch = op
+	case "options":
+		p.Options = op
+	case "head":
+		p.Head = op
+	case "trace":
+		p.Trace = op
+	}
+}
+
 // Operation describes a single API operation on a path.
 type Operation struct {
 	// Tags is a list of tags for API documentation control.
@@ -460,14 +528,18 @@ type Encoding struct {
 type Schema struct {
 	// Ref allows for a referenced definition.
 	Ref string `json:"$ref,omitempty"`
-	// Type specifies the data type.
+	// Type specifies the primary data type.
 	Type string `json:"type,omitempty"`
+	// TypeArray holds all types when OpenAPI 3.1/3.2 specifies a type union array (e.g. ["string", "null"]).
+	TypeArray []string `json:"-"`
 	// Properties define the structure of the object.
 	Properties map[string]Schema `json:"properties,omitempty"`
 	// Items define the item schema for array types.
 	Items *Schema `json:"items,omitempty"`
-	// AdditionalProperties dictate validation rules for extraneous fields.
+	// AdditionalProperties dictate validation rules for extraneous fields when specified as a Schema.
 	AdditionalProperties *Schema `json:"additionalProperties,omitempty"`
+	// AdditionalPropertiesBool holds the boolean value when additionalProperties is specified as true or false.
+	AdditionalPropertiesBool *bool `json:"-"`
 	// Description provides context for the schema.
 	Description string `json:"description,omitempty"`
 	// Format suggests data format rules (e.g., date-time).
@@ -530,6 +602,56 @@ type Schema struct {
 	WriteOnly *bool `json:"writeOnly,omitempty"`
 	// Deprecated specifies if the schema is deprecated.
 	Deprecated *bool `json:"deprecated,omitempty"`
+}
+
+// UnmarshalJSON decodes a Schema from JSON, supporting both string and []string for "type" and both bool and Schema for "additionalProperties".
+// Parameter data is the raw JSON bytes, and it returns any unmarshaling error.
+func (s *Schema) UnmarshalJSON(data []byte) error {
+	type schemaAlias Schema
+	aux := &struct {
+		RawType                 json.RawMessage `json:"type,omitempty"`
+		RawAdditionalProperties json.RawMessage `json:"additionalProperties,omitempty"`
+		*schemaAlias
+	}{
+		schemaAlias: (*schemaAlias)(s),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	if len(aux.RawType) > 0 {
+		var singleType string
+		if err := json.Unmarshal(aux.RawType, &singleType); err == nil {
+			s.Type = singleType
+		} else {
+			var multiTypes []string
+			if err := json.Unmarshal(aux.RawType, &multiTypes); err != nil {
+				return err
+			}
+			s.TypeArray = multiTypes
+			for _, t := range multiTypes {
+				if t != "null" {
+					s.Type = t
+					break
+				}
+			}
+			if s.Type == "" && len(multiTypes) > 0 {
+				s.Type = multiTypes[0]
+			}
+		}
+	}
+	if len(aux.RawAdditionalProperties) > 0 {
+		var boolVal bool
+		if err := json.Unmarshal(aux.RawAdditionalProperties, &boolVal); err == nil {
+			s.AdditionalPropertiesBool = &boolVal
+		} else {
+			var addSchema Schema
+			if err := json.Unmarshal(aux.RawAdditionalProperties, &addSchema); err != nil {
+				return err
+			}
+			s.AdditionalProperties = &addSchema
+		}
+	}
+	return nil
 }
 
 // Discriminator Object for polymorphism support.

@@ -25,10 +25,12 @@ func EmitSeeder(schemas map[string]openapi.Schema) []dst.Decl {
 	// Entity Pool struct
 	poolFields := &dst.FieldList{List: []*dst.Field{}}
 	for _, name := range schemaNames {
-		poolFields.List = append(poolFields.List, &dst.Field{
+		f := &dst.Field{
 			Names: []*dst.Ident{dst.NewIdent(name + "IDs")},
 			Type:  &dst.ArrayType{Elt: dst.NewIdent("string")},
-		})
+		}
+		f.Decs.Start.Append(fmt.Sprintf("// %sIDs stores generated primary key IDs for %s entities.", name, name))
+		poolFields.List = append(poolFields.List, f)
 	}
 	poolStruct := &dst.TypeSpec{
 		Name: dst.NewIdent("EntityPool"),
@@ -55,33 +57,42 @@ func EmitSeeder(schemas map[string]openapi.Schema) []dst.Decl {
 			},
 		},
 	}
-	seedFunc.Decs.Start.Append("// SeedDatabase generates a dependency graph of fake data and inserts it.")
+	seedFunc.Decs.Start.Append("// SeedDatabase generates a dependency graph of fake data and inserts it. Parameter db is the GORM database instance.")
 
 	for _, name := range schemaNames {
 		schema := schemas[name]
+		loopStmts := []dst.Stmt{
+			&dst.AssignStmt{
+				Lhs: []dst.Expr{dst.NewIdent("item")},
+				Tok: token.DEFINE,
+				Rhs: []dst.Expr{&dst.CallExpr{Fun: dst.NewIdent("Fake" + name), Args: []dst.Expr{dst.NewIdent("pool")}}},
+			},
+			&dst.IfStmt{
+				Init: &dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("err")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("db"), Sel: dst.NewIdent("Create")}, Args: []dst.Expr{dst.NewIdent("item")}}, Sel: dst.NewIdent("Error")}}},
+				Cond: &dst.BinaryExpr{X: dst.NewIdent("err"), Op: token.NEQ, Y: dst.NewIdent("nil")},
+				Body: &dst.BlockStmt{List: []dst.Stmt{&dst.ReturnStmt{Results: []dst.Expr{dst.NewIdent("err")}}}},
+			},
+		}
+		if idProp, hasID := schema.Properties["id"]; hasID && idProp.Type == "string" {
+			loopStmts = append(loopStmts, &dst.AssignStmt{
+				Lhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("pool"), Sel: dst.NewIdent(name + "IDs")}},
+				Tok: token.ASSIGN,
+				Rhs: []dst.Expr{&dst.CallExpr{Fun: dst.NewIdent("append"), Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("pool"), Sel: dst.NewIdent(name + "IDs")}, &dst.SelectorExpr{X: dst.NewIdent("item"), Sel: dst.NewIdent("Id")}}}},
+			})
+		} else {
+			loopStmts = append(loopStmts, &dst.AssignStmt{
+				Lhs: []dst.Expr{dst.NewIdent("_")},
+				Tok: token.ASSIGN,
+				Rhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("pool"), Sel: dst.NewIdent(name + "IDs")}},
+			})
+		}
+
 		seedFunc.Body.List = append(seedFunc.Body.List, &dst.ForStmt{
 			Init: &dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("i")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.BasicLit{Kind: token.INT, Value: "0"}}},
 			Cond: &dst.BinaryExpr{X: dst.NewIdent("i"), Op: token.LSS, Y: &dst.BasicLit{Kind: token.INT, Value: "10"}},
 			Post: &dst.IncDecStmt{X: dst.NewIdent("i"), Tok: token.INC},
 			Body: &dst.BlockStmt{
-				List: []dst.Stmt{
-					&dst.AssignStmt{
-						Lhs: []dst.Expr{dst.NewIdent("item")},
-						Tok: token.DEFINE,
-						Rhs: []dst.Expr{&dst.CallExpr{Fun: dst.NewIdent("Fake" + name), Args: []dst.Expr{dst.NewIdent("pool")}}},
-					},
-					&dst.IfStmt{
-						Init: &dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("err")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("db"), Sel: dst.NewIdent("Create")}, Args: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent("item")}}}, Sel: dst.NewIdent("Error")}}},
-						Cond: &dst.BinaryExpr{X: dst.NewIdent("err"), Op: token.NEQ, Y: dst.NewIdent("nil")},
-						Body: &dst.BlockStmt{List: []dst.Stmt{&dst.ReturnStmt{Results: []dst.Expr{dst.NewIdent("err")}}}},
-					},
-					// We assume models have an ID string field for pool caching
-					&dst.AssignStmt{
-						Lhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("pool"), Sel: dst.NewIdent(name + "IDs")}},
-						Tok: token.ASSIGN,
-						Rhs: []dst.Expr{&dst.CallExpr{Fun: dst.NewIdent("append"), Args: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("pool"), Sel: dst.NewIdent(name + "IDs")}, &dst.SelectorExpr{X: dst.NewIdent("item"), Sel: dst.NewIdent("Id")}}}},
-					},
-				},
+				List: loopStmts,
 			},
 		})
 
@@ -97,18 +108,25 @@ func EmitSeeder(schemas map[string]openapi.Schema) []dst.Decl {
 // emitFakeFactory generates a Fake<Name> function for a single schema.
 // Parameter name is the model name, and schema is the OpenAPI Schema.
 func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
+	modelSel := &dst.SelectorExpr{
+		X:   dst.NewIdent("models"),
+		Sel: dst.NewIdent(name),
+	}
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("Fake" + name),
 		Type: &dst.FuncType{
 			Params:  &dst.FieldList{List: []*dst.Field{{Names: []*dst.Ident{dst.NewIdent("pool")}, Type: dst.NewIdent("EntityPool")}}},
-			Results: &dst.FieldList{List: []*dst.Field{{Type: dst.NewIdent("models." + name)}}},
+			Results: &dst.FieldList{List: []*dst.Field{{Type: &dst.StarExpr{X: modelSel}}}},
 		},
 		Body: &dst.BlockStmt{List: []dst.Stmt{}},
 	}
-	f.Decs.Start.Append(fmt.Sprintf("// Fake%s generates a random %s.", name, name))
+	f.Decs.Start.Append(fmt.Sprintf("// Fake%s generates a random %s. Parameter pool holds cached entity IDs.", name, name))
 
 	compLit := &dst.CompositeLit{
-		Type: dst.NewIdent("models." + name),
+		Type: &dst.SelectorExpr{
+			X:   dst.NewIdent("models"),
+			Sel: dst.NewIdent(name),
+		},
 		Elts: []dst.Expr{},
 	}
 
@@ -121,14 +139,22 @@ func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 	for _, propName := range propNames {
 		propSchema := schema.Properties[propName]
 		goName := naming.ExportedName(propName)
+		if goName == "" {
+			continue
+		}
+		if propSchema.Ref != "" || propSchema.Type == "array" || propSchema.AdditionalProperties != nil || len(propSchema.Properties) > 0 {
+			continue
+		}
 		var fakeExpr dst.Expr
 
-		if goName == "Id" || goName == "ID" {
+		if (goName == "Id" || goName == "ID") && propSchema.Type == "string" {
 			fakeExpr = &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gofakeit"), Sel: dst.NewIdent("UUID")}}
 		} else if propSchema.Type == "string" {
 			fakeExpr = &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gofakeit"), Sel: dst.NewIdent("Word")}}
 		} else if propSchema.Type == "integer" {
 			fakeExpr = &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gofakeit"), Sel: dst.NewIdent("Number")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.INT, Value: "1"}, &dst.BasicLit{Kind: token.INT, Value: "100"}}}
+		} else if propSchema.Type == "number" {
+			fakeExpr = &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gofakeit"), Sel: dst.NewIdent("Float64Range")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.FLOAT, Value: "1.0"}, &dst.BasicLit{Kind: token.FLOAT, Value: "100.0"}}}
 		} else if propSchema.Type == "boolean" {
 			fakeExpr = &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gofakeit"), Sel: dst.NewIdent("Bool")}}
 		} else {
@@ -141,6 +167,6 @@ func emitFakeFactory(name string, schema *openapi.Schema) *dst.FuncDecl {
 		})
 	}
 
-	f.Body.List = append(f.Body.List, &dst.ReturnStmt{Results: []dst.Expr{compLit}})
+	f.Body.List = append(f.Body.List, &dst.ReturnStmt{Results: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: compLit}}})
 	return f
 }

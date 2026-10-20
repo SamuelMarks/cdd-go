@@ -225,19 +225,25 @@ func TestEmitTypeExprObjectFallthrough(t *testing.T) {
 	if !ok || id.Name != "interface{}" {
 		t.Errorf("expected interface{}")
 	}
+}
 
+func TestEmitTypeWithOptions(t *testing.T) {
 	objSchema := &openapi.Schema{
 		Type: "object",
 		Properties: map[string]openapi.Schema{
-			"user_id": {Type: "string"},
+			"id":    {Type: "string"},
+			"i32":   {Type: "integer", Format: "int32"},
+			"i64":   {Type: "integer", Format: "int64"},
+			"f32":   {Type: "number", Format: "float"},
+			"inner": {Type: "object", Properties: map[string]openapi.Schema{"code": {Type: "string"}}},
 		},
 	}
-	tsOpt, err := EmitTypeWithOptions("User", objSchema, EmitOptions{
+	tsOmit, err := EmitTypeWithOptions("User", objSchema, EmitOptions{
 		IncludeGormTags:         false,
 		OmitEmpty:               true,
 		UsePascalCaseFieldNames: true,
 	})
-	if err != nil || tsOpt == nil {
+	if err != nil || tsOmit == nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	tsPlain, err := EmitTypeWithOptions("User", objSchema, EmitOptions{
@@ -246,5 +252,19 @@ func TestEmitTypeExprObjectFallthrough(t *testing.T) {
 	})
 	if err != nil || tsPlain == nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := decorator.NewRestorer().Fprint(&buf, &dst.File{
+		Name:  dst.NewIdent("models"),
+		Decls: []dst.Decl{&dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{tsPlain}}},
+	}); err != nil {
+		t.Fatalf("failed to print plain struct: %v", err)
+	}
+	plainCode := buf.String()
+	if !strings.Contains(plainCode, "`json:\"id\"`") || strings.Contains(plainCode, "gorm:") || strings.Contains(plainCode, "omitempty") {
+		t.Errorf("expected plain json tag without gorm or omitempty, got:\n%s", plainCode)
+	}
+	if !strings.Contains(plainCode, "int32") || !strings.Contains(plainCode, "int64") || !strings.Contains(plainCode, "float32") || !strings.Contains(plainCode, "Code string") {
+		t.Errorf("expected int32, int64, float32, and inline struct field Code string, got:\n%s", plainCode)
 	}
 }

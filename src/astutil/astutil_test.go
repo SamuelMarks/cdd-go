@@ -4,6 +4,7 @@ import (
 	"go/token"
 	"testing"
 
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
@@ -119,5 +120,68 @@ func TestStringLitAndKeyValues(t *testing.T) {
 	}
 	if LowerCamelTrimPrefix("LinkUserOrder", "Link") != "userOrder" {
 		t.Errorf("expected userOrder, got %q", LowerCamelTrimPrefix("LinkUserOrder", "Link"))
+	}
+}
+
+func TestEmitAndParsePathItemMapDecl(t *testing.T) {
+	if EmitPathItemMapDecl("Callback", "Callback", "test", nil) != nil {
+		t.Error("expected nil for nil map")
+	}
+	if n, m := ParsePathItemMapDecl(nil, "Callback"); n != "" || m != nil {
+		t.Error("expected empty for nil decl")
+	}
+	if n, m := ParsePathItemMapDecl(&dst.GenDecl{Tok: token.VAR}, "Callback"); n != "" || m != nil {
+		t.Error("expected empty when no matching composite literal exists")
+	}
+	items := map[string]openapi.PathItem{
+		"http://example.com/hook": {
+			Summary:     "Hook summary",
+			Description: "Hook description",
+			Post:        &openapi.Operation{OperationID: "onEvent"},
+		},
+	}
+	decl := EmitPathItemMapDecl("Callback", "Callback", "onEvent", items)
+	if decl == nil {
+		t.Fatal("expected non-nil decl")
+	}
+	name, parsed := ParsePathItemMapDecl(decl, "Callback")
+	if name != "onEvent" || len(parsed) != 1 {
+		t.Fatalf("expected onEvent with 1 entry, got %q, %+v", name, parsed)
+	}
+	pi := parsed["http://example.com/hook"]
+	if pi.Summary != "Hook summary" || pi.Description != "Hook description" || pi.Post == nil || pi.Post.OperationID != "onEvent" {
+		t.Errorf("unexpected round-tripped PathItem: %+v", pi)
+	}
+
+	// Test ignored elements in ParsePathItemMapDecl and parsePathItemCompositeLit
+	malformedDecl := &dst.GenDecl{
+		Tok: token.VAR,
+		Specs: []dst.Spec{
+			&dst.ValueSpec{
+				Names: []*dst.Ident{dst.NewIdent("CallbackEmpty")},
+				Values: []dst.Expr{
+					&dst.CompositeLit{
+						Type: dst.NewIdent("Callback"),
+						Elts: []dst.Expr{
+							dst.NewIdent("notKeyVal"),
+							&dst.KeyValueExpr{Key: &dst.BasicLit{Kind: token.STRING, Value: `"k"`}, Value: dst.NewIdent("notCompLit")},
+							&dst.KeyValueExpr{
+								Key: &dst.BasicLit{Kind: token.STRING, Value: `"k2"`},
+								Value: &dst.CompositeLit{
+									Type: dst.NewIdent("PathItem"),
+									Elts: []dst.Expr{
+										dst.NewIdent("notKV"),
+										&dst.KeyValueExpr{Key: dst.NewIdent("Summary"), Value: dst.NewIdent("notStr")},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if n, m := ParsePathItemMapDecl(malformedDecl, "Callback"); n != "" || m != nil {
+		t.Errorf("expected empty for malformed decl, got %q, %+v", n, m)
 	}
 }

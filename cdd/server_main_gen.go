@@ -5,12 +5,15 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // GenerateServerMain generates the main entrypoint for the server.
+// Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, database enables DB setup, seed enables DB seeding, and idp enables mock IdP endpoints.
 func GenerateServerMain(oa *openapi.OpenAPI, outDir string, database bool, seed bool, idp bool) error {
 	mainDir := filepath.Join(outDir, "cmd", "server")
 	if err := os.MkdirAll(mainDir, 0755); err != nil {
@@ -83,6 +86,35 @@ func GenerateServerMain(oa *openapi.OpenAPI, outDir string, database bool, seed 
 		)
 	}
 
+	if oa != nil && len(oa.Paths) > 0 {
+		pathKeys := make([]string, 0, len(oa.Paths))
+		for path := range oa.Paths {
+			pathKeys = append(pathKeys, path)
+		}
+		sort.Strings(pathKeys)
+
+		daoArgName := "nil"
+		if database {
+			daoArgName = "daoFactory"
+		}
+
+		for _, path := range pathKeys {
+			newHandlerName := "NewHandler" + naming.ToCamelCasePath(path)
+			bodyStmts = append(bodyStmts, &dst.ExprStmt{
+				X: &dst.CallExpr{
+					Fun: &dst.SelectorExpr{
+						X: &dst.CallExpr{
+							Fun:  &dst.SelectorExpr{X: dst.NewIdent("routes"), Sel: dst.NewIdent(newHandlerName)},
+							Args: []dst.Expr{dst.NewIdent(daoArgName)},
+						},
+						Sel: dst.NewIdent("Register"),
+					},
+					Args: []dst.Expr{dst.NewIdent("r")},
+				},
+			})
+		}
+	}
+
 	bodyStmts = append(bodyStmts,
 		&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("log"), Sel: dst.NewIdent("Println")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Server listening on :8080"`}}}},
 		&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("r"), Sel: dst.NewIdent("Run")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `":8080"`}}}},
@@ -101,6 +133,10 @@ func GenerateServerMain(oa *openapi.OpenAPI, outDir string, database bool, seed 
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"os"`}},
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/gin-gonic/gin"`}},
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/middlewares"`}},
+	}
+
+	if oa != nil && len(oa.Paths) > 0 {
+		imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/routes"`}})
 	}
 
 	if idp {

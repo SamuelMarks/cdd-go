@@ -149,4 +149,7 @@ func main() {
 		return
 	}
 	fmt.Println(fmt.Sprintf("%.1f%%", float64(docs)/float64(total)*100.0))
+	if docs < total {
+		osExit(1)
+	}
 }

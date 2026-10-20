@@ -6,13 +6,21 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/functions"
 	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
 // EmitClientInterface generates a Go interface for an OpenAPI PathItem to be used as a client.
+// Parameter path is the URL path, pathItem is the OpenAPI PathItem, and it returns the AST declaration and any error.
 func EmitClientInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl, error) {
+	return EmitClientInterfaceWithOptions(path, pathItem, true)
+}
+
+// EmitClientInterfaceWithOptions generates a Go interface for an OpenAPI PathItem with configurable MCP adapter emission.
+// Parameter path is the URL path, pathItem is the OpenAPI PathItem, includeMCP enables MCP methods, and it returns the AST declaration and any error.
+func EmitClientInterfaceWithOptions(path string, pathItem *openapi.PathItem, includeMCP bool) (*dst.GenDecl, error) {
 	if pathItem == nil {
 		return nil, fmt.Errorf("PathItem is nil")
 	}
@@ -25,88 +33,70 @@ func EmitClientInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl,
 		Methods: &dst.FieldList{},
 	}
 
-	if pathItem.Get != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Get", pathItem.Get))
-	}
-	if pathItem.Post != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Post", pathItem.Post))
-	}
-	if pathItem.Put != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Put", pathItem.Put))
-	}
-	if pathItem.Delete != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Delete", pathItem.Delete))
-	}
-	if pathItem.Patch != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Patch", pathItem.Patch))
-	}
-	if pathItem.Options != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Options", pathItem.Options))
-	}
-	if pathItem.Head != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Head", pathItem.Head))
-	}
-	if pathItem.Trace != nil {
-		iface.Methods.List = append(iface.Methods.List, emitMethodSignature("Trace", pathItem.Trace))
+	for _, mo := range openapi.PathItemOperations(pathItem) {
+		verb := strings.ToUpper(mo.Method[:1]) + mo.Method[1:]
+		iface.Methods.List = append(iface.Methods.List, emitMethodSignature(verb, mo.Operation))
 	}
 
-	// Native MCP Adapters
-	iface.Methods.List = append(iface.Methods.List, &dst.Field{
-		Names: []*dst.Ident{dst.NewIdent("GetTools")},
-		Type: &dst.FuncType{
-			Params: &dst.FieldList{},
-			Results: &dst.FieldList{
-				List: []*dst.Field{
-					{Type: &dst.ArrayType{Elt: dst.NewIdent("string")}},
-					{Type: dst.NewIdent("error")},
+	if includeMCP {
+		// Native MCP Adapters
+		iface.Methods.List = append(iface.Methods.List, &dst.Field{
+			Names: []*dst.Ident{dst.NewIdent("GetTools")},
+			Type: &dst.FuncType{
+				Params: &dst.FieldList{},
+				Results: &dst.FieldList{
+					List: []*dst.Field{
+						{Type: &dst.ArrayType{Elt: dst.NewIdent("string")}},
+						{Type: dst.NewIdent("error")},
+					},
 				},
 			},
-		},
-		Decs: dst.FieldDecorations{
-			NodeDecs: dst.NodeDecs{
-				Start: dst.Decorations{"// GetTools returns native MCP tools for this client interface."},
-			},
-		},
-	})
-	iface.Methods.List = append(iface.Methods.List, &dst.Field{
-		Names: []*dst.Ident{dst.NewIdent("GetResources")},
-		Type: &dst.FuncType{
-			Params: &dst.FieldList{},
-			Results: &dst.FieldList{
-				List: []*dst.Field{
-					{Type: &dst.ArrayType{Elt: dst.NewIdent("string")}},
-					{Type: dst.NewIdent("error")},
+			Decs: dst.FieldDecorations{
+				NodeDecs: dst.NodeDecs{
+					Start: dst.Decorations{"// GetTools returns native MCP tools for this client interface."},
 				},
 			},
-		},
-		Decs: dst.FieldDecorations{
-			NodeDecs: dst.NodeDecs{
-				Start: dst.Decorations{"// GetResources returns native MCP resources for this client interface."},
-			},
-		},
-	})
-	iface.Methods.List = append(iface.Methods.List, &dst.Field{
-		Names: []*dst.Ident{dst.NewIdent("ExecuteTool")},
-		Type: &dst.FuncType{
-			Params: &dst.FieldList{
-				List: []*dst.Field{
-					{Names: []*dst.Ident{dst.NewIdent("toolName")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("args")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")}},
+		})
+		iface.Methods.List = append(iface.Methods.List, &dst.Field{
+			Names: []*dst.Ident{dst.NewIdent("GetResources")},
+			Type: &dst.FuncType{
+				Params: &dst.FieldList{},
+				Results: &dst.FieldList{
+					List: []*dst.Field{
+						{Type: &dst.ArrayType{Elt: dst.NewIdent("string")}},
+						{Type: dst.NewIdent("error")},
+					},
 				},
 			},
-			Results: &dst.FieldList{
-				List: []*dst.Field{
-					{Type: dst.NewIdent("string")},
-					{Type: dst.NewIdent("error")},
+			Decs: dst.FieldDecorations{
+				NodeDecs: dst.NodeDecs{
+					Start: dst.Decorations{"// GetResources returns native MCP resources for this client interface."},
 				},
 			},
-		},
-		Decs: dst.FieldDecorations{
-			NodeDecs: dst.NodeDecs{
-				Start: dst.Decorations{"// ExecuteTool routes an LLM tool execution request natively to the corresponding client method."},
+		})
+		iface.Methods.List = append(iface.Methods.List, &dst.Field{
+			Names: []*dst.Ident{dst.NewIdent("ExecuteTool")},
+			Type: &dst.FuncType{
+				Params: &dst.FieldList{
+					List: []*dst.Field{
+						{Names: []*dst.Ident{dst.NewIdent("toolName")}, Type: dst.NewIdent("string")},
+						{Names: []*dst.Ident{dst.NewIdent("args")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")}},
+					},
+				},
+				Results: &dst.FieldList{
+					List: []*dst.Field{
+						{Type: dst.NewIdent("string")},
+						{Type: dst.NewIdent("error")},
+					},
+				},
 			},
-		},
-	})
+			Decs: dst.FieldDecorations{
+				NodeDecs: dst.NodeDecs{
+					Start: dst.Decorations{"// ExecuteTool routes an LLM tool execution request natively to the corresponding client method."},
+				},
+			},
+		})
+	}
 
 	ts := &dst.TypeSpec{
 		Name: dst.NewIdent(interfaceName),
@@ -128,6 +118,26 @@ func EmitClientInterface(path string, pathItem *openapi.PathItem) (*dst.GenDecl,
 	}
 
 	return decl, nil
+}
+
+// EmitClientOperationFuncs emits strongly-typed standalone client operation function declarations for a PathItem using src/functions.
+// Parameter path is the URL path, pathItem is the OpenAPI PathItem, and it returns the slice of emitted function declarations.
+func EmitClientOperationFuncs(path string, pathItem *openapi.PathItem) []dst.Decl {
+	if pathItem == nil {
+		return nil
+	}
+	var decls []dst.Decl
+	for _, mo := range openapi.PathItemOperations(pathItem) {
+		opCopy := *mo.Operation
+		if opCopy.OperationID == "" {
+			opCopy.OperationID = mo.Method + naming.ToCamelCasePath(path)
+		}
+		if fn, err := functions.EmitOperation(&opCopy); err == nil && fn != nil {
+			fn.Decs.Start.Prepend(fmt.Sprintf("// METHOD: %s", strings.ToUpper(mo.Method)), fmt.Sprintf("// Path: %s", path))
+			decls = append(decls, fn)
+		}
+	}
+	return decls
 }
 
 // emitMethodSignature builds a dst.Field method signature for a client interface method.

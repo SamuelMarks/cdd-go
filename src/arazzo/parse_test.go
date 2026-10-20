@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -49,6 +50,9 @@ func TestParameterValueUnion(t *testing.T) {
 		var out ParameterValue
 		if err := json.Unmarshal(b, &out); err != nil {
 			t.Fatalf("unmarshal failed for %s: %v", string(b), err)
+		}
+		if out.String() != tc.String() {
+			t.Errorf("expected round-trip ParameterValue %q, got %q", tc.String(), out.String())
 		}
 	}
 
@@ -186,6 +190,9 @@ func TestDiscriminatedUnionsJSON(t *testing.T) {
 		if err := json.Unmarshal(b, &decoded); err != nil {
 			t.Fatal(err)
 		}
+		if !reflect.DeepEqual(decoded, tc) {
+			t.Errorf("expected %+v, got %+v", tc, decoded)
+		}
 	}
 	var badCT CriterionType
 	if err := badCT.UnmarshalJSON([]byte(`null`)); err != nil {
@@ -209,6 +216,9 @@ func TestDiscriminatedUnionsJSON(t *testing.T) {
 		var decoded OutputValue
 		if err := json.Unmarshal(b, &decoded); err != nil {
 			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(decoded, tc) {
+			t.Errorf("expected %+v, got %+v", tc, decoded)
 		}
 	}
 	var badOV OutputValue

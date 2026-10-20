@@ -10,15 +10,25 @@ import (
 )
 
 // EmitDatabaseConfig generates a struct for Database configuration.
+// It returns the AST declaration for the Config struct.
 func EmitDatabaseConfig() *dst.GenDecl {
+	dbURLField := &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("DatabaseURL")},
+		Type:  dst.NewIdent("string"),
+	}
+	dbURLField.Decs.Start.Append("// DatabaseURL is the connection DSN string.")
+
+	ephemeralField := &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("Ephemeral")},
+		Type:  dst.NewIdent("bool"),
+	}
+	ephemeralField.Decs.Start.Append("// Ephemeral indicates whether to use an in-memory SQLite database.")
+
 	ts := &dst.TypeSpec{
 		Name: dst.NewIdent("Config"),
 		Type: &dst.StructType{
 			Fields: &dst.FieldList{
-				List: []*dst.Field{
-					{Names: []*dst.Ident{dst.NewIdent("DatabaseURL")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("Ephemeral")}, Type: dst.NewIdent("bool")},
-				},
+				List: []*dst.Field{dbURLField, ephemeralField},
 			},
 		},
 	}
@@ -27,6 +37,7 @@ func EmitDatabaseConfig() *dst.GenDecl {
 }
 
 // EmitInitDB generates the InitDB function to connect to Postgres or Ephemeral SQLite.
+// It returns the AST function declaration for InitDB.
 func EmitInitDB() *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("InitDB"),
@@ -96,11 +107,12 @@ func EmitInitDB() *dst.FuncDecl {
 			},
 		},
 	}
-	f.Decs.Start.Append("// InitDB creates a new database connection.")
+	f.Decs.Start.Append("// InitDB creates a new database connection. Parameter cfg is the connection configuration.")
 	return f
 }
 
 // EmitMigrate generates the Migrate function to run AutoMigrate.
+// Parameter schemas is the map of OpenAPI schemas, and it returns the AST function declaration for Migrate.
 func EmitMigrate(schemas map[string]openapi.Schema) *dst.FuncDecl {
 	f := &dst.FuncDecl{
 		Name: dst.NewIdent("Migrate"),
@@ -141,8 +153,18 @@ func EmitMigrate(schemas map[string]openapi.Schema) *dst.FuncDecl {
 				Tok: token.DEFINE,
 				Rhs: []dst.Expr{
 					&dst.CallExpr{
-						Fun:  &dst.SelectorExpr{X: dst.NewIdent("db"), Sel: dst.NewIdent("AutoMigrate")},
-						Args: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent(name + "{}")}},
+						Fun: &dst.SelectorExpr{X: dst.NewIdent("db"), Sel: dst.NewIdent("AutoMigrate")},
+						Args: []dst.Expr{
+							&dst.UnaryExpr{
+								Op: token.AND,
+								X: &dst.CompositeLit{
+									Type: &dst.SelectorExpr{
+										X:   dst.NewIdent("models"),
+										Sel: dst.NewIdent(name),
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -154,6 +176,6 @@ func EmitMigrate(schemas map[string]openapi.Schema) *dst.FuncDecl {
 	}
 
 	f.Body.List = append(f.Body.List, &dst.ReturnStmt{Results: []dst.Expr{dst.NewIdent("nil")}})
-	f.Decs.Start.Append("// Migrate automatically migrates schemas for Concrete DAOs.")
+	f.Decs.Start.Append("// Migrate automatically migrates schemas for Concrete DAOs. Parameter db is the GORM database instance.")
 	return f
 }

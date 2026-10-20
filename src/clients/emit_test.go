@@ -122,4 +122,19 @@ func TestEmitMethodSignatureEmptyOp(t *testing.T) {
 	if f.Names[0].Name != "Put" {
 		t.Errorf("expected Put")
 	}
+
+	declNoMCP, err := EmitClientInterfaceWithOptions("/users", &openapi.PathItem{Get: &openapi.Operation{OperationID: "listUsers"}}, false)
+	if err != nil || declNoMCP == nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if EmitClientOperationFuncs("/users", nil) != nil {
+		t.Errorf("expected nil for nil pathItem")
+	}
+	fnDecls := EmitClientOperationFuncs("/users", &openapi.PathItem{
+		Get:  &openapi.Operation{OperationID: "listUsers"},
+		Post: &openapi.Operation{},
+	})
+	if len(fnDecls) != 2 {
+		t.Errorf("expected 2 operation function declarations, got %d", len(fnDecls))
+	}
 }

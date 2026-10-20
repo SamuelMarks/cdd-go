@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/docstrings"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
@@ -21,48 +22,17 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 	schema := &openapi.Schema{}
 
 	if len(ts.Decs.Start) > 0 {
-		desc := ""
-		for _, doc := range ts.Decs.Start {
-			desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
-		}
-		schema.Description = strings.TrimSpace(desc)
+		schema.Description = strings.ReplaceAll(docstrings.Parse(ts.Decs.Start), "\n", " ")
 	}
 
 	switch t := ts.Type.(type) {
 	case *dst.StructType:
 		schema.Type = "object"
-		schema.Properties = make(map[string]openapi.Schema)
-		for _, field := range t.Fields.List {
-			if len(field.Names) == 0 {
-				continue
-			}
-			propName := field.Names[0].Name
-			if field.Tag != nil && field.Tag.Kind == token.STRING {
-				tagVal := strings.Trim(field.Tag.Value, "`")
-				structTag := reflect.StructTag(tagVal)
-				if j := structTag.Get("json"); j != "" {
-					parts := strings.Split(j, ",")
-					if parts[0] != "" && parts[0] != "-" {
-						propName = parts[0]
-					}
-				}
-			}
-
-			propSchema, err := ParseExpr(field.Type)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse field %s: %w", field.Names[0].Name, err)
-			}
-
-			if len(field.Decs.Start) > 0 {
-				desc := ""
-				for _, doc := range field.Decs.Start {
-					desc += strings.TrimSpace(strings.TrimPrefix(doc, "//")) + " "
-				}
-				propSchema.Description = strings.TrimSpace(desc)
-			}
-
-			schema.Properties[propName] = *propSchema
+		props, err := parseStructFields(t)
+		if err != nil {
+			return nil, err
 		}
+		schema.Properties = props
 	case *dst.ArrayType:
 		schema.Type = "array"
 		itemsSchema, err := ParseExpr(t.Elt)
@@ -93,6 +63,43 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 	return schema, nil
 }
 
+// parseStructFields extracts OpenAPI Schema properties from a dst.StructType's field list.
+// Parameter st is the StructType AST node, and it returns the property map and any error.
+func parseStructFields(st *dst.StructType) (map[string]openapi.Schema, error) {
+	props := make(map[string]openapi.Schema)
+	if st == nil || st.Fields == nil {
+		return props, nil
+	}
+	for _, field := range st.Fields.List {
+		if len(field.Names) == 0 {
+			continue
+		}
+		propName := field.Names[0].Name
+		if field.Tag != nil && field.Tag.Kind == token.STRING {
+			tagVal := strings.Trim(field.Tag.Value, "`")
+			structTag := reflect.StructTag(tagVal)
+			if j := structTag.Get("json"); j != "" {
+				parts := strings.Split(j, ",")
+				if parts[0] != "" && parts[0] != "-" {
+					propName = parts[0]
+				}
+			}
+		}
+
+		propSchema, err := ParseExpr(field.Type)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse field %s: %w", field.Names[0].Name, err)
+		}
+
+		if len(field.Decs.Start) > 0 {
+			propSchema.Description = strings.ReplaceAll(docstrings.Parse(field.Decs.Start), "\n", " ")
+		}
+
+		props[propName] = *propSchema
+	}
+	return props, nil
+}
+
 // ParseExpr parses a dst.Expr into an OpenAPI Schema.
 // Parameter expr is the AST type expression, and it returns the parsed OpenAPI Schema and error.
 func ParseExpr(expr dst.Expr) (*openapi.Schema, error) {
@@ -105,9 +112,15 @@ func ParseExpr(expr dst.Expr) (*openapi.Schema, error) {
 		switch e.Name {
 		case "string":
 			return &openapi.Schema{Type: "string"}, nil
-		case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
+		case "int32":
+			return &openapi.Schema{Type: "integer", Format: "int32"}, nil
+		case "int64":
+			return &openapi.Schema{Type: "integer", Format: "int64"}, nil
+		case "int", "int8", "int16", "uint", "uint8", "uint16", "uint32", "uint64":
 			return &openapi.Schema{Type: "integer"}, nil
-		case "float32", "float64":
+		case "float32":
+			return &openapi.Schema{Type: "number", Format: "float"}, nil
+		case "float64":
 			return &openapi.Schema{Type: "number"}, nil
 		case "bool":
 			return &openapi.Schema{Type: "boolean"}, nil
@@ -130,6 +143,13 @@ func ParseExpr(expr dst.Expr) (*openapi.Schema, error) {
 	case *dst.StarExpr:
 		return ParseExpr(e.X)
 	case *dst.StructType:
+		props, err := parseStructFields(e)
+		if err != nil {
+			return nil, err
+		}
+		if len(props) > 0 {
+			return &openapi.Schema{Type: "object", Properties: props}, nil
+		}
 		return &openapi.Schema{Type: "object"}, nil
 	case *dst.MapType:
 		if e.Key != nil {

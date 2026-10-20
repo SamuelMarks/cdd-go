@@ -13,13 +13,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/cdd/models"
 	"github.com/SamuelMarks/cdd-go/src/callbacks"
 	"github.com/SamuelMarks/cdd-go/src/classes"
 	"github.com/SamuelMarks/cdd-go/src/clients"
 	"github.com/SamuelMarks/cdd-go/src/commands"
 	"github.com/SamuelMarks/cdd-go/src/components"
 	"github.com/SamuelMarks/cdd-go/src/externaldocs"
+	"github.com/SamuelMarks/cdd-go/src/functions"
 	"github.com/SamuelMarks/cdd-go/src/info"
+	"github.com/SamuelMarks/cdd-go/src/ir"
 	"github.com/SamuelMarks/cdd-go/src/links"
 	"github.com/SamuelMarks/cdd-go/src/mcp"
 	"github.com/SamuelMarks/cdd-go/src/mocks"
@@ -78,6 +81,7 @@ func loadAndNormalizeOpenAPI(inputPath string) (*openapi.OpenAPI, error) {
 	if err != nil {
 		return nil, err
 	}
+	oa, _ = ir.NormalizeOpenAPI(oa)
 	fmt.Println("Parsed OpenAPI Version:", oa.OpenAPI)
 	fmt.Println("API Title:", oa.Info.Title)
 	return oa, nil
@@ -185,7 +189,7 @@ func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallabl
 	case "to_sdk_cli":
 		return emitSDKCLIPackages(oa, outDir, tests)
 	default:
-		return fmt.Errorf("unknown subsubcommand: %s", subsubcommand)
+		return models.NewDomainError(models.ErrKindInvalidArgument, 400, fmt.Sprintf("unknown subsubcommand: %s", subsubcommand), nil)
 	}
 }
 
@@ -197,6 +201,15 @@ func GenerateGoMod(outDir string) {
 		content := `module generated_sdk
 
 go 1.25.7
+
+require (
+	github.com/brianvoe/gofakeit/v6 v6.28.0
+	github.com/gin-gonic/gin v1.10.0
+	github.com/spf13/cobra v1.8.1
+	gorm.io/driver/postgres v1.5.11
+	gorm.io/driver/sqlite v1.5.7
+	gorm.io/gorm v1.25.12
+)
 `
 		_ = os.WriteFile(goModPath, []byte(content), 0644)
 	}
@@ -249,29 +262,8 @@ func GenerateCLI(oa *openapi.OpenAPI, outDir string) error {
 
 	for _, path := range pathKeys {
 		item := oa.Paths[path]
-		if item.Get != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "get", item.Get))
-		}
-		if item.Post != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "post", item.Post))
-		}
-		if item.Put != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "put", item.Put))
-		}
-		if item.Delete != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "delete", item.Delete))
-		}
-		if item.Patch != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "patch", item.Patch))
-		}
-		if item.Options != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "options", item.Options))
-		}
-		if item.Head != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "head", item.Head))
-		}
-		if item.Trace != nil {
-			file.Decls = append(file.Decls, commands.Emit(path, "trace", item.Trace))
+		for _, mo := range openapi.PathItemOperations(&item) {
+			file.Decls = append(file.Decls, commands.Emit(path, mo.Method, mo.Operation))
 		}
 	}
 	file.Decls = append(file.Decls, commands.EmitMcpCmd())
@@ -419,24 +411,7 @@ func parseVarOrConstDeclIntoOpenAPI(d *dst.GenDecl, oa *openapi.OpenAPI) {
 	}
 	if method, path, op := commands.Parse(d); op != nil && method != "" && path != "" {
 		pi := oa.Paths[path]
-		switch strings.ToLower(method) {
-		case "get":
-			pi.Get = op
-		case "post":
-			pi.Post = op
-		case "put":
-			pi.Put = op
-		case "delete":
-			pi.Delete = op
-		case "patch":
-			pi.Patch = op
-		case "options":
-			pi.Options = op
-		case "head":
-			pi.Head = op
-		case "trace":
-			pi.Trace = op
-		}
+		pi.SetOperation(method, op)
 		oa.Paths[path] = pi
 		return
 	}
@@ -449,6 +424,34 @@ func parseVarOrConstDeclIntoOpenAPI(d *dst.GenDecl, oa *openapi.OpenAPI) {
 	}
 }
 
+// parseFuncDeclIntoOpenAPI extracts standalone operation functions annotated with // Path: <path> using src/functions.Parse.
+// Parameter fn is the AST function declaration, and oa is the target OpenAPI document.
+func parseFuncDeclIntoOpenAPI(fn *dst.FuncDecl, oa *openapi.OpenAPI) {
+	if fn.Recv != nil {
+		return
+	}
+	var path, method string
+	for _, c := range fn.Decs.Start {
+		line := strings.TrimSpace(strings.TrimPrefix(c, "//"))
+		if strings.HasPrefix(line, "Path:") {
+			path = strings.TrimSpace(strings.TrimPrefix(line, "Path:"))
+		} else if strings.HasPrefix(line, "METHOD:") {
+			method = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(line, "METHOD:")))
+		}
+	}
+	if path == "" {
+		return
+	}
+	if op, err := functions.ParseOperation(fn); err == nil && op != nil {
+		if method == "" {
+			method = "post"
+		}
+		pi := oa.Paths[path]
+		pi.SetOperation(method, op)
+		oa.Paths[path] = pi
+	}
+}
+
 // parseASTFileIntoOpenAPI processes all declarations in file and merges extracted OpenAPI constructs into oa.
 // Parameter file is the parsed Go AST file, isComponentsFile indicates whether the file is components.go, and oa is the target OpenAPI document.
 func parseASTFileIntoOpenAPI(file *dst.File, isComponentsFile bool, oa *openapi.OpenAPI) {
@@ -456,13 +459,16 @@ func parseASTFileIntoOpenAPI(file *dst.File, isComponentsFile bool, oa *openapi.
 		mergeComponentsFileIntoOpenAPI(file, oa)
 	}
 	for _, decl := range file.Decls {
-		if d, ok := decl.(*dst.GenDecl); ok {
+		switch d := decl.(type) {
+		case *dst.GenDecl:
 			switch d.Tok {
 			case token.TYPE:
 				parseTypeDeclIntoOpenAPI(d, oa)
 			case token.VAR, token.CONST:
 				parseVarOrConstDeclIntoOpenAPI(d, oa)
 			}
+		case *dst.FuncDecl:
+			parseFuncDeclIntoOpenAPI(d, oa)
 		}
 	}
 }
@@ -523,7 +529,8 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 	}
 	defer out.Close()
 
-	return openapi.Emit(out, oa)
+	normOA, _ := ir.NormalizeOpenAPI(oa)
+	return openapi.Emit(out, normOA)
 }
 
 // GenerateClasses generates Go structs based on the components/schemas defined in the OpenAPI spec.
@@ -533,12 +540,19 @@ func GenerateClasses(oa *openapi.OpenAPI, outDir string) error {
 		return nil
 	}
 
+	compWithoutSchemas := *oa.Components
+	compWithoutSchemas.Schemas = nil
+	compDecls := components.Emit(&compWithoutSchemas)
+
+	if len(compDecls) == 0 && len(oa.Components.Schemas) == 0 {
+		return nil
+	}
+
 	modelsDir := filepath.Join(outDir, "models")
 	if err := os.MkdirAll(modelsDir, 0755); err != nil {
 		return err
 	}
 
-	compDecls := components.Emit(oa.Components)
 	if len(compDecls) > 0 {
 		file := &dst.File{
 			Name:  dst.NewIdent("models"),
@@ -549,7 +563,7 @@ func GenerateClasses(oa *openapi.OpenAPI, outDir string) error {
 		}
 	}
 
-	if oa.Components.Schemas == nil {
+	if len(oa.Components.Schemas) == 0 {
 		return nil
 	}
 	schemaNames := make([]string, 0, len(oa.Components.Schemas))
@@ -585,8 +599,13 @@ func GenerateClasses(oa *openapi.OpenAPI, outDir string) error {
 // GenerateRoutes generates server routing interfaces and stub code.
 // Parameter oa is the parsed OpenAPI specification, outDir is the destination directory, and it returns any generation error.
 func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
-	if oa.Paths == nil {
+	if len(oa.Paths) == 0 {
 		return nil
+	}
+
+	routesDir := filepath.Join(outDir, "routes")
+	if err := os.MkdirAll(routesDir, 0755); err != nil {
+		return err
 	}
 
 	pathKeys := make([]string, 0, len(oa.Paths))
@@ -597,11 +616,10 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 
 	for _, path := range pathKeys {
 		item := oa.Paths[path]
-		decl, err := routes.EmitHandlerInterface(path, &item)
+		decl, structDecls, err := routes.EmitRouteBundle(path, &item)
 		if err != nil {
 			return err
 		}
-		structDecls, _ := routes.EmitHandlerStruct(path, &item)
 
 		decls := []dst.Decl{
 			&dst.GenDecl{
@@ -625,7 +643,7 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 		}
 		fileName := naming.SanitizePathToFilename(path)
 
-		if err := WriteDstFile(filepath.Join(outDir, fileName+"_routes.go"), file); err != nil {
+		if err := WriteDstFile(filepath.Join(routesDir, fileName+"_routes.go"), file); err != nil {
 			return err
 		}
 	}
@@ -709,6 +727,11 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 		schemas = oa.Components.Schemas
 	}
 
+	defaultBaseURL := "http://localhost:8080"
+	if len(oa.Servers) > 0 && oa.Servers[0].URL != "" {
+		defaultBaseURL = oa.Servers[0].URL
+	}
+
 	pathKeys := make([]string, 0, len(oa.Paths))
 	for path := range oa.Paths {
 		pathKeys = append(pathKeys, path)
@@ -717,55 +740,43 @@ func GenerateTests(oa *openapi.OpenAPI, outDir string) error {
 
 	for _, path := range pathKeys {
 		item := oa.Paths[path]
-		file := &dst.File{
-			Name: dst.NewIdent("tests"),
-			Decls: []dst.Decl{
-				&dst.GenDecl{
-					Tok: token.IMPORT,
-					Specs: []dst.Spec{
-						&dst.ImportSpec{
-							Path: &dst.BasicLit{Kind: token.STRING, Value: `"testing"`},
-						},
-						&dst.ImportSpec{
-							Path: &dst.BasicLit{Kind: token.STRING, Value: `"net/http"`},
-						},
-						&dst.ImportSpec{
-							Path: &dst.BasicLit{Kind: token.STRING, Value: `"strings"`},
-						},
-					},
-				},
-			},
-		}
-		hasTests := false
-		addTest := func(method string, op *openapi.Operation) {
-			if op == nil {
-				return
-			}
-			decl, _ := tests.EmitTestWithSchemas(path, method, op, schemas)
-			file.Decls = append(file.Decls, decl)
-			hasTests = true
-		}
-
-		addTest("get", item.Get)
-		addTest("post", item.Post)
-		addTest("put", item.Put)
-		addTest("delete", item.Delete)
-		addTest("patch", item.Patch)
-		addTest("options", item.Options)
-		addTest("head", item.Head)
-		addTest("trace", item.Trace)
-
-		if !hasTests {
+		ops := openapi.PathItemOperations(&item)
+		if len(ops) == 0 {
 			continue
 		}
 
-		fileName := naming.SanitizePathToFilename(path)
+		var testDecls []dst.Decl
+		needsStrings := false
+		for _, mo := range ops {
+			decl, hasBody, _ := tests.EmitTestWithConfig(path, mo.Method, mo.Operation, schemas, defaultBaseURL)
+			testDecls = append(testDecls, decl)
+			if hasBody {
+				needsStrings = true
+			}
+		}
 
-		file.Decls[0].(*dst.GenDecl).Specs = append(file.Decls[0].(*dst.GenDecl).Specs,
+		importSpecs := []dst.Spec{
 			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"encoding/json"`}},
 			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"io"`}},
+			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"net/http"`}},
 			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"os"`}},
-		)
+			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"testing"`}},
+		}
+		if needsStrings {
+			importSpecs = append(importSpecs, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"strings"`}})
+		}
+
+		file := &dst.File{
+			Name: dst.NewIdent("tests"),
+			Decls: append([]dst.Decl{
+				&dst.GenDecl{
+					Tok:   token.IMPORT,
+					Specs: importSpecs,
+				},
+			}, testDecls...),
+		}
+
+		fileName := naming.SanitizePathToFilename(path)
 
 		if err := WriteDstFile(filepath.Join(testsDir, fileName+"_test.go"), file); err != nil {
 			return err

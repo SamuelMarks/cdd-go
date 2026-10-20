@@ -83,6 +83,22 @@ func sampleFullArazzoDoc() *arazzo.Arazzo {
 						StepID:      "byChannel",
 						ChannelPath: "{$sourceDescriptions.api.url}#/channels/events",
 					},
+					{
+						StepID:      "getStep",
+						OperationID: "getProfile",
+					},
+					{
+						StepID:      "deleteStep",
+						OperationID: "deleteProfile",
+					},
+					{
+						StepID:      "putStep",
+						OperationID: "putProfile",
+					},
+					{
+						StepID:      "patchStep",
+						OperationID: "patchProfile",
+					},
 				},
 				Extensions: map[string]json.RawMessage{"x-wf": json.RawMessage(`1`)},
 			},
@@ -242,6 +258,29 @@ func TestEmitAndParseSDKWorkflows(t *testing.T) {
 						},
 						&dst.BlockStmt{
 							Decs: dst.BlockStmtDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// StepID: manualStep"}}},
+							List: []dst.Stmt{
+								&dst.AssignStmt{
+									Lhs: []dst.Expr{dst.NewIdent("req"), dst.NewIdent("err")},
+									Tok: token.DEFINE,
+									Rhs: []dst.Expr{
+										&dst.CallExpr{
+											Fun: dst.NewIdent("NewRequest"),
+											Args: []dst.Expr{
+												&dst.BasicLit{Kind: token.STRING, Value: `"GET"`},
+												&dst.BinaryExpr{
+													X:  dst.NewIdent("baseURL"),
+													Op: token.ADD,
+													Y:  &dst.BasicLit{Kind: token.STRING, Value: `"/threeArgOp"`},
+												},
+												dst.NewIdent("nil"),
+											},
+										},
+									},
+								},
+							},
+						},
+						&dst.BlockStmt{
+							Decs: dst.BlockStmtDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// StepID: fallbackStep"}}},
 						},
 						&dst.ReturnStmt{
 							Results: []dst.Expr{

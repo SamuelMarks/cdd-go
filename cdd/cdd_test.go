@@ -2,8 +2,11 @@ package cdd
 
 import (
 	"encoding/json"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/SamuelMarks/cdd-go/src/openapi"
@@ -13,8 +16,12 @@ import (
 func TestGenerateGoMod(t *testing.T) {
 	dir := t.TempDir()
 	GenerateGoMod(dir)
-	if _, err := os.Stat(filepath.Join(dir, "go.mod")); os.IsNotExist(err) {
-		t.Error("go.mod not created")
+	b, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		t.Fatalf("go.mod not created: %v", err)
+	}
+	if !strings.Contains(string(b), "module generated_sdk") || !strings.Contains(string(b), "github.com/gin-gonic/gin") {
+		t.Errorf("unexpected go.mod content:\n%s", string(b))
 	}
 	GenerateGoMod(dir)
 }
@@ -22,8 +29,12 @@ func TestGenerateGoMod(t *testing.T) {
 func TestGenerateGithubActions(t *testing.T) {
 	dir := t.TempDir()
 	GenerateGithubActions(dir)
-	if _, err := os.Stat(filepath.Join(dir, ".github", "workflows", "ci.yml")); os.IsNotExist(err) {
-		t.Error("ci.yml not created")
+	b, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatalf("ci.yml not created: %v", err)
+	}
+	if !strings.Contains(string(b), "go test -v ./...") {
+		t.Errorf("unexpected ci.yml content:\n%s", string(b))
 	}
 	GenerateGithubActions(dir)
 }
@@ -54,6 +65,9 @@ func TestGenerateSDK(t *testing.T) {
 	oa := &openapi.OpenAPI{
 		OpenAPI: "3.2.0",
 		Info:    openapi.Info{Title: "Test"},
+		Paths: openapi.Paths{
+			"/items": {Get: &openapi.Operation{OperationID: "listItems"}},
+		},
 	}
 	b, _ := json.Marshal(oa)
 	specPath := filepath.Join(dir, "openapi.json")
@@ -66,6 +80,10 @@ func TestGenerateSDK(t *testing.T) {
 	err := GenerateSDK(cfg)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+	clientBytes, err := os.ReadFile(filepath.Join(dir, "out", "client", "items_client.go"))
+	if err != nil || !strings.Contains(string(clientBytes), "ListItems") {
+		t.Errorf("expected items_client.go with ListItems, got err=%v", err)
 	}
 
 	cfg2 := Config{
@@ -106,15 +124,24 @@ func TestFromOpenAPI(t *testing.T) {
 	if err != nil {
 		t.Errorf("to_sdk error: %v", err)
 	}
+	if _, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, "sdk", "client", "test_client.go"), nil, parser.ParseComments); err != nil {
+		t.Errorf("generated sdk client is not valid Go: %v", err)
+	}
 
 	err = FromOpenAPI("to_server", specPath, filepath.Join(dir, "server"), false, false, true, false)
 	if err != nil {
 		t.Errorf("to_server error: %v", err)
 	}
+	if _, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, "server", "routes", "test_routes.go"), nil, parser.ParseComments); err != nil {
+		t.Errorf("generated server routes is not valid Go: %v", err)
+	}
 
 	err = FromOpenAPI("to_sdk_cli", specPath, filepath.Join(dir, "cli"), false, false, true, false)
 	if err != nil {
 		t.Errorf("to_sdk_cli error: %v", err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, "cli", "sdk_cli.go"), nil, parser.ParseComments); err != nil {
+		t.Errorf("generated cli is not valid Go: %v", err)
 	}
 
 	err = FromOpenAPI("invalid", specPath, dir, true, true, false, false)
@@ -142,9 +169,24 @@ type ClientTest interface { GetTest() }
 `
 	os.WriteFile(filepath.Join(dir, "models.go"), []byte(goCode), 0644)
 
-	err := ToOpenAPI(dir, filepath.Join(dir, "out"))
+	outFile := filepath.Join(dir, "out.json")
+	err := ToOpenAPI(dir, outFile)
 	if err != nil {
-		t.Errorf("ToOpenAPI error: %v", err)
+		t.Fatalf("ToOpenAPI error: %v", err)
+	}
+	outBytes, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("failed to read generated openapi: %v", err)
+	}
+	var parsedOA openapi.OpenAPI
+	if err := json.Unmarshal(outBytes, &parsedOA); err != nil {
+		t.Fatalf("invalid generated openapi JSON: %v", err)
+	}
+	if parsedOA.Components == nil || parsedOA.Components.Schemas["TestModel"].Properties["ID"].Type != "string" {
+		t.Errorf("expected TestModel with ID string property in generated OpenAPI, got %+v", parsedOA.Components)
+	}
+	if parsedOA.Paths["/test"].Get == nil || parsedOA.Paths["/test"].Get.OperationID != "getTest" {
+		t.Errorf("expected /test GET getTest in generated OpenAPI, got %+v", parsedOA.Paths)
 	}
 
 	err = ToOpenAPI("", filepath.Join(dir, "out"))
@@ -171,7 +213,16 @@ func TestGenerateCLI(t *testing.T) {
 	}
 	err := GenerateCLI(oa, dir)
 	if err != nil {
-		t.Errorf("GenerateCLI error: %v", err)
+		t.Fatalf("GenerateCLI error: %v", err)
+	}
+	cliBytes, err := os.ReadFile(filepath.Join(dir, "sdk_cli.go"))
+	if err != nil {
+		t.Fatalf("failed to read sdk_cli.go: %v", err)
+	}
+	for _, cmdName := range []string{"GetTestCmd", "PostTestCmd", "PutTestCmd", "DeleteTestCmd", "PatchTestCmd", "OptionsTestCmd", "HeadTestCmd", "TraceTestCmd", "McpCmd"} {
+		if !strings.Contains(string(cliBytes), cmdName) {
+			t.Errorf("expected %s in sdk_cli.go", cmdName)
+		}
 	}
 }
 
@@ -271,6 +322,13 @@ func TestGenerateClassesEmptySchemas(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
+	dir := t.TempDir()
+	err = GenerateClasses(&openapi.OpenAPI{Components: &openapi.Components{
+		Headers: map[string]openapi.Header{"X-Rate-Limit": {Description: "Limit"}},
+	}}, dir)
+	if err != nil {
+		t.Errorf("unexpected error with headers-only components: %v", err)
+	}
 }
 
 func TestGenerateRoutesEmptyPaths(t *testing.T) {
@@ -331,8 +389,10 @@ func TestRootFilename(t *testing.T) {
 func TestGenerateTestsNoTests(t *testing.T) {
 	dir := t.TempDir()
 	oa := &openapi.OpenAPI{
+		Servers: []openapi.Server{{URL: "http://localhost:9000"}},
 		Paths: openapi.Paths{
-			"/": openapi.PathItem{},
+			"/":     openapi.PathItem{},
+			"/body": openapi.PathItem{Post: &openapi.Operation{OperationID: "createBody"}},
 		},
 	}
 	err := GenerateTests(oa, dir)
@@ -386,6 +446,18 @@ func TestGenerateOpenAPIHandler(t *testing.T) {
 	dir := t.TempDir()
 	handlerCode := `package models
 	type HandlerTest interface { GetTest() }
+
+	// Path: /standalone
+	func StandaloneOp(id string) error { return nil }
+
+	// Path: /standalone_get
+	// METHOD: GET
+	func StandaloneGetOp(id string) error { return nil }
+
+	func NoPathOp() {}
+
+	type dummyRecv struct{}
+	func (d *dummyRecv) MethodOp() {}
 	`
 	os.WriteFile(filepath.Join(dir, "handler.go"), []byte(handlerCode), 0644)
 	if err := GenerateOpenAPI(dir, filepath.Join(dir, "out.json")); err != nil {
@@ -414,6 +486,10 @@ func TestMkdirErrors(t *testing.T) {
 	err := GenerateTests(oa, blocker)
 	if err == nil {
 		t.Error("expected GenerateTests mkdir error")
+	}
+	err = GenerateRoutes(oa, blocker)
+	if err == nil {
+		t.Error("expected GenerateRoutes mkdir error")
 	}
 	err = GenerateClients(oa, blocker)
 	if err == nil {
@@ -832,7 +908,7 @@ func TestGenerateFileWriteErrors(t *testing.T) {
 		t.Error("expected error writing valid.go over directory")
 	}
 
-	os.MkdirAll(filepath.Join(dir, "test_routes.go"), 0755)
+	os.MkdirAll(filepath.Join(dir, "routes", "test_routes.go"), 0755)
 	if err := GenerateRoutes(oa, dir); err == nil {
 		t.Error("expected error writing test_routes.go over directory")
 	}

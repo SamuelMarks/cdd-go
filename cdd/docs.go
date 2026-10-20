@@ -131,26 +131,11 @@ func ToDocsJSONWriter(in string, w io.Writer, noImports bool, noWrapping bool) e
 	}
 	sort.Strings(paths)
 
-	methodOrder := []string{"get", "put", "post", "delete", "options", "head", "patch", "trace"}
-
 	for _, path := range paths {
 		item := oa.Paths[path]
-		methods := map[string]*openapi.Operation{
-			"get":     item.Get,
-			"put":     item.Put,
-			"post":    item.Post,
-			"delete":  item.Delete,
-			"options": item.Options,
-			"head":    item.Head,
-			"patch":   item.Patch,
-			"trace":   item.Trace,
-		}
-
-		for _, method := range methodOrder {
-			op := methods[method]
-			if op == nil {
-				continue
-			}
+		for _, mo := range openapi.PathItemOperations(&item) {
+			method := mo.Method
+			op := mo.Operation
 
 			opID := op.OperationID
 			if opID == "" {

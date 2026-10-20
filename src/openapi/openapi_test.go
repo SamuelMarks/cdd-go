@@ -241,3 +241,66 @@ func TestParseJSONDefinitionsWithExistingComponents(t *testing.T) {
 		t.Errorf("expected components.responses to be preserved")
 	}
 }
+
+func TestPathItemOperationsAndSetOperation(t *testing.T) {
+	if ops := PathItemOperations(nil); ops != nil {
+		t.Errorf("expected nil for nil PathItem, got %v", ops)
+	}
+	var pi PathItem
+	verbs := []string{"get", "post", "put", "delete", "patch", "options", "head", "trace"}
+	for _, v := range verbs {
+		pi.SetOperation(v, &Operation{OperationID: v + "Op"})
+	}
+	ops := PathItemOperations(&pi)
+	if len(ops) != 8 {
+		t.Fatalf("expected 8 operations, got %d", len(ops))
+	}
+	for i, v := range verbs {
+		if ops[i].Method != v || ops[i].Operation.OperationID != v+"Op" {
+			t.Errorf("expected method %s with op %sOp, got %+v", v, v, ops[i])
+		}
+	}
+}
+
+func TestSchemaUnmarshalJSONUnions(t *testing.T) {
+	input := `{
+  "openapi": "3.2.0",
+  "components": {
+    "schemas": {
+      "NullableStr": {
+        "type": ["null", "string"],
+        "additionalProperties": false
+      },
+      "OnlyNull": {
+        "type": ["null"],
+        "additionalProperties": {"type": "integer"}
+      }
+    }
+  }
+}`
+	oa, err := Parse(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("unexpected error parsing OpenAPI 3.2.0 schema unions: %v", err)
+	}
+	ns := oa.Components.Schemas["NullableStr"]
+	if ns.Type != "string" || len(ns.TypeArray) != 2 || ns.AdditionalPropertiesBool == nil || *ns.AdditionalPropertiesBool != false {
+		t.Errorf("unexpected NullableStr schema: %+v", ns)
+	}
+	on := oa.Components.Schemas["OnlyNull"]
+	if on.Type != "null" || on.AdditionalProperties == nil || on.AdditionalProperties.Type != "integer" {
+		t.Errorf("unexpected OnlyNull schema: %+v", on)
+	}
+
+	var badType Schema
+	if err := badType.UnmarshalJSON([]byte(`{"type": 123}`)); err == nil {
+		t.Errorf("expected error for invalid type number")
+	}
+	var badAddProps Schema
+	if err := badAddProps.UnmarshalJSON([]byte(`{"additionalProperties": 123}`)); err == nil {
+		t.Errorf("expected error for invalid additionalProperties number")
+	}
+	var badJSON Schema
+	if err := badJSON.UnmarshalJSON([]byte(`{invalid`)); err == nil {
+		t.Errorf("expected error for invalid JSON")
+	}
+}

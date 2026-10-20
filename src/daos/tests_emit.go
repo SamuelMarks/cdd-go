@@ -67,12 +67,12 @@ func EmitConcreteDAOTests(schemas map[string]openapi.Schema) []dst.Decl {
 				List: []dst.Stmt{
 					&dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("db"), dst.NewIdent("err")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("gorm"), Sel: dst.NewIdent("Open")}, Args: []dst.Expr{&dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("sqlite"), Sel: dst.NewIdent("Open")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"file::memory:?cache=shared"`}}}, &dst.UnaryExpr{Op: token.AND, X: &dst.CompositeLit{Type: &dst.SelectorExpr{X: dst.NewIdent("gorm"), Sel: dst.NewIdent("Config")}}}}}}},
 					&dst.IfStmt{Cond: &dst.BinaryExpr{X: dst.NewIdent("err"), Op: token.NEQ, Y: dst.NewIdent("nil")}, Body: &dst.BlockStmt{List: []dst.Stmt{&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")}, Args: []dst.Expr{dst.NewIdent("err")}}}}}},
-					&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("db"), Sel: dst.NewIdent("AutoMigrate")}, Args: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent("models." + name + "{}")}}}},
+					&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("db"), Sel: dst.NewIdent("AutoMigrate")}, Args: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: &dst.CompositeLit{Type: modelExpr(name)}}}}},
 
 					&dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("dao")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: &dst.CompositeLit{Type: dst.NewIdent(name + "GormDAO"), Elts: []dst.Expr{&dst.KeyValueExpr{Key: dst.NewIdent("DB"), Value: dst.NewIdent("db")}}}}}},
 
 					// Create
-					&dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("item")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: &dst.CompositeLit{Type: dst.NewIdent("models." + name)}}}},
+					&dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("item")}, Tok: token.DEFINE, Rhs: []dst.Expr{&dst.UnaryExpr{Op: token.AND, X: &dst.CompositeLit{Type: modelExpr(name)}}}},
 					&dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent("err")}, Tok: token.ASSIGN, Rhs: []dst.Expr{&dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("dao"), Sel: dst.NewIdent("Create")}, Args: []dst.Expr{&dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("context"), Sel: dst.NewIdent("Background")}, Args: []dst.Expr{}}, dst.NewIdent("item")}}}},
 					&dst.IfStmt{Cond: &dst.BinaryExpr{X: dst.NewIdent("err"), Op: token.NEQ, Y: dst.NewIdent("nil")}, Body: &dst.BlockStmt{List: []dst.Stmt{&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatal")}, Args: []dst.Expr{dst.NewIdent("err")}}}}}},
 

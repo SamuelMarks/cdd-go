@@ -90,10 +90,10 @@ func TestEmitMigrate(t *testing.T) {
 	if !bytes.Contains([]byte(code), []byte("Migrate(db *gorm.DB)")) {
 		t.Errorf("missing Migrate function in code")
 	}
-	if !bytes.Contains([]byte(code), []byte("AutoMigrate(&User{})")) {
-		t.Errorf("missing User migration in code")
+	if !bytes.Contains([]byte(code), []byte("AutoMigrate(&models.User{})")) {
+		t.Errorf("missing models.User migration in code: %s", code)
 	}
-	if !bytes.Contains([]byte(code), []byte("AutoMigrate(&Post{})")) {
-		t.Errorf("missing Post migration in code")
+	if !bytes.Contains([]byte(code), []byte("AutoMigrate(&models.Post{})")) {
+		t.Errorf("missing models.Post migration in code: %s", code)
 	}
 }

@@ -9,28 +9,15 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/SamuelMarks/cdd-go/cdd"
 	"github.com/SamuelMarks/cdd-go/src/mcp"
 )
 
-// RPCRequest represents a JSON-RPC request.
-type RPCRequest struct {
-	// Method is the RPC method name to invoke.
-	Method string `json:"method"`
-	// Params holds the raw JSON parameters for the RPC method.
-	Params json.RawMessage `json:"params"`
-	// ID is the strongly-typed JSON-RPC request identifier.
-	ID mcp.RequestID `json:"id"`
-}
+// RPCRequest is a strongly-typed JSON-RPC 2.0 request alias over mcp.Request.
+type RPCRequest = mcp.Request
 
-// RPCResponse represents a JSON-RPC response.
-type RPCResponse struct {
-	// Result holds the successful RPC execution payload.
-	Result json.RawMessage `json:"result,omitempty"`
-	// Error holds any error message produced during execution.
-	Error string `json:"error,omitempty"`
-	// ID is the strongly-typed JSON-RPC request identifier.
-	ID mcp.RequestID `json:"id"`
-}
+// RPCResponse is a strongly-typed JSON-RPC 2.0 response alias over mcp.Response.
+type RPCResponse = mcp.Response
 
 // RPCFromOpenAPIParams represents map-structured parameters for the from_openapi RPC method.
 type RPCFromOpenAPIParams struct {
@@ -53,7 +40,7 @@ type RPCFromOpenAPIParams struct {
 // httpListenAndServe is an injectable function variable wrapping http.ListenAndServe.
 var httpListenAndServe = http.ListenAndServe
 
-// newJSONRPCHandler constructs a dedicated http.Handler for serving JSON-RPC requests without mutating http.DefaultServeMux or os.Stdout.
+// newJSONRPCHandler constructs a dedicated http.Handler for serving JSON-RPC 2.0 requests without mutating http.DefaultServeMux or os.Stdout.
 // It returns the configured http.Handler.
 func newJSONRPCHandler() http.Handler {
 	mux := http.NewServeMux()
@@ -70,7 +57,7 @@ func newJSONRPCHandler() http.Handler {
 		}
 
 		var result json.RawMessage
-		var errResp string
+		var errResp *mcp.Error
 
 		switch req.Method {
 		case "version":
@@ -81,7 +68,7 @@ func newJSONRPCHandler() http.Handler {
 				var buf bytes.Buffer
 				err := runToDocsJSONWriter(params, &buf)
 				if err != nil {
-					errResp = err.Error()
+					errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 				} else if json.Valid(buf.Bytes()) && len(bytes.TrimSpace(buf.Bytes())) > 0 {
 					result = json.RawMessage(bytes.TrimSpace(buf.Bytes()))
 				} else {
@@ -89,43 +76,43 @@ func newJSONRPCHandler() http.Handler {
 					result = json.RawMessage(b)
 				}
 			} else {
-				errResp = "Invalid params for to_docs_json"
+				errResp = &mcp.Error{Code: mcp.ErrInvalidParams, Message: "Invalid params for to_docs_json"}
 			}
 		case "to_openapi":
 			var params []string
 			if err := json.Unmarshal(req.Params, &params); err == nil {
 				err := run(append([]string{"to_openapi"}, params...))
 				if err != nil {
-					errResp = err.Error()
+					errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 				} else {
 					result = json.RawMessage(`"Success"`)
 				}
 			} else {
-				errResp = "Invalid params for to_openapi"
+				errResp = &mcp.Error{Code: mcp.ErrInvalidParams, Message: "Invalid params for to_openapi"}
 			}
 		case "to_arazzo":
 			var params []string
 			if err := json.Unmarshal(req.Params, &params); err == nil {
 				err := run(append([]string{"to_arazzo"}, params...))
 				if err != nil {
-					errResp = err.Error()
+					errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 				} else {
 					result = json.RawMessage(`"Success"`)
 				}
 			} else {
-				errResp = "Invalid params for to_arazzo"
+				errResp = &mcp.Error{Code: mcp.ErrInvalidParams, Message: "Invalid params for to_arazzo"}
 			}
 		case "from_arazzo":
 			var params []string
 			if err := json.Unmarshal(req.Params, &params); err == nil {
 				err := run(append([]string{"from_arazzo"}, params...))
 				if err != nil {
-					errResp = err.Error()
+					errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 				} else {
 					result = json.RawMessage(`"Success"`)
 				}
 			} else {
-				errResp = "Invalid params for from_arazzo"
+				errResp = &mcp.Error{Code: mcp.ErrInvalidParams, Message: "Invalid params for from_arazzo"}
 			}
 		case "from_openapi":
 			var params []string
@@ -133,7 +120,7 @@ func newJSONRPCHandler() http.Handler {
 			if err := json.Unmarshal(req.Params, &params); err == nil {
 				err := run(append([]string{"from_openapi"}, params...))
 				if err != nil {
-					errResp = err.Error()
+					errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 				} else {
 					result = json.RawMessage(`"Success"`)
 				}
@@ -163,21 +150,32 @@ func newJSONRPCHandler() http.Handler {
 				}
 				err := run(args)
 				if err != nil {
-					errResp = err.Error()
+					errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
 				} else {
 					result = json.RawMessage(`"Success"`)
 				}
 			} else {
-				errResp = "Invalid params for from_openapi"
+				errResp = &mcp.Error{Code: mcp.ErrInvalidParams, Message: "Invalid params for from_openapi"}
+			}
+		case "cdd_generate_sdk", "cdd_sync_schema", "cdd_generate_arazzo_sdk", "cdd_sync_arazzo":
+			var toolParams cdd.MCPToolParams
+			if err := json.Unmarshal(req.Params, &toolParams); err != nil {
+				errResp = &mcp.Error{Code: mcp.ErrInvalidParams, Message: "Invalid params"}
+			} else if msg, err := cdd.ExecuteGeneratorRouter(req.Method, toolParams); err != nil {
+				errResp = &mcp.Error{Code: mcp.ErrInternal, Message: err.Error()}
+			} else {
+				b, _ := json.Marshal(msg)
+				result = json.RawMessage(b)
 			}
 		default:
-			errResp = "Method not found"
+			errResp = &mcp.Error{Code: mcp.ErrMethodNotFound, Message: "Method not found"}
 		}
 
 		resp := RPCResponse{
-			Result: result,
-			Error:  errResp,
-			ID:     req.ID,
+			JSONRPC: "2.0",
+			Result:  result,
+			Error:   errResp,
+			ID:      req.ID,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

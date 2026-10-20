@@ -97,9 +97,12 @@ type Iface interface {
 	A
 }
 `), 0644)
-	_, err = calculateCoverage(dir)
+	cov, err = calculateCoverage(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if cov < 64.0 || cov > 65.0 {
+		t.Errorf("expected ~64.3%% coverage (9/14), got %f", cov)
 	}
 }
 
@@ -199,7 +202,18 @@ type A int
 
 	oldOsExit := osExit
 	defer func() { osExit = oldOsExit }()
-	osExit = func(code int) {}
+	exitCode := 0
+	osExit = func(code int) { exitCode = code }
 
 	main()
+	if exitCode != 0 {
+		t.Errorf("expected exitCode 0 for 100%% coverage, got %d", exitCode)
+	}
+
+	// Test <100% coverage triggers osExit(1)
+	os.WriteFile("src/undoc.go", []byte("package a\ntype Undoc int\n"), 0644)
+	main()
+	if exitCode != 1 {
+		t.Errorf("expected exitCode 1 when doc coverage < 100%%, got %d", exitCode)
+	}
 }

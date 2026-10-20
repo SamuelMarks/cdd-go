@@ -159,7 +159,7 @@ var MockUser = `+"`{\"id\": \"1\"}`"+`
 	os.MkdirAll(readonlyDir, 0755)
 	os.MkdirAll(filepath.Join(readonlyDir, "models"), 0755)
 	os.MkdirAll(filepath.Join(readonlyDir, "models", "test.go"), 0755)
-	os.MkdirAll(filepath.Join(readonlyDir, "test_routes.go"), 0755)
+	os.MkdirAll(filepath.Join(readonlyDir, "routes", "test_routes.go"), 0755)
 
 	// Test writeDstFile errors
 	os.WriteFile(path, []byte(`{"components": {"schemas": {"test": {"type": "string"}}}}`), 0644)
@@ -328,11 +328,11 @@ func TestMainSuccess(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "out", "models", "pong.go")); os.IsNotExist(err) {
 		t.Errorf("expected pong.go to be generated")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "out", "ping_routes.go")); os.IsNotExist(err) {
-		t.Errorf("expected ping_routes.go to be generated")
+	if _, err := os.Stat(filepath.Join(dir, "out", "routes", "ping_routes.go")); os.IsNotExist(err) {
+		t.Errorf("expected routes/ping_routes.go to be generated")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "out", "root_routes.go")); os.IsNotExist(err) {
-		t.Errorf("expected root_routes.go to be generated")
+	if _, err := os.Stat(filepath.Join(dir, "out", "routes", "root_routes.go")); os.IsNotExist(err) {
+		t.Errorf("expected routes/root_routes.go to be generated")
 	}
 }
 

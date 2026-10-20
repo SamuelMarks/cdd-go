@@ -39,9 +39,12 @@ func TestEmitTestNoOpID(t *testing.T) {
 	op := &openapi.Operation{
 		Summary: "Test op",
 	}
-	fd, err := EmitTest("/test/path", "get", op)
+	fd, hasBody, err := EmitTestWithConfig("/test/path", "get", op, nil, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if hasBody {
+		t.Errorf("did not expect body for GET /test/path")
 	}
 	if fd.Name.Name != "TestGetTestPath" {
 		t.Errorf("expected TestGetTestPath, got %s", fd.Name.Name)
@@ -49,6 +52,10 @@ func TestEmitTestNoOpID(t *testing.T) {
 	code := renderFuncDecl(t, fd)
 	if !strings.Contains(code, `http.NewRequest("GET", baseURL+"/test/path", nil)`) {
 		t.Errorf("expected GET request to /test/path, got: %s", code)
+	}
+	parsedOp, err := ParseTest(fd)
+	if err != nil || parsedOp.Summary != "Test op" {
+		t.Errorf("expected deterministic round-trip of Summary 'Test op', got %+v, %v", parsedOp, err)
 	}
 }
 

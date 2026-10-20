@@ -2,10 +2,14 @@
 package astutil
 
 import (
+	"fmt"
 	"go/token"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/SamuelMarks/cdd-go/src/naming"
+	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/dave/dst"
 )
 
@@ -123,4 +127,130 @@ func LowerCamelTrimPrefix(name, prefix string) string {
 		return ""
 	}
 	return strings.ToLower(trimmed[:1]) + trimmed[1:]
+}
+
+// EmitPathItemMapDecl emits a Go AST VAR declaration representing a named map of OpenAPI PathItems (used by callbacks and webhooks).
+// Parameter typeName is the composite literal type name, varPrefix is the variable name prefix, name is the item name, and items is the PathItem map.
+func EmitPathItemMapDecl(typeName, varPrefix, name string, items map[string]openapi.PathItem) *dst.GenDecl {
+	if items == nil {
+		return nil
+	}
+
+	cl := &dst.CompositeLit{
+		Type: dst.NewIdent(typeName),
+		Elts: []dst.Expr{},
+	}
+
+	keys := make([]string, 0, len(items))
+	for k := range items {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		v := items[k]
+		piElts := []dst.Expr{
+			&dst.KeyValueExpr{
+				Key:   dst.NewIdent("Summary"),
+				Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", v.Summary)},
+			},
+		}
+		if v.Description != "" {
+			piElts = append(piElts, &dst.KeyValueExpr{
+				Key:   dst.NewIdent("Description"),
+				Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", v.Description)},
+			})
+		}
+		for _, mo := range openapi.PathItemOperations(&v) {
+			fieldKey := strings.ToUpper(mo.Method[:1]) + mo.Method[1:]
+			piElts = append(piElts, &dst.KeyValueExpr{
+				Key:   dst.NewIdent(fieldKey),
+				Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", mo.Operation.OperationID)},
+			})
+		}
+		valLit := &dst.CompositeLit{
+			Type: dst.NewIdent("PathItem"),
+			Elts: piElts,
+		}
+		cl.Elts = append(cl.Elts, &dst.KeyValueExpr{
+			Key:   &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", k)},
+			Value: valLit,
+		})
+	}
+
+	return &dst.GenDecl{
+		Tok: token.VAR,
+		Specs: []dst.Spec{
+			&dst.ValueSpec{
+				Names:  []*dst.Ident{dst.NewIdent(varPrefix + naming.ToPascalCase(name))},
+				Values: []dst.Expr{cl},
+			},
+		},
+	}
+}
+
+// ParsePathItemMapDecl extracts a named map of OpenAPI PathItems from a VAR GenDecl (used by callbacks and webhooks).
+// Parameter decl is the generic AST declaration, and varPrefix is the variable name prefix ("Callback" or "Webhook").
+func ParsePathItemMapDecl(decl *dst.GenDecl, varPrefix string) (string, map[string]openapi.PathItem) {
+	if decl == nil || decl.Tok != token.VAR {
+		return "", nil
+	}
+	rawName, cl := FindValueCompositeLit(decl, "", varPrefix)
+	if cl == nil {
+		return "", nil
+	}
+
+	name := LowerCamelTrimPrefix(rawName, varPrefix)
+	result := make(map[string]openapi.PathItem)
+	hasContent := false
+
+	for _, elt := range cl.Elts {
+		keyVal, valExpr, ok := StringKeyValue(elt)
+		if !ok {
+			continue
+		}
+		valCl, ok := valExpr.(*dst.CompositeLit)
+		if !ok {
+			continue
+		}
+		pi, found := parsePathItemCompositeLit(valCl)
+		if found {
+			hasContent = true
+		}
+		result[keyVal] = pi
+	}
+
+	if !hasContent {
+		return "", nil
+	}
+	return name, result
+}
+
+// parsePathItemCompositeLit reconstructs an openapi.PathItem from its AST CompositeLit representation.
+// Parameter valCl is the PathItem composite literal, and it returns the parsed PathItem and true if any field was populated.
+func parsePathItemCompositeLit(valCl *dst.CompositeLit) (openapi.PathItem, bool) {
+	pi := openapi.PathItem{}
+	found := false
+	for _, piElt := range valCl.Elts {
+		k, vExpr, ok := IdentKeyValue(piElt)
+		if !ok {
+			continue
+		}
+		strVal, isStr := StringLit(vExpr)
+		if !isStr {
+			continue
+		}
+		switch k {
+		case "Summary":
+			pi.Summary = strVal
+			found = true
+		case "Description":
+			pi.Description = strVal
+			found = true
+		case "Get", "Post", "Put", "Delete", "Patch", "Options", "Head", "Trace":
+			pi.SetOperation(k, &openapi.Operation{OperationID: strVal})
+			found = true
+		}
+	}
+	return pi, found
 }

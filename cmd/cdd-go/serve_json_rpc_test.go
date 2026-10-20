@@ -57,7 +57,7 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// Helper for valid requests
 	doRequest := func(method string, params string) (RPCResponse, error) {
-		reqStr := fmt.Sprintf(`{"method": "%s", "params": %s, "id": 1}`, method, params)
+		reqStr := fmt.Sprintf(`{"jsonrpc": "2.0", "method": "%s", "params": %s, "id": 1}`, method, params)
 		res, err := http.Post(ts.URL, "application/json", strings.NewReader(reqStr))
 		if err != nil {
 			return RPCResponse{}, err
@@ -65,13 +65,16 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 		defer res.Body.Close()
 		var rpcResp RPCResponse
 		_ = json.NewDecoder(res.Body).Decode(&rpcResp)
+		if rpcResp.JSONRPC != "2.0" {
+			t.Errorf("expected jsonrpc 2.0 in response, got %q", rpcResp.JSONRPC)
+		}
 		return rpcResp, nil
 	}
 
 	// 3. Unknown method
 	resp, _ := doRequest("unknown_method", "[]")
-	if resp.Error != "Method not found" {
-		t.Errorf("expected Method not found, got %v", resp.Error)
+	if resp.Error == nil || resp.Error.Message != "Method not found" {
+		t.Errorf("expected Method not found, got %+v", resp.Error)
 	}
 
 	// 4. version
@@ -82,13 +85,13 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// 5. to_docs_json (invalid params)
 	resp, _ = doRequest("to_docs_json", `{"invalid":"type"}`)
-	if resp.Error != "Invalid params for to_docs_json" {
-		t.Errorf("expected invalid params, got %v", resp.Error)
+	if resp.Error == nil || resp.Error.Message != "Invalid params for to_docs_json" {
+		t.Errorf("expected invalid params, got %+v", resp.Error)
 	}
 
 	// 6. to_docs_json (valid params, but missing file)
 	resp, _ = doRequest("to_docs_json", `["-i", "missing.json"]`)
-	if resp.Error == "" {
+	if resp.Error == nil {
 		t.Errorf("expected error for missing file")
 	}
 
@@ -97,15 +100,15 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 	specFile := dir + "/spec.json"
 	os.WriteFile(specFile, []byte(`{"openapi": "3.2.0"}`), 0644)
 	resp, _ = doRequest("to_docs_json", fmt.Sprintf(`["-i", "%s"]`, specFile))
-	if resp.Error != "" {
-		t.Errorf("expected no error for valid file, got: %s", resp.Error)
+	if resp.Error != nil {
+		t.Errorf("expected no error for valid file, got: %+v", resp.Error)
 	}
 
 	// 8. to_docs_json (valid params, output to file)
 	outFile := dir + "/out.json"
 	resp, _ = doRequest("to_docs_json", fmt.Sprintf(`["-i", "%s", "-o", "%s"]`, specFile, outFile))
-	if resp.Error != "" {
-		t.Errorf("expected no error for valid file with out, got: %s", resp.Error)
+	if resp.Error != nil {
+		t.Errorf("expected no error for valid file with out, got: %+v", resp.Error)
 	}
 	if string(resp.Result) != `""` {
 		t.Errorf("expected empty string result since output went to file, got %s", string(resp.Result))
@@ -113,13 +116,13 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// 9. to_openapi (invalid params)
 	resp, _ = doRequest("to_openapi", `{"invalid":"type"}`)
-	if resp.Error != "Invalid params for to_openapi" {
-		t.Errorf("expected invalid params, got %v", resp.Error)
+	if resp.Error == nil || resp.Error.Message != "Invalid params for to_openapi" {
+		t.Errorf("expected invalid params, got %+v", resp.Error)
 	}
 
 	// 10. to_openapi (valid params, missing file)
 	resp, _ = doRequest("to_openapi", `["-i", "missing.go"]`)
-	if resp.Error == "" {
+	if resp.Error == nil {
 		t.Errorf("expected error for missing file")
 	}
 
@@ -127,39 +130,39 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 	goFile := dir + "/main.go"
 	os.WriteFile(goFile, []byte(`package main`), 0644)
 	resp, _ = doRequest("to_openapi", fmt.Sprintf(`["-i", "%s", "-o", "%s/out.json"]`, goFile, dir))
-	if resp.Error != "" {
-		t.Errorf("expected no error, got %v", resp.Error)
+	if resp.Error != nil {
+		t.Errorf("expected no error, got %+v", resp.Error)
 	}
 
 	// 12. from_openapi (invalid params)
 	resp, _ = doRequest("from_openapi", `123`)
-	if resp.Error != "Invalid params for from_openapi" {
-		t.Errorf("expected invalid params, got %v", resp.Error)
+	if resp.Error == nil || resp.Error.Message != "Invalid params for from_openapi" {
+		t.Errorf("expected invalid params, got %+v", resp.Error)
 	}
 
 	// 13. from_openapi (valid params, missing file)
 	resp, _ = doRequest("from_openapi", `["to_sdk", "-i", "missing.json"]`)
-	if resp.Error == "" {
+	if resp.Error == nil {
 		t.Errorf("expected error for missing file")
 	}
 
 	// 14. from_openapi (valid params, valid file)
 	resp, _ = doRequest("from_openapi", fmt.Sprintf(`["to_sdk", "-i", "%s", "-o", "%s/sdk"]`, specFile, dir))
-	if resp.Error != "" {
-		t.Errorf("expected no error, got %v", resp.Error)
+	if resp.Error != nil {
+		t.Errorf("expected no error, got %+v", resp.Error)
 	}
 
 	// 15. from_openapi (map params, valid file)
 	mapParams := fmt.Sprintf(`{"subcommand": "to_sdk", "input": "%s", "output": "%s/sdk_map", "no_github_actions": true, "no_installable_package": true, "tests": true}`, specFile, dir)
 	resp, _ = doRequest("from_openapi", mapParams)
-	if resp.Error != "" {
-		t.Errorf("expected no error for map params, got %v", resp.Error)
+	if resp.Error != nil {
+		t.Errorf("expected no error for map params, got %+v", resp.Error)
 	}
 
 	// 16. from_openapi (map params, input_dir)
 	mapParamsDir := fmt.Sprintf(`{"subcommand": "to_sdk", "input_dir": "%s", "output": "%s/sdk_map_dir", "no_github_actions": true, "no_installable_package": true, "tests": true}`, dir, dir)
 	resp, _ = doRequest("from_openapi", mapParamsDir)
-	if resp.Error == "" {
+	if resp.Error == nil {
 		t.Errorf("expected error when passing a directory as OpenAPI input file")
 	}
 
@@ -167,27 +170,41 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 	arazzoFile := dir + "/arazzo.json"
 	os.WriteFile(arazzoFile, []byte(`{"arazzo":"1.1.0","info":{"title":"T","version":"1.0"},"sourceDescriptions":[{"name":"s","url":"./o.json"}],"workflows":[{"workflowId":"w","steps":[{"stepId":"s","operationId":"op"}]}]}`), 0644)
 	resp, _ = doRequest("from_arazzo", `123`)
-	if resp.Error != "Invalid params for from_arazzo" {
-		t.Errorf("expected Invalid params for from_arazzo, got %v", resp.Error)
+	if resp.Error == nil || resp.Error.Message != "Invalid params for from_arazzo" {
+		t.Errorf("expected Invalid params for from_arazzo, got %+v", resp.Error)
 	}
 	resp, _ = doRequest("from_arazzo", `["to_sdk", "-i", "missing.json"]`)
-	if resp.Error == "" {
+	if resp.Error == nil {
 		t.Errorf("expected error for missing arazzo file")
 	}
 	resp, _ = doRequest("from_arazzo", fmt.Sprintf(`["to_sdk", "-i", "%s", "-o", "%s/az_sdk"]`, arazzoFile, dir))
-	if resp.Error != "" {
-		t.Errorf("expected no error for from_arazzo, got %v", resp.Error)
+	if resp.Error != nil {
+		t.Errorf("expected no error for from_arazzo, got %+v", resp.Error)
 	}
 	resp, _ = doRequest("to_arazzo", `123`)
-	if resp.Error != "Invalid params for to_arazzo" {
-		t.Errorf("expected Invalid params for to_arazzo, got %v", resp.Error)
+	if resp.Error == nil || resp.Error.Message != "Invalid params for to_arazzo" {
+		t.Errorf("expected Invalid params for to_arazzo, got %+v", resp.Error)
 	}
 	resp, _ = doRequest("to_arazzo", `["-i", "missing_dir"]`)
-	if resp.Error == "" {
+	if resp.Error == nil {
 		t.Errorf("expected error for missing dir in to_arazzo")
 	}
 	resp, _ = doRequest("to_arazzo", fmt.Sprintf(`["-i", "%s/az_sdk", "-o", "%s/az_out.json"]`, dir, dir))
-	if resp.Error != "" {
-		t.Errorf("expected no error for to_arazzo, got %v", resp.Error)
+	if resp.Error != nil {
+		t.Errorf("expected no error for to_arazzo, got %+v", resp.Error)
+	}
+
+	// 18. cdd_generate_sdk tool delegation
+	resp, _ = doRequest("cdd_generate_sdk", `123`)
+	if resp.Error == nil || resp.Error.Message != "Invalid params" {
+		t.Errorf("expected Invalid params for cdd_generate_sdk, got %+v", resp.Error)
+	}
+	resp, _ = doRequest("cdd_generate_sdk", `{"input": "missing.json", "output": "out"}`)
+	if resp.Error == nil {
+		t.Errorf("expected error for missing file in cdd_generate_sdk")
+	}
+	resp, _ = doRequest("cdd_generate_sdk", fmt.Sprintf(`{"input": "%s", "output": "%s/tool_sdk"}`, specFile, dir))
+	if resp.Error != nil || string(resp.Result) != `"SDK Generated"` {
+		t.Errorf("expected SDK Generated result, got %s, %+v", string(resp.Result), resp.Error)
 	}
 }

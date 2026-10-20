@@ -2,7 +2,6 @@
 package workflows
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/token"
 	"strconv"
@@ -96,18 +95,22 @@ func emitSingleWorkflowTestFunc(wf arazzo.Workflow, wfPascal string) *dst.FuncDe
 	}
 
 	for _, step := range wf.Steps {
-		stepJSON, _ := json.Marshal(step)
 		target := step.OperationID
-		if target == "" {
+		targetKind := "operationId"
+		if target == "" && step.OperationPath != "" {
 			target = step.OperationPath
+			targetKind = "operationPath"
 		}
-		if target == "" {
+		if target == "" && step.ChannelPath != "" {
 			target = step.ChannelPath
+			targetKind = "channelPath"
 		}
-		if target == "" {
+		if target == "" && step.WorkflowID != "" {
 			target = step.WorkflowID
+			targetKind = "workflowId"
 		}
 
+		httpVerb := inferStepHTTPMethod(step)
 		payloadStr := "{}"
 		if step.RequestBody != nil && len(step.RequestBody.Payload) > 0 {
 			payloadStr = string(step.RequestBody.Payload)
@@ -122,7 +125,7 @@ func emitSingleWorkflowTestFunc(wf arazzo.Workflow, wfPascal string) *dst.FuncDe
 						&dst.CallExpr{
 							Fun: &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("NewRequest")},
 							Args: []dst.Expr{
-								&dst.BasicLit{Kind: token.STRING, Value: `"POST"`},
+								&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(httpVerb)},
 								&dst.BinaryExpr{
 									X:  &dst.SelectorExpr{X: dst.NewIdent("ts"), Sel: dst.NewIdent("URL")},
 									Op: token.ADD,
@@ -196,8 +199,7 @@ func emitSingleWorkflowTestFunc(wf arazzo.Workflow, wfPascal string) *dst.FuncDe
 				},
 			},
 		}
-		stepBlock.Decs.Start.Append(fmt.Sprintf("// StepID: %s", step.StepID))
-		stepBlock.Decs.Start.Append(fmt.Sprintf("// StepJSON: %s", string(stepJSON)))
+		stepBlock.Decs.Start.Append(fmt.Sprintf("// StepID: %s (%s=%s)", step.StepID, targetKind, target))
 		stmts = append(stmts, stepBlock)
 	}
 
@@ -213,10 +215,11 @@ func emitSingleWorkflowTestFunc(wf arazzo.Workflow, wfPascal string) *dst.FuncDe
 		Body: &dst.BlockStmt{List: stmts},
 	}
 
-	wfJSON, _ := json.Marshal(wf)
 	fn.Decs.Start.Append(fmt.Sprintf("// TestWorkflow%s runs the end-to-end Arazzo workflow %s. Parameter t is the testing context.", wfPascal, wf.WorkflowID))
 	fn.Decs.Start.Append(fmt.Sprintf("// WorkflowID: %s", wf.WorkflowID))
-	fn.Decs.Start.Append(fmt.Sprintf("// WorkflowJSON: %s", string(wfJSON)))
+	if len(wf.DependsOn) > 0 {
+		fn.Decs.Start.Append(fmt.Sprintf("// DependsOn: %s", strings.Join(wf.DependsOn, ",")))
+	}
 	return fn
 }
 
@@ -242,7 +245,6 @@ func EmitServerWorkflowRoutes(doc *arazzo.Arazzo) (*dst.File, error) {
 
 	routeStmts := []dst.Stmt{}
 	for _, wf := range doc.Workflows {
-		wfJSON, _ := json.Marshal(wf)
 		stmt := &dst.ExprStmt{
 			X: &dst.CallExpr{
 				Fun: &dst.SelectorExpr{X: dst.NewIdent("r"), Sel: dst.NewIdent("POST")},
@@ -273,7 +275,21 @@ func EmitServerWorkflowRoutes(doc *arazzo.Arazzo) (*dst.File, error) {
 			},
 		}
 		stmt.Decs.Start.Append(fmt.Sprintf("// WorkflowID: %s", wf.WorkflowID))
-		stmt.Decs.Start.Append(fmt.Sprintf("// WorkflowJSON: %s", string(wfJSON)))
+		for _, step := range wf.Steps {
+			target := step.OperationID
+			kind := "operationId"
+			if target == "" && step.OperationPath != "" {
+				target = step.OperationPath
+				kind = "operationPath"
+			} else if target == "" && step.ChannelPath != "" {
+				target = step.ChannelPath
+				kind = "channelPath"
+			} else if target == "" && step.WorkflowID != "" {
+				target = step.WorkflowID
+				kind = "workflowId"
+			}
+			stmt.Decs.Start.Append(fmt.Sprintf("// Step: %s (%s=%s)", step.StepID, kind, target))
+		}
 		routeStmts = append(routeStmts, stmt)
 	}
 

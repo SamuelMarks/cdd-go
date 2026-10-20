@@ -2,7 +2,6 @@
 package workflows
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/token"
 	"strconv"
@@ -91,17 +90,6 @@ func parseCLIRootCommand(gd *dst.GenDecl, vs *dst.ValueSpec, info *arazzo.Info) 
 // parseCLISubcommand reconstructs an arazzo.Workflow from a `<WorkflowPascal>WorkflowCmd` Cobra subcommand declaration.
 // Parameter gd is the enclosing GenDecl, vs is the ValueSpec, and varName is the variable identifier.
 func parseCLISubcommand(gd *dst.GenDecl, vs *dst.ValueSpec, varName string) arazzo.Workflow {
-	for _, c := range gd.Decs.Start {
-		line := strings.TrimSpace(strings.TrimPrefix(c, "//"))
-		if strings.HasPrefix(line, "WorkflowJSON:") {
-			raw := strings.TrimSpace(strings.TrimPrefix(line, "WorkflowJSON:"))
-			var wf arazzo.Workflow
-			if json.Unmarshal([]byte(raw), &wf) == nil && wf.WorkflowID != "" {
-				return wf
-			}
-		}
-	}
-
 	wfPascal := strings.TrimSuffix(varName, "WorkflowCmd")
 	wf := arazzo.Workflow{
 		WorkflowID: strings.ToLower(wfPascal[:1]) + wfPascal[1:],
@@ -124,6 +112,28 @@ func parseCLISubcommand(gd *dst.GenDecl, vs *dst.ValueSpec, varName string) araz
 					wf.Inputs = &openapi.Schema{Type: "object", Properties: make(map[string]openapi.Schema)}
 				}
 				wf.Inputs.Properties[parts[0]] = openapi.Schema{Type: parts[1]}
+			}
+		} else if strings.HasPrefix(line, "Step:") {
+			rest := strings.TrimSpace(strings.TrimPrefix(line, "Step:"))
+			step := arazzo.Step{}
+			if openIdx := strings.Index(rest, "("); openIdx != -1 && strings.HasSuffix(rest, ")") {
+				step.StepID = strings.TrimSpace(rest[:openIdx])
+				meta := rest[openIdx+1 : len(rest)-1]
+				if kv := strings.SplitN(meta, "=", 2); len(kv) == 2 {
+					switch kv[0] {
+					case "operationPath":
+						step.OperationPath = kv[1]
+					case "channelPath":
+						step.ChannelPath = kv[1]
+					case "workflowId":
+						step.WorkflowID = kv[1]
+					default:
+						step.OperationID = kv[1]
+					}
+				}
+			}
+			if step.StepID != "" {
+				wf.Steps = append(wf.Steps, step)
 			}
 		}
 	}

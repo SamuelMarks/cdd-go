@@ -9,9 +9,25 @@ import (
 func TestParseOperation(t *testing.T) {
 	fd := &dst.FuncDecl{
 		Name: dst.NewIdent("CreateUser"),
+		Type: &dst.FuncType{
+			Params: &dst.FieldList{
+				List: []*dst.Field{
+					{Names: []*dst.Ident{dst.NewIdent("id")}, Type: dst.NewIdent("string")},
+					{Names: []*dst.Ident{dst.NewIdent("body")}, Type: dst.NewIdent("string")},
+				},
+			},
+			Results: &dst.FieldList{
+				List: []*dst.Field{
+					{Type: dst.NewIdent("string")},
+					{Type: dst.NewIdent("error")},
+				},
+			},
+		},
 		Decs: dst.FuncDeclDecorations{
 			NodeDecs: dst.NodeDecs{
 				Start: dst.Decorations{
+					"// Path: /users",
+					"// METHOD: POST",
 					"// Creates a new user",
 					"// Detailed description",
 					"// is here",

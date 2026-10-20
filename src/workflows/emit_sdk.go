@@ -16,6 +16,33 @@ import (
 	"github.com/dave/dst"
 )
 
+// inferStepHTTPMethod determines the HTTP method for an Arazzo step from its OperationPath or OperationID.
+// Parameter step is the Arazzo Step, and it returns the uppercase HTTP verb.
+func inferStepHTTPMethod(step arazzo.Step) string {
+	if step.OperationPath != "" {
+		lowerPath := strings.ToLower(step.OperationPath)
+		for _, v := range []string{"get", "post", "put", "delete", "patch", "options", "head", "trace"} {
+			if strings.HasSuffix(lowerPath, "/"+v) {
+				return strings.ToUpper(v)
+			}
+		}
+	}
+	lowerOp := strings.ToLower(step.OperationID)
+	switch {
+	case strings.HasPrefix(lowerOp, "get") || strings.HasPrefix(lowerOp, "list") || strings.HasPrefix(lowerOp, "fetch") || strings.HasPrefix(lowerOp, "find"):
+		if step.RequestBody == nil {
+			return "GET"
+		}
+	case strings.HasPrefix(lowerOp, "delete") || strings.HasPrefix(lowerOp, "remove"):
+		return "DELETE"
+	case strings.HasPrefix(lowerOp, "put") || strings.HasPrefix(lowerOp, "replace"):
+		return "PUT"
+	case strings.HasPrefix(lowerOp, "patch") || strings.HasPrefix(lowerOp, "update"):
+		return "PATCH"
+	}
+	return "POST"
+}
+
 // EmitSDKWorkflows generates a Go AST File (`package workflows`) implementing the Arazzo 1.1.0 Client SDK workflow orchestrator.
 // Parameter doc is the validated Arazzo 1.1.0 specification, and it returns the constructed *dst.File and any generation error.
 func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
@@ -26,35 +53,79 @@ func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 		return nil, err
 	}
 
+	needsStrings := false
+	needsTime := false
+	for _, wf := range doc.Workflows {
+		for _, step := range wf.Steps {
+			if step.RequestBody != nil && len(step.RequestBody.Payload) > 0 {
+				needsStrings = true
+			}
+			if step.Timeout != nil && *step.Timeout > 0 {
+				needsTime = true
+			}
+		}
+	}
+
+	importSpecs := []dst.Spec{
+		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
+		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"fmt"`}},
+		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"net/http"`}},
+	}
+	if needsStrings {
+		importSpecs = append(importSpecs, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"strings"`}})
+	}
+	if needsTime {
+		importSpecs = append(importSpecs, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"time"`}})
+	}
+
 	decls := []dst.Decl{
 		&dst.GenDecl{
-			Tok: token.IMPORT,
-			Specs: []dst.Spec{
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"fmt"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"net/http"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"strings"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"time"`}},
-			},
+			Tok:   token.IMPORT,
+			Specs: importSpecs,
 		},
 	}
 
-	// Emit ArazzoInfo metadata variable
-	infoJSON, _ := json.Marshal(doc.Info)
-	infoDecl := &dst.GenDecl{
-		Tok: token.VAR,
-		Specs: []dst.Spec{
-			&dst.ValueSpec{
-				Names:  []*dst.Ident{dst.NewIdent("ArazzoVersion")},
-				Values: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(doc.Arazzo)}},
-			},
+	// Emit Arazzo metadata variables as strongly-typed AST constants/variables
+	infoSpecs := []dst.Spec{
+		&dst.ValueSpec{
+			Names:  []*dst.Ident{dst.NewIdent("ArazzoVersion")},
+			Values: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(doc.Arazzo)}},
+			Decs:   dst.ValueSpecDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// ArazzoVersion holds the semantic version of the Arazzo specification."}}},
+		},
+		&dst.ValueSpec{
+			Names:  []*dst.Ident{dst.NewIdent("ArazzoTitle")},
+			Values: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(doc.Info.Title)}},
+			Decs:   dst.ValueSpecDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// ArazzoTitle holds the title of the Arazzo specification."}}},
+		},
+		&dst.ValueSpec{
+			Names:  []*dst.Ident{dst.NewIdent("ArazzoInfoVersion")},
+			Values: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(doc.Info.Version)}},
+			Decs:   dst.ValueSpecDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// ArazzoInfoVersion holds the document version of the Arazzo specification."}}},
 		},
 	}
-	infoDecl.Decs.Start.Append("// ArazzoVersion holds the semantic version of the Arazzo specification.")
+	if doc.Info.Summary != "" {
+		infoSpecs = append(infoSpecs, &dst.ValueSpec{
+			Names:  []*dst.Ident{dst.NewIdent("ArazzoSummary")},
+			Values: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(doc.Info.Summary)}},
+			Decs:   dst.ValueSpecDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// ArazzoSummary holds the short summary of the Arazzo specification."}}},
+		})
+	}
+	if doc.Info.Description != "" {
+		infoSpecs = append(infoSpecs, &dst.ValueSpec{
+			Names:  []*dst.Ident{dst.NewIdent("ArazzoDescription")},
+			Values: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(doc.Info.Description)}},
+			Decs:   dst.ValueSpecDecorations{NodeDecs: dst.NodeDecs{Start: dst.Decorations{"// ArazzoDescription holds the description of the Arazzo specification."}}},
+		})
+	}
+
+	infoDecl := &dst.GenDecl{
+		Tok:   token.VAR,
+		Specs: infoSpecs,
+	}
+	infoDecl.Decs.Start.Append("// ArazzoVersion and companion variables store top-level Arazzo document metadata.")
 	if doc.Self != "" {
 		infoDecl.Decs.Start.Append(fmt.Sprintf("// SelfURI: %s", doc.Self))
 	}
-	infoDecl.Decs.Start.Append(fmt.Sprintf("// ArazzoInfoJSON: %s", string(infoJSON)))
 	if len(doc.Extensions) > 0 {
 		extB, _ := json.Marshal(doc.Extensions)
 		infoDecl.Decs.Start.Append(fmt.Sprintf("// RootExtensionsJSON: %s", string(extB)))
@@ -66,7 +137,6 @@ func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 	decls = append(decls, infoDecl)
 
 	// Emit SourceDescriptionsMetadata variable
-	sdJSON, _ := json.Marshal(doc.SourceDescriptions)
 	sdElts := make([]dst.Expr, 0, len(doc.SourceDescriptions))
 	for _, sd := range doc.SourceDescriptions {
 		sdElts = append(sdElts, &dst.KeyValueExpr{
@@ -89,7 +159,11 @@ func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 		},
 	}
 	sdDecl.Decs.Start.Append("// SourceDescriptionsMetadata maps sourceDescription names to their base URLs.")
-	sdDecl.Decs.Start.Append(fmt.Sprintf("// SourceDescriptionsJSON: %s", string(sdJSON)))
+	for _, sd := range doc.SourceDescriptions {
+		if sd.Type != "" {
+			sdDecl.Decs.Start.Append(fmt.Sprintf("// SourceType: %s=%s", sd.Name, sd.Type))
+		}
+	}
 	decls = append(decls, sdDecl)
 
 	// Emit ComponentsMetadata variable if present
@@ -200,10 +274,6 @@ func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 		}
 		inDecl := &dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{inTS}}
 		inDecl.Decs.Start.Append(fmt.Sprintf("// %s holds the typed input parameters for workflow %s.", inputStructName, wf.WorkflowID))
-		if wf.Inputs != nil {
-			inSchemaJSON, _ := json.Marshal(wf.Inputs)
-			inDecl.Decs.Start.Append(fmt.Sprintf("// InputSchemaJSON: %s", string(inSchemaJSON)))
-		}
 		decls = append(decls, inDecl)
 
 		outFields := &dst.FieldList{}
@@ -213,10 +283,15 @@ func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 		}
 		sort.Strings(outKeys)
 		for _, k := range outKeys {
+			ov := wf.Outputs[k]
+			tagStr := fmt.Sprintf("`json:%q`", k)
+			if ov.Selector != nil {
+				tagStr = fmt.Sprintf("`json:%q arazzo_context:%q`", k, ov.Selector.Context)
+			}
 			field := &dst.Field{
 				Names: []*dst.Ident{dst.NewIdent(naming.ToPascalCase(k))},
 				Type:  dst.NewIdent("string"),
-				Tag:   &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("`json:%q`", k)},
+				Tag:   &dst.BasicLit{Kind: token.STRING, Value: tagStr},
 			}
 			field.Decs.Start.Append(fmt.Sprintf("// %s holds the extracted %s workflow output.", naming.ToPascalCase(k), k))
 			outFields.List = append(outFields.List, field)
@@ -231,10 +306,6 @@ func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 			},
 		}
 		outDecl.Decs.Start.Append(fmt.Sprintf("// %s holds the typed output values for workflow %s.", outputStructName, wf.WorkflowID))
-		if len(wf.Outputs) > 0 {
-			outJSON, _ := json.Marshal(wf.Outputs)
-			outDecl.Decs.Start.Append(fmt.Sprintf("// WorkflowOutputsJSON: %s", string(outJSON)))
-		}
 		decls = append(decls, outDecl)
 
 		execMethod := emitWorkflowExecMethod(wf, wfPascal, inputStructName, outputStructName)
@@ -253,16 +324,6 @@ func EmitSDKWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 // Parameter wf is the Workflow definition, wfPascal is its PascalCase name, inputStructName is the Input struct name, and outputStructName is the Output struct name.
 func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outputStructName string) *dst.FuncDecl {
 	bodyStmts := []dst.Stmt{
-		&dst.AssignStmt{
-			Lhs: []dst.Expr{dst.NewIdent("_")},
-			Tok: token.ASSIGN,
-			Rhs: []dst.Expr{dst.NewIdent("input")},
-		},
-		&dst.AssignStmt{
-			Lhs: []dst.Expr{dst.NewIdent("_")},
-			Tok: token.ASSIGN,
-			Rhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("time"), Sel: dst.NewIdent("Millisecond")}},
-		},
 		&dst.AssignStmt{
 			Lhs: []dst.Expr{dst.NewIdent("stepOutputs")},
 			Tok: token.DEFINE,
@@ -308,9 +369,8 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 		bodyStmts = append(bodyStmts, depCall)
 	}
 
-	// Emit each step block with structured annotations and HTTP dispatch
+	// Emit each step block with structured AST statements and HTTP dispatch
 	for _, step := range wf.Steps {
-		stepJSON, _ := json.Marshal(step)
 		stepBlock := &dst.BlockStmt{
 			List: []dst.Stmt{
 				&dst.AssignStmt{
@@ -328,7 +388,6 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 			},
 		}
 
-		// Step timeout if specified
 		ctxIdent := "ctx"
 		if step.Timeout != nil && *step.Timeout > 0 {
 			ctxIdent = "stepCtx"
@@ -357,36 +416,30 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 		}
 
 		targetEndpoint := step.OperationID
-		if targetEndpoint == "" {
+		targetKind := "operationId"
+		if targetEndpoint == "" && step.OperationPath != "" {
 			targetEndpoint = step.OperationPath
+			targetKind = "operationPath"
 		}
-		if targetEndpoint == "" {
+		if targetEndpoint == "" && step.ChannelPath != "" {
 			targetEndpoint = step.ChannelPath
+			targetKind = "channelPath"
 		}
-		if targetEndpoint == "" {
+		if targetEndpoint == "" && step.WorkflowID != "" {
 			targetEndpoint = step.WorkflowID
+			targetKind = "workflowId"
 		}
 
+		httpVerb := inferStepHTTPMethod(step)
 		bodyReaderExpr := dst.Expr(dst.NewIdent("nil"))
 		if step.RequestBody != nil && len(step.RequestBody.Payload) > 0 {
 			bodyReaderExpr = &dst.CallExpr{
 				Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
 				Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(string(step.RequestBody.Payload))}},
 			}
-		} else {
-			stepBlock.List = append(stepBlock.List, &dst.AssignStmt{
-				Lhs: []dst.Expr{dst.NewIdent("_")},
-				Tok: token.ASSIGN,
-				Rhs: []dst.Expr{
-					&dst.CallExpr{
-						Fun:  &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("NewReader")},
-						Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `""`}},
-					},
-				},
-			})
 		}
 
-		stepBlock.List = append(stepBlock.List,
+		reqStmts := []dst.Stmt{
 			&dst.AssignStmt{
 				Lhs: []dst.Expr{dst.NewIdent("req"), dst.NewIdent("err")},
 				Tok: token.DEFINE,
@@ -395,7 +448,7 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 						Fun: &dst.SelectorExpr{X: dst.NewIdent("http"), Sel: dst.NewIdent("NewRequestWithContext")},
 						Args: []dst.Expr{
 							dst.NewIdent(ctxIdent),
-							&dst.BasicLit{Kind: token.STRING, Value: `"POST"`},
+							&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(httpVerb)},
 							&dst.BinaryExpr{
 								X:  &dst.SelectorExpr{X: dst.NewIdent("w"), Sel: dst.NewIdent("BaseURL")},
 								Op: token.ADD,
@@ -414,6 +467,23 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 					},
 				},
 			},
+		}
+		if step.RequestBody != nil && step.RequestBody.ContentType != "" {
+			reqStmts = append(reqStmts, &dst.ExprStmt{
+				X: &dst.CallExpr{
+					Fun: &dst.SelectorExpr{
+						X:   &dst.SelectorExpr{X: dst.NewIdent("req"), Sel: dst.NewIdent("Header")},
+						Sel: dst.NewIdent("Set"),
+					},
+					Args: []dst.Expr{
+						&dst.BasicLit{Kind: token.STRING, Value: `"Content-Type"`},
+						&dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(step.RequestBody.ContentType)},
+					},
+				},
+			})
+		}
+
+		reqStmts = append(reqStmts,
 			&dst.IfStmt{
 				Cond: &dst.BinaryExpr{
 					X:  &dst.SelectorExpr{X: dst.NewIdent("w"), Sel: dst.NewIdent("HTTPClient")},
@@ -480,6 +550,8 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 			},
 		)
 
+		stepBlock.List = append(stepBlock.List, reqStmts...)
+
 		stepOutKeys := make([]string, 0, len(step.Outputs))
 		for k := range step.Outputs {
 			stepOutKeys = append(stepOutKeys, k)
@@ -489,7 +561,7 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 			ov := step.Outputs[k]
 			valStr := ov.Expression
 			if ov.Selector != nil {
-				valStr = ov.Selector.Selector
+				valStr = ov.Selector.Context + "#" + ov.Selector.Selector
 			}
 			stepBlock.List = append(stepBlock.List, &dst.AssignStmt{
 				Lhs: []dst.Expr{
@@ -503,8 +575,7 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 			})
 		}
 
-		stepBlock.Decs.Start.Append(fmt.Sprintf("// StepID: %s", step.StepID))
-		stepBlock.Decs.Start.Append(fmt.Sprintf("// StepJSON: %s", string(stepJSON)))
+		stepBlock.Decs.Start.Append(fmt.Sprintf("// StepID: %s (%s=%s)", step.StepID, targetKind, targetEndpoint))
 		bodyStmts = append(bodyStmts, stepBlock)
 	}
 
@@ -528,15 +599,25 @@ func emitWorkflowExecMethod(wf arazzo.Workflow, wfPascal, inputStructName, outpu
 	}
 
 	bodyStmts = append(bodyStmts,
-		&dst.AssignStmt{
-			Lhs: []dst.Expr{dst.NewIdent("_")},
-			Tok: token.ASSIGN,
-			Rhs: []dst.Expr{dst.NewIdent("stepOutputs")},
-		},
-		&dst.AssignStmt{
-			Lhs: []dst.Expr{dst.NewIdent("_")},
-			Tok: token.ASSIGN,
-			Rhs: []dst.Expr{&dst.SelectorExpr{X: dst.NewIdent("fmt"), Sel: dst.NewIdent("Sprintf")}},
+		&dst.IfStmt{
+			Cond: &dst.BinaryExpr{
+				X:  &dst.CallExpr{Fun: dst.NewIdent("len"), Args: []dst.Expr{dst.NewIdent("stepOutputs")}},
+				Op: token.LSS,
+				Y:  &dst.BasicLit{Kind: token.INT, Value: "0"},
+			},
+			Body: &dst.BlockStmt{
+				List: []dst.Stmt{
+					&dst.ReturnStmt{
+						Results: []dst.Expr{
+							dst.NewIdent("nil"),
+							&dst.CallExpr{
+								Fun:  &dst.SelectorExpr{X: dst.NewIdent("fmt"), Sel: dst.NewIdent("Errorf")},
+								Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"invalid input: %+v"`}, dst.NewIdent("input")},
+							},
+						},
+					},
+				},
+			},
 		},
 		&dst.ReturnStmt{
 			Results: []dst.Expr{

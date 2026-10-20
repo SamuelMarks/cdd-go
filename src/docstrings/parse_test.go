@@ -23,3 +23,18 @@ func TestParse(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSummaryAndTag(t *testing.T) {
+	if s, tag := ParseSummaryAndTag(nil, "METHOD:"); s != "" || tag != "" {
+		t.Errorf("expected empty for nil decs, got %q, %q", s, tag)
+	}
+	decs := dst.Decorations{
+		"// METHOD: POST",
+		"// Create a user",
+		"// in the database",
+	}
+	s, tag := ParseSummaryAndTag(decs, "METHOD:")
+	if s != "Create a user in the database" || tag != "POST" {
+		t.Errorf("unexpected ParseSummaryAndTag result: %q, %q", s, tag)
+	}
+}

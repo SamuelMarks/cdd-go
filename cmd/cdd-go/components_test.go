@@ -64,8 +64,8 @@ func TestComponentsBasic(t *testing.T) {
 	if !strings.Contains(string(compCode), "SecuritySchemeBasic") {
 		t.Errorf("expected SecuritySchemeBasic in components.go")
 	}
-	if !strings.Contains(string(compCode), "type User struct") {
-		t.Errorf("expected type User struct in components.go")
+	if strings.Contains(string(compCode), "type User struct") {
+		t.Errorf("did not expect duplicate type User struct in components.go alongside user.go")
 	}
 	if !strings.Contains(string(compCode), "HeaderRateLimit") {
 		t.Errorf("expected HeaderRateLimit in components.go")

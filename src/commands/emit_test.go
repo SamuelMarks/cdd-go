@@ -15,6 +15,10 @@ func TestEmitCommand(t *testing.T) {
 		OperationID: "getUser",
 		Summary:     "Get user",
 		Description: "Gets a user by ID",
+		Parameters: []openapi.Parameter{
+			{Name: "id", In: "path", Schema: &openapi.Schema{Type: "string"}},
+			{Name: "verbose", In: "query"},
+		},
 	}
 
 	decl := Emit("/users/{id}", "get", op)

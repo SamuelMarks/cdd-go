@@ -200,6 +200,7 @@ func TestParseClientInterfaceExtraVerbsAndPathComment(t *testing.T) {
 					{Names: []*dst.Ident{dst.NewIdent("OptionsUsers")}, Type: &dst.FuncType{}},
 					{Names: []*dst.Ident{dst.NewIdent("HeadUsers")}, Type: &dst.FuncType{}},
 					{Names: []*dst.Ident{dst.NewIdent("TraceUsers")}, Type: &dst.FuncType{}},
+					{Names: []*dst.Ident{dst.NewIdent("SyncUsers")}, Type: &dst.FuncType{}},
 					{
 						Names: []*dst.Ident{dst.NewIdent("CustomOp")},
 						Type:  &dst.FuncType{},
