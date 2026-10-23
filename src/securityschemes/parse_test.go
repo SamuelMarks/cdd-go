@@ -45,6 +45,10 @@ func TestParseSecurityScheme(t *testing.T) {
 								Value: &dst.BasicLit{Kind: token.STRING, Value: `"http"`},
 							},
 							&dst.KeyValueExpr{
+								Key:   dst.NewIdent("OAuth2MetadataURL"),
+								Value: &dst.BasicLit{Kind: token.STRING, Value: `"http://meta"`},
+							},
+							&dst.KeyValueExpr{
 								Key: dst.NewIdent("Flows"),
 								Value: &dst.CompositeLit{
 									Elts: []dst.Expr{

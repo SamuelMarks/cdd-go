@@ -40,6 +40,8 @@ func Parse(cl *dst.CompositeLit) *openapi.OAuthFlows {
 			flows.ClientCredentials = flow
 		case "AuthorizationCode":
 			flows.AuthorizationCode = flow
+		case "DeviceAuthorization":
+			flows.DeviceAuthorization = flow
 		}
 	}
 
@@ -66,6 +68,9 @@ func parseFlow(cl *dst.CompositeLit) *openapi.OAuthFlow {
 			switch key {
 			case "AuthorizationURL":
 				flow.AuthorizationURL = val
+				hasContent = true
+			case "DeviceAuthorizationURL":
+				flow.DeviceAuthorizationURL = val
 				hasContent = true
 			case "TokenURL":
 				flow.TokenURL = val

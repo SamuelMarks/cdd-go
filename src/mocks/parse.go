@@ -21,10 +21,23 @@ func ParseExample(vs *dst.ValueSpec) (*openapi.Example, error) {
 
 	if len(vs.Decs.Start) > 0 {
 		doc := docstrings.Parse(vs.Decs.Start)
-		lines := strings.SplitN(doc, "\n", 2)
-		ex.Summary = strings.TrimSpace(lines[0])
-		if len(lines) > 1 {
-			ex.Description = strings.TrimSpace(lines[1])
+		rawLines := strings.Split(doc, "\n")
+		var textLines []string
+		for _, line := range rawLines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "@dataValue:") {
+				ex.DataValue = json.RawMessage(strings.TrimSpace(strings.TrimPrefix(trimmed, "@dataValue:")))
+			} else if strings.HasPrefix(trimmed, "@serializedValue:") {
+				ex.SerializedValue = strings.TrimSpace(strings.TrimPrefix(trimmed, "@serializedValue:"))
+			} else {
+				textLines = append(textLines, trimmed)
+			}
+		}
+		if len(textLines) > 0 {
+			ex.Summary = textLines[0]
+		}
+		if len(textLines) > 1 {
+			ex.Description = strings.Join(textLines[1:], "\n")
 		}
 	}
 

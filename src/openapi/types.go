@@ -660,10 +660,14 @@ type Discriminator struct {
 	PropertyName string `json:"propertyName"`
 	// Mapping holds mappings between payload values and schema names or references.
 	Mapping map[string]string `json:"mapping,omitempty"`
+	// DefaultMapping is the schema name or URI reference used when the discriminator property is absent or unmapped (OpenAPI 3.2.0).
+	DefaultMapping string `json:"defaultMapping,omitempty"`
 }
 
 // XML Object for XML representations.
 type XML struct {
+	// NodeType specifies the XML node type ("element", "attribute", "text", "cdata", "none") in OpenAPI 3.2.0.
+	NodeType string `json:"nodeType,omitempty"`
 	// Name replaces the name of the element/attribute used for the described schema property.
 	Name string `json:"name,omitempty"`
 	// Namespace is the URI of the namespace definition.
@@ -703,6 +707,10 @@ type Example struct {
 	Summary string `json:"summary,omitempty"`
 	// Description provides more details about the example.
 	Description string `json:"description,omitempty"`
+	// DataValue holds a schema-valid unserialized example data structure (OpenAPI 3.2.0).
+	DataValue json.RawMessage `json:"dataValue,omitempty"`
+	// SerializedValue holds the serialized string representation of the example (OpenAPI 3.2.0).
+	SerializedValue string `json:"serializedValue,omitempty"`
 	// Value holds the literal example value.
 	Value json.RawMessage `json:"value,omitempty"`
 	// ExternalValue points to a URI that contains the literal example value.
@@ -816,6 +824,10 @@ type SecurityScheme struct {
 	Scopes map[string]string `json:"scopes,omitempty"`
 	// OpenIDConnectURL is the URL to discover OAuth2 configuration values.
 	OpenIDConnectURL string `json:"openIdConnectUrl,omitempty"`
+	// OAuth2MetadataURL is the URL to discover OAuth2 Authorization Server Metadata (OpenAPI 3.2.0).
+	OAuth2MetadataURL string `json:"oauth2MetadataUrl,omitempty"`
+	// Deprecated specifies that the security scheme is deprecated.
+	Deprecated bool `json:"deprecated,omitempty"`
 }
 
 // OAuthFlows contains configuration information for the supported flow types.
@@ -828,12 +840,16 @@ type OAuthFlows struct {
 	ClientCredentials *OAuthFlow `json:"clientCredentials,omitempty"`
 	// AuthorizationCode configuration for the OAuth Authorization Code flow.
 	AuthorizationCode *OAuthFlow `json:"authorizationCode,omitempty"`
+	// DeviceAuthorization configuration for the OAuth 2.0 Device Authorization Grant flow (OpenAPI 3.2.0).
+	DeviceAuthorization *OAuthFlow `json:"deviceAuthorization,omitempty"`
 }
 
 // OAuthFlow contains configuration information for a single flow.
 type OAuthFlow struct {
 	// AuthorizationURL is the authorization URL to be used for this flow.
 	AuthorizationURL string `json:"authorizationUrl,omitempty"`
+	// DeviceAuthorizationURL is the device authorization URL to be used for this flow (OpenAPI 3.2.0).
+	DeviceAuthorizationURL string `json:"deviceAuthorizationUrl,omitempty"`
 	// TokenURL is the token URL to be used for this flow.
 	TokenURL string `json:"tokenUrl,omitempty"`
 	// RefreshURL is the URL to be used for obtaining refresh tokens.

@@ -20,6 +20,12 @@ func EmitExample(name string, ex *openapi.Example) (*dst.GenDecl, error) {
 	}
 
 	valStr := string(ex.Value)
+	if valStr == "" && len(ex.DataValue) > 0 {
+		valStr = string(ex.DataValue)
+	}
+	if valStr == "" && ex.SerializedValue != "" {
+		valStr = ex.SerializedValue
+	}
 	if valStr == "" {
 		valStr = `""`
 	}
@@ -35,13 +41,23 @@ func EmitExample(name string, ex *openapi.Example) (*dst.GenDecl, error) {
 		},
 	}
 
-	if ex.Summary != "" || ex.Description != "" {
-		desc := ex.Summary
-		if ex.Description != "" {
-			if desc != "" {
-				desc += "\n"
-			}
-			desc += ex.Description
+	var docLines []string
+	if ex.Summary != "" {
+		docLines = append(docLines, ex.Summary)
+	}
+	if ex.Description != "" {
+		docLines = append(docLines, ex.Description)
+	}
+	if len(ex.DataValue) > 0 {
+		docLines = append(docLines, "@dataValue: "+string(ex.DataValue))
+	}
+	if ex.SerializedValue != "" {
+		docLines = append(docLines, "@serializedValue: "+ex.SerializedValue)
+	}
+	if len(docLines) > 0 {
+		desc := docLines[0]
+		for _, line := range docLines[1:] {
+			desc += "\n" + line
 		}
 		vs.Decs.Start = docstrings.Emit(desc)
 	}

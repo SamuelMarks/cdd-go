@@ -252,7 +252,20 @@ func TestGenerateServerMain(t *testing.T) {
 	}
 
 	outDir2 := t.TempDir()
-	if err := GenerateServerMain(oa, outDir2, true, true, true); err != nil {
+	oaWithHooks := &openapi.OpenAPI{
+		Info: openapi.Info{Title: "My Test API"},
+		Paths: openapi.Paths{
+			"/users": openapi.PathItem{
+				Get: &openapi.Operation{OperationID: "listUsers"},
+			},
+		},
+		Webhooks: map[string]openapi.PathItem{
+			"orderCreated": {
+				Post: &openapi.Operation{OperationID: "onOrderCreated"},
+			},
+		},
+	}
+	if err := GenerateServerMain(oaWithHooks, outDir2, true, true, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -262,6 +275,115 @@ func TestGenerateServerMain(t *testing.T) {
 	}
 	if !strings.Contains(string(main2), "routes.NewHandlerUsers(daoFactory).Register(r)") {
 		t.Errorf("expected route registration with daoFactory in main.go, got:\n%s", string(main2))
+	}
+	if !strings.Contains(string(main2), `"/_mock/trigger-webhook/:webhook_name"`) {
+		t.Errorf("expected webhook trigger route in main.go, got:\n%s", string(main2))
+	}
+
+	outDir3 := t.TempDir()
+	if err := GenerateServerMain(oa, outDir3, true, false, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseServerFlagsMatrix(t *testing.T) {
+	// 1. Stub Mode: No DB configured, no flags
+	cfg, err := ParseServerFlags([]string{}, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.UseConcreteDAOs || cfg.Ephemeral || cfg.Seed || cfg.StrictValidation || cfg.EnforceAuth {
+		t.Errorf("expected Stub Mode (all false), got %+v", cfg)
+	}
+
+	// 2. Production Mode: DATABASE_URL configured, no flags
+	cfg, err = ParseServerFlags([]string{}, "postgres://localhost:5432/prod")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.UseConcreteDAOs || cfg.Ephemeral || cfg.Seed {
+		t.Errorf("expected Production Mode (UseConcreteDAOs=true, Ephemeral=false), got %+v", cfg)
+	}
+
+	// 3. Sandbox Mode: --ephemeral flag
+	cfg, err = ParseServerFlags([]string{"--ephemeral"}, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.UseConcreteDAOs || !cfg.Ephemeral || cfg.Seed {
+		t.Errorf("expected Sandbox Mode (UseConcreteDAOs=true, Ephemeral=true, Seed=false), got %+v", cfg)
+	}
+
+	// 4. Full Mock Mode: --ephemeral --seed --strict-validation --enforce-auth
+	cfg, err = ParseServerFlags([]string{"--ephemeral", "--seed", "--strict-validation", "--enforce-auth"}, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.UseConcreteDAOs || !cfg.Ephemeral || !cfg.Seed || !cfg.StrictValidation || !cfg.EnforceAuth {
+		t.Errorf("expected Full Mock Mode (all true), got %+v", cfg)
+	}
+
+	// 5. Invalid flag error
+	if _, err := ParseServerFlags([]string{"--unknown-flag"}, ""); err == nil {
+		t.Error("expected error for unknown flag")
+	}
+}
+
+func TestGenerateWebhookTriggersAndServerReadme(t *testing.T) {
+	outDir := t.TempDir()
+
+	// Empty OpenAPI -> no webhooks directory created
+	if err := GenerateWebhookTriggers(&openapi.OpenAPI{}, outDir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "webhooks", "trigger.go")); !os.IsNotExist(err) {
+		t.Error("did not expect webhooks/trigger.go when spec has no webhooks or callbacks")
+	}
+
+	// Spec with webhooks and callbacks
+	oa := &openapi.OpenAPI{
+		Info: openapi.Info{Title: "Webhook API"},
+		Webhooks: map[string]openapi.PathItem{
+			"userCreated": {},
+		},
+	}
+	if err := GenerateWebhookTriggers(oa, outDir); err != nil {
+		t.Fatalf("unexpected GenerateWebhookTriggers error: %v", err)
+	}
+	triggerPath := filepath.Join(outDir, "webhooks", "trigger.go")
+	b, err := os.ReadFile(triggerPath)
+	if err != nil {
+		t.Fatalf("expected webhooks/trigger.go: %v", err)
+	}
+	if _, err := parser.ParseFile(token.NewFileSet(), triggerPath, b, parser.ParseComments); err != nil {
+		t.Errorf("generated webhooks/trigger.go is not valid Go: %v", err)
+	}
+	if !strings.Contains(string(b), "HandleTriggerWebhook") || !strings.Contains(string(b), "DispatchWebhook") {
+		t.Errorf("expected HandleTriggerWebhook and DispatchWebhook in trigger.go:\n%s", string(b))
+	}
+
+	// Error creating webhooks directory
+	if err := GenerateWebhookTriggers(oa, "/dev/null/invalid"); err == nil {
+		t.Error("expected error for invalid directory")
+	}
+
+	// GenerateServerReadme with title & webhooks, and with nil OpenAPI
+	if err := GenerateServerReadme(oa, outDir); err != nil {
+		t.Fatalf("unexpected GenerateServerReadme error: %v", err)
+	}
+	readmeBytes, err := os.ReadFile(filepath.Join(outDir, "README.md"))
+	if err != nil {
+		t.Fatalf("expected README.md: %v", err)
+	}
+	readmeStr := string(readmeBytes)
+	for _, expected := range []string{"Stub Mode", "Production Mode", "Sandbox Mode", "Full Mock Mode", "POST /_mock/trigger-webhook/{webhook_name}", "userCreated"} {
+		if !strings.Contains(readmeStr, expected) {
+			t.Errorf("expected %q in generated README.md, got:\n%s", expected, readmeStr)
+		}
+	}
+
+	if err := GenerateServerReadme(nil, t.TempDir()); err != nil {
+		t.Fatalf("unexpected GenerateServerReadme(nil) error: %v", err)
 	}
 }
 

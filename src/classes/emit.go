@@ -59,6 +59,12 @@ func EmitTypeWithOptions(name string, schema *openapi.Schema, opts EmitOptions) 
 	if schema.Description != "" {
 		ts.Decs.Start.Append(fmt.Sprintf("// %s", schema.Description))
 	}
+	if schema.Discriminator != nil {
+		ts.Decs.Start.Append(fmt.Sprintf("// @discriminator propertyName=%s defaultMapping=%s", schema.Discriminator.PropertyName, schema.Discriminator.DefaultMapping))
+	}
+	if schema.XML != nil {
+		ts.Decs.Start.Append(fmt.Sprintf("// @xml name=%s nodeType=%s", schema.XML.Name, schema.XML.NodeType))
+	}
 
 	switch schema.Type {
 	case "object", "":
@@ -84,12 +90,16 @@ func EmitTypeWithOptions(name string, schema *openapi.Schema, opts EmitOptions) 
 				}
 				fieldType := EmitTypeExpr(&propSchema)
 
-				tagStr := fmt.Sprintf("`json:%q`", propName)
+				tagInner := fmt.Sprintf("json:%q", propName)
 				if opts.OmitEmpty && !opts.IncludeGormTags {
-					tagStr = fmt.Sprintf("`"+`json:"%s,omitempty"`+"`", propName)
+					tagInner = fmt.Sprintf(`json:"%s,omitempty"`, propName)
 				} else if opts.IncludeGormTags {
-					tagStr = fmt.Sprintf("`"+`json:%q gorm:"column:%s"`+"`", propName, propName)
+					tagInner = fmt.Sprintf(`json:%q gorm:"column:%s"`, propName, propName)
 				}
+				if xmlTag := formatXMLStructTag(propName, propSchema.XML); xmlTag != "" {
+					tagInner += " " + xmlTag
+				}
+				tagStr := "`" + tagInner + "`"
 
 				field := &dst.Field{
 					Names: []*dst.Ident{dst.NewIdent(fieldName)},
@@ -120,6 +130,27 @@ func EmitTypeWithOptions(name string, schema *openapi.Schema, opts EmitOptions) 
 	}
 
 	return ts, nil
+}
+
+// formatXMLStructTag formats an OpenAPI XML object into a Go xml:"..." struct tag fragment.
+// Parameter propName is the default property name, xml is the OpenAPI XML configuration, and it returns the formatted tag fragment.
+func formatXMLStructTag(propName string, xml *openapi.XML) string {
+	if xml == nil {
+		return ""
+	}
+	xmlName := xml.Name
+	if xmlName == "" {
+		xmlName = propName
+	}
+	suffix := ""
+	if xml.Attribute || xml.NodeType == "attribute" {
+		suffix = ",attr"
+	} else if xml.NodeType == "cdata" {
+		suffix = ",cdata"
+	} else if xml.NodeType == "text" {
+		suffix = ",chardata"
+	}
+	return fmt.Sprintf(`xml:"%s%s"`, xmlName, suffix)
 }
 
 // EmitTypeExpr converts an OpenAPI Schema into a dst.Expr (for field types, array elements, etc.).

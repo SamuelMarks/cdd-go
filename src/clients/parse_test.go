@@ -168,6 +168,10 @@ func TestParseClientInterfaceMCPExt(t *testing.T) {
 						Names: []*dst.Ident{dst.NewIdent("ExecuteTool")},
 						Type:  &dst.FuncType{},
 					},
+					{
+						Names: []*dst.Ident{dst.NewIdent("AuthLogin")},
+						Type:  &dst.FuncType{},
+					},
 				},
 			},
 		},

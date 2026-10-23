@@ -267,4 +267,45 @@ func TestEmitTypeWithOptions(t *testing.T) {
 	if !strings.Contains(plainCode, "int32") || !strings.Contains(plainCode, "int64") || !strings.Contains(plainCode, "float32") || !strings.Contains(plainCode, "Code string") {
 		t.Errorf("expected int32, int64, float32, and inline struct field Code string, got:\n%s", plainCode)
 	}
+
+	discXMLSchema := &openapi.Schema{
+		Type:        "object",
+		Description: "Polymorphic Pet",
+		Discriminator: &openapi.Discriminator{
+			PropertyName:   "petType",
+			DefaultMapping: "#/components/schemas/DefaultPet",
+		},
+		XML: &openapi.XML{
+			Name:     "pet",
+			NodeType: "element",
+		},
+		Properties: map[string]openapi.Schema{
+			"id":   {Type: "string", XML: &openapi.XML{NodeType: "attribute"}},
+			"raw":  {Type: "string", XML: &openapi.XML{Name: "rawData", NodeType: "cdata"}},
+			"body": {Type: "string", XML: &openapi.XML{Name: "bodyText", NodeType: "text"}},
+		},
+	}
+	tsDisc, err := EmitType("Pet", discXMLSchema)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	parsedBack, err := ParseType(tsDisc)
+	if err != nil {
+		t.Fatalf("unexpected ParseType error: %v", err)
+	}
+	if parsedBack.Discriminator == nil || parsedBack.Discriminator.DefaultMapping != "#/components/schemas/DefaultPet" {
+		t.Errorf("expected DefaultMapping roundtrip, got %+v", parsedBack.Discriminator)
+	}
+	if parsedBack.XML == nil || parsedBack.XML.NodeType != "element" {
+		t.Errorf("expected XML NodeType roundtrip, got %+v", parsedBack.XML)
+	}
+	if parsedBack.Properties["id"].XML == nil || parsedBack.Properties["id"].XML.NodeType != "attribute" {
+		t.Errorf("expected id XML attribute roundtrip, got %+v", parsedBack.Properties["id"].XML)
+	}
+	if parsedBack.Properties["raw"].XML == nil || parsedBack.Properties["raw"].XML.NodeType != "cdata" {
+		t.Errorf("expected raw XML cdata roundtrip, got %+v", parsedBack.Properties["raw"].XML)
+	}
+	if parsedBack.Properties["body"].XML == nil || parsedBack.Properties["body"].XML.NodeType != "text" {
+		t.Errorf("expected body XML text roundtrip, got %+v", parsedBack.Properties["body"].XML)
+	}
 }

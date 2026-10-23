@@ -31,6 +31,7 @@ func GenerateMiddlewares(outDir string) error {
 		Name:  dst.NewIdent("middlewares"),
 		Decls: decls,
 	}
+	file.Decs.Start.Append("// Package middlewares provides global Gin HTTP middlewares for CORS, validation, and mock authentication.")
 
 	return WriteDstFile(filepath.Join(mwDir, "middlewares.go"), file)
 }
@@ -51,11 +52,10 @@ func emitCorsMiddleware() *dst.FuncDecl {
 							Type: &dst.FuncType{Params: &dst.FieldList{List: []*dst.Field{{Names: []*dst.Ident{dst.NewIdent("c")}, Type: &dst.StarExpr{X: dst.NewIdent("gin.Context")}}}}},
 							Body: &dst.BlockStmt{
 								List: []dst.Stmt{
-									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Sel: dst.NewIdent("Header")}, Args: []dst.Expr{}}}, // To easily chain Set
-									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Origin"`}, &dst.BasicLit{Kind: token.STRING, Value: `"*"`}}}},
-									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Credentials"`}, &dst.BasicLit{Kind: token.STRING, Value: `"true"`}}}},
-									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Headers"`}, &dst.BasicLit{Kind: token.STRING, Value: `"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With"`}}}},
-									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Methods"`}, &dst.BasicLit{Kind: token.STRING, Value: `"POST, OPTIONS, GET, PUT, PATCH, DELETE"`}}}},
+									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Sel: dst.NewIdent("Header")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Origin"`}, &dst.BasicLit{Kind: token.STRING, Value: `"*"`}}}},
+									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Sel: dst.NewIdent("Header")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Credentials"`}, &dst.BasicLit{Kind: token.STRING, Value: `"true"`}}}},
+									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Sel: dst.NewIdent("Header")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Headers"`}, &dst.BasicLit{Kind: token.STRING, Value: `"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With"`}}}},
+									&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Writer")}, Sel: dst.NewIdent("Header")}, Args: []dst.Expr{}}, Sel: dst.NewIdent("Set")}, Args: []dst.Expr{&dst.BasicLit{Kind: token.STRING, Value: `"Access-Control-Allow-Methods"`}, &dst.BasicLit{Kind: token.STRING, Value: `"POST, OPTIONS, GET, PUT, PATCH, DELETE"`}}}},
 									&dst.IfStmt{
 										Cond: &dst.BinaryExpr{X: &dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Request")}, Sel: dst.NewIdent("Method")}, Op: token.EQL, Y: &dst.BasicLit{Kind: token.STRING, Value: `"OPTIONS"`}},
 										Body: &dst.BlockStmt{
@@ -99,7 +99,15 @@ func emitAuthMockMiddleware() *dst.FuncDecl {
 							Body: &dst.BlockStmt{
 								List: []dst.Stmt{
 									&dst.IfStmt{
-										Cond: &dst.UnaryExpr{Op: token.NOT, X: dst.NewIdent("enforceAuth")},
+										Cond: &dst.BinaryExpr{
+											X:  &dst.UnaryExpr{Op: token.NOT, X: dst.NewIdent("enforceAuth")},
+											Op: token.LOR,
+											Y: &dst.BinaryExpr{
+												X:  &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("HasPrefix")}, Args: []dst.Expr{&dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Request")}, Sel: dst.NewIdent("URL.Path")}, &dst.BasicLit{Kind: token.STRING, Value: `"/auth/"`}}},
+												Op: token.LOR,
+												Y:  &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("strings"), Sel: dst.NewIdent("HasPrefix")}, Args: []dst.Expr{&dst.SelectorExpr{X: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Request")}, Sel: dst.NewIdent("URL.Path")}, &dst.BasicLit{Kind: token.STRING, Value: `"/_mock/"`}}},
+											},
+										},
 										Body: &dst.BlockStmt{
 											List: []dst.Stmt{
 												&dst.ExprStmt{X: &dst.CallExpr{Fun: &dst.SelectorExpr{X: dst.NewIdent("c"), Sel: dst.NewIdent("Next")}, Args: []dst.Expr{}}},

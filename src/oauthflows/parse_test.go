@@ -73,6 +73,17 @@ func TestParseOAuthFlows(t *testing.T) {
 					},
 				},
 			},
+			&dst.KeyValueExpr{
+				Key: dst.NewIdent("DeviceAuthorization"),
+				Value: &dst.CompositeLit{
+					Elts: []dst.Expr{
+						&dst.KeyValueExpr{
+							Key:   dst.NewIdent("DeviceAuthorizationURL"),
+							Value: &dst.BasicLit{Kind: token.STRING, Value: `"device"`},
+						},
+					},
+				},
+			},
 		},
 	}
 

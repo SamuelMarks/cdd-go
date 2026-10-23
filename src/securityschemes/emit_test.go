@@ -12,13 +12,14 @@ import (
 
 func TestEmitSecurityScheme(t *testing.T) {
 	scheme := &openapi.SecurityScheme{
-		Type:             "http",
-		Description:      "Basic Auth",
-		Name:             "Authorization",
-		In:               "header",
-		Scheme:           "bearer",
-		BearerFormat:     "JWT",
-		OpenIDConnectURL: "http://example.com",
+		Type:              "http",
+		Description:       "Basic Auth",
+		Name:              "Authorization",
+		In:                "header",
+		Scheme:            "bearer",
+		BearerFormat:      "JWT",
+		OpenIDConnectURL:  "http://example.com",
+		OAuth2MetadataURL: "http://example.com/.well-known/oauth-authorization-server",
 		Flows: &openapi.OAuthFlows{
 			Implicit: &openapi.OAuthFlow{
 				AuthorizationURL: "http://example.com/auth",

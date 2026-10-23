@@ -31,6 +31,10 @@ func TestEmitOAuthFlows(t *testing.T) {
 		ClientCredentials: &openapi.OAuthFlow{
 			TokenURL: "https://example.com/api/oauth/token",
 		},
+		DeviceAuthorization: &openapi.OAuthFlow{
+			DeviceAuthorizationURL: "https://example.com/api/oauth/device",
+			TokenURL:               "https://example.com/api/oauth/token",
+		},
 	}
 
 	cl := Emit(flows)

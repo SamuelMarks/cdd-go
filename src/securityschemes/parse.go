@@ -68,6 +68,8 @@ func applySecuritySchemeField(scheme *openapi.SecurityScheme, key, val string) b
 		scheme.BearerFormat = val
 	case "OpenIDConnectURL":
 		scheme.OpenIDConnectURL = val
+	case "OAuth2MetadataURL":
+		scheme.OAuth2MetadataURL = val
 	default:
 		return false
 	}

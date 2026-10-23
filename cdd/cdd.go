@@ -128,9 +128,13 @@ func emitServerPackages(oa *openapi.OpenAPI, outDir string, tests bool) error {
 	if err := GenerateRoutes(oa, outDir); err != nil {
 		return err
 	}
+	if err := GenerateWebhookTriggers(oa, outDir); err != nil {
+		return err
+	}
 	if err := GenerateServerMain(oa, outDir, true, tests, true); err != nil {
 		return err
 	}
+	_ = GenerateServerReadme(oa, outDir)
 	if tests {
 		if err := GenerateTests(oa, outDir); err != nil {
 			return err

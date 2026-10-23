@@ -32,6 +32,16 @@ func TestEmitSeeder(t *testing.T) {
 				"message": {Type: "string"},
 			},
 		},
+		"Order": {
+			Type: "object",
+			Properties: map[string]openapi.Schema{
+				"id":          {Type: "string"},
+				"user_id":     {Type: "string"},
+				"auditLogId":  {Type: "string"},
+				"unknown_id":  {Type: "string"},
+				"description": {Type: "custom"},
+			},
+		},
 	}
 
 	decls := EmitSeeder(schemas)

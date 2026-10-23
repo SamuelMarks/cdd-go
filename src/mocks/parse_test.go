@@ -21,6 +21,8 @@ func TestParseExample(t *testing.T) {
 				Start: dst.Decorations{
 					"// Test user",
 					"// Detailed",
+					"// @dataValue: {\"id\": \"123\"}",
+					"// @serializedValue: id=123",
 				},
 			},
 		},
@@ -36,6 +38,12 @@ func TestParseExample(t *testing.T) {
 	}
 	if ex.Description != "Detailed" {
 		t.Errorf("expected Detailed")
+	}
+	if string(ex.DataValue) != `{"id": "123"}` {
+		t.Errorf("expected DataValue, got %s", string(ex.DataValue))
+	}
+	if ex.SerializedValue != "id=123" {
+		t.Errorf("expected SerializedValue, got %s", ex.SerializedValue)
 	}
 
 	if string(ex.Value) != `{"id": "123"}` {

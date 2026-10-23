@@ -23,6 +23,7 @@ func Emit(flows *openapi.OAuthFlows) *dst.CompositeLit {
 					{Names: []*dst.Ident{dst.NewIdent("Password")}, Type: dst.NewIdent("OAuthFlow")},
 					{Names: []*dst.Ident{dst.NewIdent("ClientCredentials")}, Type: dst.NewIdent("OAuthFlow")},
 					{Names: []*dst.Ident{dst.NewIdent("AuthorizationCode")}, Type: dst.NewIdent("OAuthFlow")},
+					{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorization")}, Type: dst.NewIdent("OAuthFlow")},
 				},
 			},
 		},
@@ -59,6 +60,13 @@ func Emit(flows *openapi.OAuthFlows) *dst.CompositeLit {
 		})
 		hasContent = true
 	}
+	if flows.DeviceAuthorization != nil {
+		cl.Elts = append(cl.Elts, &dst.KeyValueExpr{
+			Key:   dst.NewIdent("DeviceAuthorization"),
+			Value: emitFlow(flows.DeviceAuthorization),
+		})
+		hasContent = true
+	}
 
 	if !hasContent {
 		return nil
@@ -78,6 +86,12 @@ func emitFlow(flow *openapi.OAuthFlow) *dst.CompositeLit {
 		cl.Elts = append(cl.Elts, &dst.KeyValueExpr{
 			Key:   dst.NewIdent("AuthorizationURL"),
 			Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", flow.AuthorizationURL)},
+		})
+	}
+	if flow.DeviceAuthorizationURL != "" {
+		cl.Elts = append(cl.Elts, &dst.KeyValueExpr{
+			Key:   dst.NewIdent("DeviceAuthorizationURL"),
+			Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", flow.DeviceAuthorizationURL)},
 		})
 	}
 	if flow.TokenURL != "" {

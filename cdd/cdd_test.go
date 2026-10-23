@@ -760,6 +760,19 @@ func TestFromOpenAPIMkdirErrors(t *testing.T) {
 		t.Error("expected GenerateServerMain error in to_server")
 	}
 
+	// block GenerateWebhookTriggers
+	oaWithWh := &openapi.OpenAPI{
+		Webhooks: map[string]openapi.PathItem{"hook": {}},
+	}
+	whSpecPath := writeSpec(oaWithWh)
+	outWhDir := filepath.Join(dir, "out_wh_srv")
+	os.MkdirAll(outWhDir, 0755)
+	os.WriteFile(filepath.Join(outWhDir, "webhooks"), []byte("file"), 0644)
+	if err := FromOpenAPI("to_server", whSpecPath, outWhDir, false, false, false, false); err == nil {
+		t.Error("expected GenerateWebhookTriggers error in to_server")
+	}
+	specPath = writeSpec(validOA)
+
 	// block GenerateTests
 	outTestsDirSrv := filepath.Join(dir, "out_tests_srv")
 	os.MkdirAll(outTestsDirSrv, 0755)

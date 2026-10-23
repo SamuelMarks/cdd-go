@@ -571,9 +571,15 @@ While all compilers in this suite implement the full shared baseline above, `cdd
 
 ### 3. Gin-Gonic Web Server, Middleware, and Integrated Mock IdP Generation (`to_server`)
 - **Gin-Gonic Route Handlers (`src/routes`, `cdd/server_main_gen.go`)**: Generates strongly-typed `Handler<Path>` interfaces, `handler<Path>` implementations with injected `daos.DAOFactory`, and a complete `cmd/server/main.go` entrypoint powered by `github.com/gin-gonic/gin`.
-- **Runtime Server Mode Flags**: Generated server binaries accept `-mode` (`stub`, `ephemeral`, `concrete`), `-seed` (boolean flag to populate fake relational data on startup), and `-validate` (boolean flag to enable strict request schema validation) alongside `PORT` and `DATABASE_URL` environment variables.
-- **Global Middlewares (`cdd/middlewares_gen.go`)**: Automatically scaffolds `middlewares/middlewares.go` with `ErrorRecoveryMiddleware()` (converting `models.AppError` into structured JSON responses) and `ValidationMiddleware(enabled bool)`.
-- **Integrated Mock Identity Provider (`cdd/idp_gen.go`)**: Automatically generates `idp/idp.go` with `RegisterIdpRoutes(r *gin.Engine)` and `HandleLogin` (`POST /oauth/token`) returning mock Bearer tokens for local OAuth2/JWT testing.
+- **Decoupled CDD Server Modes**:
+  - `start` (No DB configured): **Stub Mode**. Server runs using traditional scaffolds, endpoints return `NotImplementedError` (`501 Not Implemented`) or empty bodies.
+  - `start` (With `DATABASE_URL`): **Production Mode**. Uses actual ORM interactions against a real PostgreSQL database.
+  - `start --ephemeral`: **Sandbox Mode**. Uses actual ORM interactions against a fresh, throwaway in-memory SQLite database.
+  - `start --ephemeral --seed`: **Full Mock Mode**. Ephemeral database, automatically populated with a localized fake data graph on startup.
+- **Runtime Server Mode Flags**: Generated server binaries accept `--ephemeral` (triggers Concrete DAOs and overrides `DATABASE_URL` with a throwaway database), `--seed` (runs the fake data seeder on startup), `--strict-validation` (enforces strict OpenAPI request schema validation), and `--enforce-auth` (enforces mock JWT/Bearer authentication) alongside `DATABASE_URL` environment variables.
+- **Administrative Webhook & Callback Trigger API (`src/webhooks/trigger.go`, `cdd/server_main_gen.go`)**: When an OpenAPI specification defines `webhooks` or `callbacks`, the generated mock server exposes `POST /_mock/trigger-webhook/{webhook_name}` and dispatches outgoing JSON webhook payloads to a registered `target_url` via its internal HTTP client.
+- **Global Middlewares (`cdd/middlewares_gen.go`)**: Automatically scaffolds `middlewares/middlewares.go` with `CORSMiddleware()`, `AuthMockMiddleware(enforceAuth bool)`, and `ValidationMiddleware(strict bool)`.
+- **Integrated Mock Identity Provider (`cdd/idp_gen.go`)**: Automatically generates `idp/idp_handlers.go` with `HandleRegister` (`POST /auth/register`) and `HandleLogin` (`POST /auth/login`) returning mock Bearer tokens for local OAuth2/JWT testing.
 
 ### 4. Multi-Tiered GORM ORM, Ephemeral SQLite, PostgreSQL, and Faker Seeding
 - **GORM Model & Tag Emission (`src/classes`)**: Emits Go model structs with dual `` `json:"..." gorm:"column:..."` `` struct tags and parses them back into OpenAPI `components.schemas`.

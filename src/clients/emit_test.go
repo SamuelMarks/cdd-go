@@ -103,6 +103,9 @@ func TestEmitClientInterface(t *testing.T) {
 	if !strings.Contains(out, "ExecuteTool(toolName string, args map[string]string) (string, error)") {
 		t.Errorf("expected ExecuteTool method for MCP integration, got %s", out)
 	}
+	if !strings.Contains(out, "AuthLogin(username string, password string) (string, error)") {
+		t.Errorf("expected AuthLogin method for IdP integration, got %s", out)
+	}
 }
 
 func TestEmitClientInterfaceNil(t *testing.T) {

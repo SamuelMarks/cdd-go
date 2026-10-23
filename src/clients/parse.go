@@ -44,6 +44,9 @@ func ParseClientInterface(ts *dst.TypeSpec) (*openapi.PathItem, error) {
 			mcpExt["execute"] = true
 			continue
 		}
+		if methodName == "AuthLogin" {
+			continue
+		}
 
 		summary, rawVerb := docstrings.ParseSummaryAndTag(method.Decs.Start, "METHOD:")
 		op := &openapi.Operation{

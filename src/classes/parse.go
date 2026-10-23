@@ -22,7 +22,19 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 	schema := &openapi.Schema{}
 
 	if len(ts.Decs.Start) > 0 {
-		schema.Description = strings.ReplaceAll(docstrings.Parse(ts.Decs.Start), "\n", " ")
+		rawDoc := docstrings.Parse(ts.Decs.Start)
+		var descLines []string
+		for _, line := range strings.Split(rawDoc, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "@discriminator ") {
+				schema.Discriminator = parseDiscriminatorDirective(strings.TrimPrefix(trimmed, "@discriminator "))
+			} else if strings.HasPrefix(trimmed, "@xml ") {
+				schema.XML = parseXMLDirective(strings.TrimPrefix(trimmed, "@xml "))
+			} else if trimmed != "" {
+				descLines = append(descLines, trimmed)
+			}
+		}
+		schema.Description = strings.Join(descLines, " ")
 	}
 
 	switch t := ts.Type.(type) {
@@ -75,6 +87,7 @@ func parseStructFields(st *dst.StructType) (map[string]openapi.Schema, error) {
 			continue
 		}
 		propName := field.Names[0].Name
+		var xmlObj *openapi.XML
 		if field.Tag != nil && field.Tag.Kind == token.STRING {
 			tagVal := strings.Trim(field.Tag.Value, "`")
 			structTag := reflect.StructTag(tagVal)
@@ -84,12 +97,16 @@ func parseStructFields(st *dst.StructType) (map[string]openapi.Schema, error) {
 					propName = parts[0]
 				}
 			}
+			if x := structTag.Get("xml"); x != "" {
+				xmlObj = parseXMLStructTag(x)
+			}
 		}
 
 		propSchema, err := ParseExpr(field.Type)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse field %s: %w", field.Names[0].Name, err)
 		}
+		propSchema.XML = xmlObj
 
 		if len(field.Decs.Start) > 0 {
 			propSchema.Description = strings.ReplaceAll(docstrings.Parse(field.Decs.Start), "\n", " ")
@@ -98,6 +115,61 @@ func parseStructFields(st *dst.StructType) (map[string]openapi.Schema, error) {
 		props[propName] = *propSchema
 	}
 	return props, nil
+}
+
+// parseDiscriminatorDirective parses key=value pairs from a @discriminator docstring directive.
+// Parameter rest is the directive body, and it returns the populated Discriminator object.
+func parseDiscriminatorDirective(rest string) *openapi.Discriminator {
+	d := &openapi.Discriminator{}
+	for _, tokenStr := range strings.Fields(rest) {
+		kv := strings.SplitN(tokenStr, "=", 2)
+		if len(kv) == 2 {
+			switch kv[0] {
+			case "propertyName":
+				d.PropertyName = kv[1]
+			case "defaultMapping":
+				d.DefaultMapping = kv[1]
+			}
+		}
+	}
+	return d
+}
+
+// parseXMLDirective parses key=value pairs from an @xml docstring directive.
+// Parameter rest is the directive body, and it returns the populated XML object.
+func parseXMLDirective(rest string) *openapi.XML {
+	x := &openapi.XML{}
+	for _, tokenStr := range strings.Fields(rest) {
+		kv := strings.SplitN(tokenStr, "=", 2)
+		if len(kv) == 2 {
+			switch kv[0] {
+			case "name":
+				x.Name = kv[1]
+			case "nodeType":
+				x.NodeType = kv[1]
+			}
+		}
+	}
+	return x
+}
+
+// parseXMLStructTag parses a Go xml:"..." struct tag value into an OpenAPI XML object.
+// Parameter tag is the raw xml tag value, and it returns the parsed XML configuration.
+func parseXMLStructTag(tag string) *openapi.XML {
+	parts := strings.Split(tag, ",")
+	x := &openapi.XML{Name: parts[0], NodeType: "element"}
+	for _, opt := range parts[1:] {
+		switch opt {
+		case "attr":
+			x.Attribute = true
+			x.NodeType = "attribute"
+		case "cdata":
+			x.NodeType = "cdata"
+		case "chardata":
+			x.NodeType = "text"
+		}
+	}
+	return x
 }
 
 // ParseExpr parses a dst.Expr into an OpenAPI Schema.

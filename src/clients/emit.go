@@ -96,6 +96,28 @@ func EmitClientInterfaceWithOptions(path string, pathItem *openapi.PathItem, inc
 				},
 			},
 		})
+		iface.Methods.List = append(iface.Methods.List, &dst.Field{
+			Names: []*dst.Ident{dst.NewIdent("AuthLogin")},
+			Type: &dst.FuncType{
+				Params: &dst.FieldList{
+					List: []*dst.Field{
+						{Names: []*dst.Ident{dst.NewIdent("username")}, Type: dst.NewIdent("string")},
+						{Names: []*dst.Ident{dst.NewIdent("password")}, Type: dst.NewIdent("string")},
+					},
+				},
+				Results: &dst.FieldList{
+					List: []*dst.Field{
+						{Type: dst.NewIdent("string")},
+						{Type: dst.NewIdent("error")},
+					},
+				},
+			},
+			Decs: dst.FieldDecorations{
+				NodeDecs: dst.NodeDecs{
+					Start: dst.Decorations{"// AuthLogin authenticates against the integrated IdP and stores the Bearer session token."},
+				},
+			},
+		})
 	}
 
 	ts := &dst.TypeSpec{

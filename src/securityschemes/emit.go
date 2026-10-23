@@ -28,6 +28,7 @@ func Emit(name string, scheme *openapi.SecurityScheme) *dst.GenDecl {
 					{Names: []*dst.Ident{dst.NewIdent("Scheme")}, Type: dst.NewIdent("string")},
 					{Names: []*dst.Ident{dst.NewIdent("BearerFormat")}, Type: dst.NewIdent("string")},
 					{Names: []*dst.Ident{dst.NewIdent("OpenIDConnectURL")}, Type: dst.NewIdent("string")},
+					{Names: []*dst.Ident{dst.NewIdent("OAuth2MetadataURL")}, Type: dst.NewIdent("string")},
 					{Names: []*dst.Ident{dst.NewIdent("Flows")}, Type: dst.NewIdent("OAuthFlows")},
 				},
 			},
@@ -51,6 +52,7 @@ func Emit(name string, scheme *openapi.SecurityScheme) *dst.GenDecl {
 	addField("Scheme", scheme.Scheme)
 	addField("BearerFormat", scheme.BearerFormat)
 	addField("OpenIDConnectURL", scheme.OpenIDConnectURL)
+	addField("OAuth2MetadataURL", scheme.OAuth2MetadataURL)
 
 	if scheme.Flows != nil {
 		flowsLit := oauthflows.Emit(scheme.Flows)

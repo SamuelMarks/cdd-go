@@ -49,6 +49,31 @@ func TestEmitExampleEmptyValue(t *testing.T) {
 	if bl.Value != "`\"\"`" {
 		t.Errorf("expected empty string, got %s", bl.Value)
 	}
+
+	exData := &openapi.Example{
+		DataValue:       json.RawMessage(`{"x":1}`),
+		SerializedValue: "x=1",
+	}
+	declData, err := EmitExample("DataEx", exData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vsData := declData.Specs[0].(*dst.ValueSpec)
+	if vsData.Values[0].(*dst.BasicLit).Value != "`{\"x\":1}`" {
+		t.Errorf("expected DataValue literal, got %s", vsData.Values[0].(*dst.BasicLit).Value)
+	}
+
+	exSer := &openapi.Example{
+		SerializedValue: "x=1",
+	}
+	declSer, err := EmitExample("SerEx", exSer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vsSer := declSer.Specs[0].(*dst.ValueSpec)
+	if vsSer.Values[0].(*dst.BasicLit).Value != "`x=1`" {
+		t.Errorf("expected SerializedValue literal, got %s", vsSer.Values[0].(*dst.BasicLit).Value)
+	}
 }
 
 func TestEmitExampleNil(t *testing.T) {
