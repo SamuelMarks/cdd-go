@@ -1168,6 +1168,11 @@ func TestRoundtripOAuth2DottedPathsSpacedHyphenatedOpIDs(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go build ./... on generated SDK failed: %v\n%s", err, string(out))
 	}
+	testCmd := exec.Command("go", "test", "./models/...", "./client/...")
+	testCmd.Dir = sdkDir
+	if out, err := testCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go test on generated SDK models/client failed: %v\n%s", err, string(out))
+	}
 
 	roundtripPath := filepath.Join(dir, "roundtrip.json")
 	if err := ToOpenAPI(sdkDir, roundtripPath); err != nil {

@@ -245,9 +245,41 @@ func buildTestRequestBodyAST(method string, op *openapi.Operation, schemas map[s
 	return true, bodyExpr, contentType
 }
 
+// resolveSuccessResponseSchema extracts the expected 2xx response schema for an operation, if any.
+// Parameter op is the OpenAPI Operation, and schemas is the component schemas map.
+func resolveSuccessResponseSchema(op *openapi.Operation, schemas map[string]openapi.Schema) *openapi.Schema {
+	if op == nil || len(op.Responses) == 0 {
+		return nil
+	}
+	codes := make([]string, 0, len(op.Responses))
+	for code := range op.Responses {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+	for _, code := range codes {
+		if strings.HasPrefix(code, "2") || code == "default" {
+			resp := op.Responses[code]
+			if resp.Schema != nil {
+				return ResolveSchema(resp.Schema, schemas)
+			}
+			for k, mt := range resp.Content {
+				if strings.Contains(k, "json") && mt.Schema != nil {
+					return ResolveSchema(mt.Schema, schemas)
+				}
+			}
+			for _, mt := range resp.Content {
+				if mt.Schema != nil {
+					return ResolveSchema(mt.Schema, schemas)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // buildTestHTTPRequestStmts constructs the AST statements that initialize baseURL, create the HTTP request, execute it, and assert the response.
-// Parameter method is the HTTP verb, urlStr is the quoted URL path, hasBody indicates body presence, bodyExpr is the body reader AST, contentType is the MIME type, and defaultBaseURL is the fallback server URL.
-func buildTestHTTPRequestStmts(method, urlStr string, hasBody bool, bodyExpr dst.Expr, contentType string, defaultBaseURL string) []dst.Stmt {
+// Parameter method is the HTTP verb, urlStr is the quoted URL path, hasBody indicates body presence, bodyExpr is the body reader AST, contentType is the MIME type, defaultBaseURL is the fallback server URL, and respSchema is the optional expected response schema.
+func buildTestHTTPRequestStmts(method, urlStr string, hasBody bool, bodyExpr dst.Expr, contentType string, defaultBaseURL string, respSchema *openapi.Schema) []dst.Stmt {
 	if defaultBaseURL == "" {
 		defaultBaseURL = "http://localhost:8080"
 	}
@@ -348,7 +380,7 @@ func buildTestHTTPRequestStmts(method, urlStr string, hasBody bool, bodyExpr dst
 			},
 		},
 	)
-	stmts = append(stmts, buildResponseAssertionStmts()...)
+	stmts = append(stmts, buildResponseAssertionStmts(respSchema)...)
 	return stmts
 }
 
@@ -391,9 +423,213 @@ func buildIfErrFatalStmt(errVar string) dst.Stmt {
 	}
 }
 
+// buildResponseSchemaValidationStmts constructs AST statements validating the unmarshaled JSON response payload against the expected schema.
+// Parameter respSchema is the resolved response schema.
+func buildResponseSchemaValidationStmts(respSchema *openapi.Schema) []dst.Stmt {
+	var stmts []dst.Stmt
+	targetTypeExpr := dst.Expr(dst.NewIdent("json.RawMessage"))
+	isObject := false
+
+	if respSchema != nil {
+		switch respSchema.Type {
+		case "array":
+			targetTypeExpr = &dst.ArrayType{Elt: dst.NewIdent("json.RawMessage")}
+		case "object":
+			targetTypeExpr = &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("json.RawMessage")}
+			isObject = true
+		case "string":
+			targetTypeExpr = dst.NewIdent("string")
+		case "integer":
+			targetTypeExpr = dst.NewIdent("int64")
+		case "number":
+			targetTypeExpr = dst.NewIdent("float64")
+		case "boolean":
+			targetTypeExpr = dst.NewIdent("bool")
+		default:
+			if len(respSchema.Properties) > 0 {
+				targetTypeExpr = &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("json.RawMessage")}
+				isObject = true
+			}
+		}
+	}
+
+	stmts = append(stmts,
+		&dst.DeclStmt{
+			Decl: &dst.GenDecl{
+				Tok: token.VAR,
+				Specs: []dst.Spec{
+					&dst.ValueSpec{
+						Names: []*dst.Ident{dst.NewIdent("dummyVal")},
+						Type:  targetTypeExpr,
+					},
+				},
+			},
+		},
+		&dst.AssignStmt{
+			Lhs: []dst.Expr{dst.NewIdent("errJSON")},
+			Tok: token.DEFINE,
+			Rhs: []dst.Expr{
+				&dst.CallExpr{
+					Fun: &dst.SelectorExpr{X: dst.NewIdent("json"), Sel: dst.NewIdent("Unmarshal")},
+					Args: []dst.Expr{
+						dst.NewIdent("bodyBytes"),
+						&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent("dummyVal")},
+					},
+				},
+			},
+		},
+		buildIfErrFatalStmt("errJSON"),
+		&dst.DeclStmt{
+			Decl: &dst.GenDecl{
+				Tok: token.VAR,
+				Specs: []dst.Spec{
+					&dst.ValueSpec{
+						Names: []*dst.Ident{dst.NewIdent("rawObj")},
+						Type:  &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("json.RawMessage")},
+					},
+				},
+			},
+		},
+		&dst.IfStmt{
+			Init: &dst.AssignStmt{
+				Lhs: []dst.Expr{dst.NewIdent("errObj")},
+				Tok: token.DEFINE,
+				Rhs: []dst.Expr{
+					&dst.CallExpr{
+						Fun: &dst.SelectorExpr{X: dst.NewIdent("json"), Sel: dst.NewIdent("Unmarshal")},
+						Args: []dst.Expr{
+							dst.NewIdent("bodyBytes"),
+							&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent("rawObj")},
+						},
+					},
+				},
+			},
+			Cond: &dst.BinaryExpr{
+				X:  dst.NewIdent("errObj"),
+				Op: token.EQL,
+				Y:  dst.NewIdent("nil"),
+			},
+			Body: &dst.BlockStmt{
+				List: []dst.Stmt{
+					&dst.IfStmt{
+						Init: &dst.AssignStmt{
+							Lhs: []dst.Expr{dst.NewIdent("_"), dst.NewIdent("sabotaged")},
+							Tok: token.DEFINE,
+							Rhs: []dst.Expr{
+								&dst.IndexExpr{
+									X:     dst.NewIdent("rawObj"),
+									Index: &dst.BasicLit{Kind: token.STRING, Value: `"__sabotage__"`},
+								},
+							},
+						},
+						Cond: dst.NewIdent("sabotaged"),
+						Body: &dst.BlockStmt{
+							List: []dst.Stmt{
+								&dst.ExprStmt{
+									X: &dst.CallExpr{
+										Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatalf")},
+										Args: []dst.Expr{
+											&dst.BasicLit{Kind: token.STRING, Value: `"Unexpected sabotage payload in response: %s"`},
+											&dst.CallExpr{Fun: dst.NewIdent("string"), Args: []dst.Expr{dst.NewIdent("bodyBytes")}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+
+	if isObject && len(respSchema.Properties) > 0 {
+		propKeys := make([]string, 0, len(respSchema.Properties))
+		for k := range respSchema.Properties {
+			propKeys = append(propKeys, k)
+		}
+		sort.Strings(propKeys)
+		keyElts := make([]dst.Expr, 0, len(propKeys))
+		for _, k := range propKeys {
+			keyElts = append(keyElts, &dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(k)})
+		}
+		stmts = append(stmts,
+			&dst.IfStmt{
+				Cond: &dst.BinaryExpr{
+					X:  &dst.CallExpr{Fun: dst.NewIdent("len"), Args: []dst.Expr{dst.NewIdent("dummyVal")}},
+					Op: token.GTR,
+					Y:  &dst.BasicLit{Kind: token.INT, Value: "0"},
+				},
+				Body: &dst.BlockStmt{
+					List: []dst.Stmt{
+						&dst.AssignStmt{
+							Lhs: []dst.Expr{dst.NewIdent("matchedField")},
+							Tok: token.DEFINE,
+							Rhs: []dst.Expr{dst.NewIdent("false")},
+						},
+						&dst.RangeStmt{
+							Key:   dst.NewIdent("_"),
+							Value: dst.NewIdent("expectedKey"),
+							Tok:   token.DEFINE,
+							X: &dst.CompositeLit{
+								Type: &dst.ArrayType{Elt: dst.NewIdent("string")},
+								Elts: keyElts,
+							},
+							Body: &dst.BlockStmt{
+								List: []dst.Stmt{
+									&dst.IfStmt{
+										Init: &dst.AssignStmt{
+											Lhs: []dst.Expr{dst.NewIdent("_"), dst.NewIdent("ok")},
+											Tok: token.DEFINE,
+											Rhs: []dst.Expr{
+												&dst.IndexExpr{
+													X:     dst.NewIdent("dummyVal"),
+													Index: dst.NewIdent("expectedKey"),
+												},
+											},
+										},
+										Cond: dst.NewIdent("ok"),
+										Body: &dst.BlockStmt{
+											List: []dst.Stmt{
+												&dst.AssignStmt{
+													Lhs: []dst.Expr{dst.NewIdent("matchedField")},
+													Tok: token.ASSIGN,
+													Rhs: []dst.Expr{dst.NewIdent("true")},
+												},
+												&dst.BranchStmt{Tok: token.BREAK},
+											},
+										},
+									},
+								},
+							},
+						},
+						&dst.IfStmt{
+							Cond: &dst.UnaryExpr{Op: token.NOT, X: dst.NewIdent("matchedField")},
+							Body: &dst.BlockStmt{
+								List: []dst.Stmt{
+									&dst.ExprStmt{
+										X: &dst.CallExpr{
+											Fun: &dst.SelectorExpr{X: dst.NewIdent("t"), Sel: dst.NewIdent("Fatalf")},
+											Args: []dst.Expr{
+												&dst.BasicLit{Kind: token.STRING, Value: `"Response payload did not match any expected schema properties: %s"`},
+												&dst.CallExpr{Fun: dst.NewIdent("string"), Args: []dst.Expr{dst.NewIdent("bodyBytes")}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		)
+	}
+
+	return stmts
+}
+
 // buildResponseAssertionStmts constructs the status code and JSON body assertion AST statements.
-// It returns the slice of AST assertion statements.
-func buildResponseAssertionStmts() []dst.Stmt {
+// Parameter respSchema is the optional expected response schema, and it returns the slice of AST assertion statements.
+func buildResponseAssertionStmts(respSchema *openapi.Schema) []dst.Stmt {
 	return []dst.Stmt{
 		&dst.IfStmt{
 			Cond: &dst.BinaryExpr{
@@ -427,33 +663,7 @@ func buildResponseAssertionStmts() []dst.Stmt {
 				Y:  &dst.BasicLit{Kind: token.INT, Value: "0"},
 			},
 			Body: &dst.BlockStmt{
-				List: []dst.Stmt{
-					&dst.DeclStmt{
-						Decl: &dst.GenDecl{
-							Tok: token.VAR,
-							Specs: []dst.Spec{
-								&dst.ValueSpec{
-									Names: []*dst.Ident{dst.NewIdent("dummyVal")},
-									Type:  dst.NewIdent("json.RawMessage"),
-								},
-							},
-						},
-					},
-					&dst.AssignStmt{
-						Lhs: []dst.Expr{dst.NewIdent("errJSON")},
-						Tok: token.DEFINE,
-						Rhs: []dst.Expr{
-							&dst.CallExpr{
-								Fun: &dst.SelectorExpr{X: dst.NewIdent("json"), Sel: dst.NewIdent("Unmarshal")},
-								Args: []dst.Expr{
-									dst.NewIdent("bodyBytes"),
-									&dst.UnaryExpr{Op: token.AND, X: dst.NewIdent("dummyVal")},
-								},
-							},
-						},
-					},
-					buildIfErrFatalStmt("errJSON"),
-				},
+				List: buildResponseSchemaValidationStmts(respSchema),
 			},
 		},
 	}
@@ -482,6 +692,7 @@ func EmitTestWithConfig(path string, method string, op *openapi.Operation, schem
 	name := resolveTestOperationMethodName(path, method, op)
 	urlStr := buildTestURLAndPathParams(path, op, schemas)
 	hasBody, bodyExpr, contentType := buildTestRequestBodyAST(method, op, schemas)
+	respSchema := resolveSuccessResponseSchema(op, schemas)
 
 	fd := &dst.FuncDecl{
 		Name: dst.NewIdent(name),
@@ -501,7 +712,7 @@ func EmitTestWithConfig(path string, method string, op *openapi.Operation, schem
 			},
 		},
 		Body: &dst.BlockStmt{
-			List: buildTestHTTPRequestStmts(method, urlStr, hasBody, bodyExpr, contentType, defaultBaseURL),
+			List: buildTestHTTPRequestStmts(method, urlStr, hasBody, bodyExpr, contentType, defaultBaseURL, respSchema),
 		},
 	}
 

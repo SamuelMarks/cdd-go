@@ -106,6 +106,11 @@ func run(args []string) error {
 			fmt.Println("  cdd-go from_openapi [to_sdk | to_sdk_cli | to_server] [flags]")
 			return nil
 		}
+		flagArgs := args[2:]
+		if len(subsubcommand) > 0 && subsubcommand[0] == '-' {
+			subsubcommand = "to_sdk"
+			flagArgs = args[1:]
+		}
 		fs := flag.NewFlagSet("from_openapi "+subsubcommand, flag.ContinueOnError)
 		fs.SetOutput(stderr)
 
@@ -124,7 +129,7 @@ func run(args []string) error {
 		fs.BoolVar(&mcp, "m", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
 		fs.BoolVar(&mcp, "mcp", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
 
-		if err := fs.Parse(args[2:]); err != nil {
+		if err := fs.Parse(flagArgs); err != nil {
 			if err == flag.ErrHelp {
 				return nil
 			}

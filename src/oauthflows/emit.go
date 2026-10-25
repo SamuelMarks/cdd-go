@@ -19,11 +19,11 @@ func EmitTypes() []dst.Decl {
 				Type: &dst.StructType{
 					Fields: &dst.FieldList{
 						List: []*dst.Field{
-							{Names: []*dst.Ident{dst.NewIdent("AuthorizationURL")}, Type: dst.NewIdent("string")},
-							{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorizationURL")}, Type: dst.NewIdent("string")},
-							{Names: []*dst.Ident{dst.NewIdent("TokenURL")}, Type: dst.NewIdent("string")},
-							{Names: []*dst.Ident{dst.NewIdent("RefreshURL")}, Type: dst.NewIdent("string")},
-							{Names: []*dst.Ident{dst.NewIdent("Scopes")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")}},
+							{Names: []*dst.Ident{dst.NewIdent("AuthorizationURL")}, Type: dst.NewIdent("string"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"authorizationUrl,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorizationURL")}, Type: dst.NewIdent("string"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"deviceAuthorizationUrl,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("TokenURL")}, Type: dst.NewIdent("string"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"tokenUrl,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("RefreshURL")}, Type: dst.NewIdent("string"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"refreshUrl,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("Scopes")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")}, Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"scopes,omitempty\"`"}},
 						},
 					},
 				},
@@ -38,11 +38,11 @@ func EmitTypes() []dst.Decl {
 				Type: &dst.StructType{
 					Fields: &dst.FieldList{
 						List: []*dst.Field{
-							{Names: []*dst.Ident{dst.NewIdent("Implicit")}, Type: dst.NewIdent("OAuthFlow")},
-							{Names: []*dst.Ident{dst.NewIdent("Password")}, Type: dst.NewIdent("OAuthFlow")},
-							{Names: []*dst.Ident{dst.NewIdent("ClientCredentials")}, Type: dst.NewIdent("OAuthFlow")},
-							{Names: []*dst.Ident{dst.NewIdent("AuthorizationCode")}, Type: dst.NewIdent("OAuthFlow")},
-							{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorization")}, Type: dst.NewIdent("OAuthFlow")},
+							{Names: []*dst.Ident{dst.NewIdent("Implicit")}, Type: dst.NewIdent("OAuthFlow"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"implicit,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("Password")}, Type: dst.NewIdent("OAuthFlow"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"password,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("ClientCredentials")}, Type: dst.NewIdent("OAuthFlow"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"clientCredentials,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("AuthorizationCode")}, Type: dst.NewIdent("OAuthFlow"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"authorizationCode,omitempty\"`"}},
+							{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorization")}, Type: dst.NewIdent("OAuthFlow"), Tag: &dst.BasicLit{Kind: token.STRING, Value: "`json:\"deviceAuthorization,omitempty\"`"}},
 						},
 					},
 				},

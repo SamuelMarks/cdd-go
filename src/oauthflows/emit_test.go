@@ -101,4 +101,29 @@ func TestEmitOAuthFlowsNil(t *testing.T) {
 	if len(typeDecls) != 2 {
 		t.Errorf("expected 2 type decls from EmitTypes, got %d", len(typeDecls))
 	}
+	file := &dst.File{
+		Name:  dst.NewIdent("models"),
+		Decls: typeDecls,
+	}
+	var buf bytes.Buffer
+	if err := decorator.NewRestorer().Fprint(&buf, file); err != nil {
+		t.Fatalf("unexpected print error: %v", err)
+	}
+	rendered := buf.String()
+	for _, expectedTag := range []string{
+		`json:"authorizationUrl,omitempty"`,
+		`json:"deviceAuthorizationUrl,omitempty"`,
+		`json:"tokenUrl,omitempty"`,
+		`json:"refreshUrl,omitempty"`,
+		`json:"scopes,omitempty"`,
+		`json:"implicit,omitempty"`,
+		`json:"password,omitempty"`,
+		`json:"clientCredentials,omitempty"`,
+		`json:"authorizationCode,omitempty"`,
+		`json:"deviceAuthorization,omitempty"`,
+	} {
+		if !strings.Contains(rendered, expectedTag) {
+			t.Errorf("expected tag %s in EmitTypes output:\n%s", expectedTag, rendered)
+		}
+	}
 }

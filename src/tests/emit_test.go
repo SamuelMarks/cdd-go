@@ -288,3 +288,137 @@ func TestEmitTestCoverageExtrasBreakLoop(t *testing.T) {
 		t.Errorf("expected application/json Content-Type, got: %s", code)
 	}
 }
+
+func TestEmitTestResponseSchemaValidation(t *testing.T) {
+	schemas := map[string]openapi.Schema{
+		"Pet": {
+			Type: "object",
+			Properties: map[string]openapi.Schema{
+				"id":   {Type: "integer"},
+				"name": {Type: "string"},
+			},
+		},
+		"ImplicitObject": {
+			Properties: map[string]openapi.Schema{
+				"code": {Type: "integer"},
+			},
+		},
+	}
+
+	if resolveSuccessResponseSchema(nil, schemas) != nil {
+		t.Errorf("expected nil for nil operation")
+	}
+
+	cases := []struct {
+		name     string
+		op       *openapi.Operation
+		expected string
+	}{
+		{
+			name: "object_ref_json",
+			op: &openapi.Operation{
+				OperationID: "getPet",
+				Responses: openapi.Responses{
+					"200": {
+						Content: map[string]openapi.MediaType{
+							"application/json": {Schema: &openapi.Schema{Ref: "#/components/schemas/Pet"}},
+						},
+					},
+				},
+			},
+			expected: "matchedField",
+		},
+		{
+			name: "array_swagger_schema",
+			op: &openapi.Operation{
+				OperationID: "listPets",
+				Responses: openapi.Responses{
+					"200": {
+						Schema: &openapi.Schema{Type: "array", Items: &openapi.Schema{Ref: "#/components/schemas/Pet"}},
+					},
+				},
+			},
+			expected: "var dummyVal []json.RawMessage",
+		},
+		{
+			name: "string_non_json_content",
+			op: &openapi.Operation{
+				OperationID: "getStatus",
+				Responses: openapi.Responses{
+					"default": {
+						Content: map[string]openapi.MediaType{
+							"text/plain": {Schema: &openapi.Schema{Type: "string"}},
+						},
+					},
+				},
+			},
+			expected: "var dummyVal string",
+		},
+		{
+			name: "integer_response",
+			op: &openapi.Operation{
+				OperationID: "getCount",
+				Responses: openapi.Responses{
+					"200": {Schema: &openapi.Schema{Type: "integer"}},
+				},
+			},
+			expected: "var dummyVal int64",
+		},
+		{
+			name: "number_response",
+			op: &openapi.Operation{
+				OperationID: "getScore",
+				Responses: openapi.Responses{
+					"200": {Schema: &openapi.Schema{Type: "number"}},
+				},
+			},
+			expected: "var dummyVal float64",
+		},
+		{
+			name: "boolean_response",
+			op: &openapi.Operation{
+				OperationID: "getActive",
+				Responses: openapi.Responses{
+					"200": {Schema: &openapi.Schema{Type: "boolean"}},
+				},
+			},
+			expected: "var dummyVal bool",
+		},
+		{
+			name: "implicit_object_properties",
+			op: &openapi.Operation{
+				OperationID: "getImplicit",
+				Responses: openapi.Responses{
+					"200": {Schema: &openapi.Schema{Ref: "#/components/schemas/ImplicitObject"}},
+				},
+			},
+			expected: "matchedField",
+		},
+		{
+			name: "error_only_response",
+			op: &openapi.Operation{
+				OperationID: "getErrOnly",
+				Responses: openapi.Responses{
+					"404": {Description: "not found"},
+				},
+			},
+			expected: "var dummyVal json.RawMessage",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fd, err := EmitTestWithSchemas("/test", "get", tc.op, schemas)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			code := renderFuncDecl(t, fd)
+			if !strings.Contains(code, tc.expected) {
+				t.Errorf("expected %q in generated code, got:\n%s", tc.expected, code)
+			}
+			if !strings.Contains(code, `"__sabotage__"`) {
+				t.Errorf("expected __sabotage__ check in generated code, got:\n%s", code)
+			}
+		})
+	}
+}

@@ -722,6 +722,17 @@ func TestFromOpenAPINoSubcommand(t *testing.T) {
 	if err.Error() != expected {
 		t.Errorf("expected %q, got %q", expected, err.Error())
 	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "openapi.json")
+	os.WriteFile(path, []byte(`{"openapi": "3.2.0", "info": {"title": "Test"}, "paths": {"/pets": {"get": {"operationId": "listPets"}}}}`), 0644)
+	outDir := filepath.Join(dir, "default_sdk")
+	if err := run([]string{"from_openapi", "-i", path, "-o", outDir}); err != nil {
+		t.Errorf("expected from_openapi with flags to default to to_sdk, got error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "client", "pets_client.go")); os.IsNotExist(err) {
+		t.Errorf("expected client/pets_client.go to be generated when defaulting to to_sdk")
+	}
 }
 func TestGenerateClassesMkdirErr(t *testing.T) {
 	err := cdd.GenerateClasses(&openapi.OpenAPI{Components: &openapi.Components{Schemas: map[string]openapi.Schema{"a": {}}}}, "/dev/null/dir")
