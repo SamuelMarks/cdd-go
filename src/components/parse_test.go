@@ -41,6 +41,14 @@ func TestParseComponents(t *testing.T) {
 				Tok: token.TYPE,
 				Specs: []dst.Spec{
 					&dst.TypeSpec{
+						Name: dst.NewIdent("OAuthFlow"),
+						Type: &dst.StructType{Fields: &dst.FieldList{}},
+					},
+					&dst.TypeSpec{
+						Name: dst.NewIdent("OAuthFlows"),
+						Type: &dst.StructType{Fields: &dst.FieldList{}},
+					},
+					&dst.TypeSpec{
 						Name: dst.NewIdent("RequestBodyUserBody"),
 						Type: dst.NewIdent("User"),
 					},

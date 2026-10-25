@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/SamuelMarks/cdd-go/src/docstrings"
+	"github.com/SamuelMarks/cdd-go/src/naming"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/SamuelMarks/cdd-go/src/parameters"
 	"github.com/SamuelMarks/cdd-go/src/requestbodies"
@@ -21,7 +22,7 @@ func EmitOperation(op *openapi.Operation) (*dst.FuncDecl, error) {
 
 	name := "GeneratedOperation"
 	if op.OperationID != "" {
-		name = op.OperationID
+		name = naming.ToPascalCase(op.OperationID)
 	}
 
 	paramFields := &dst.FieldList{}

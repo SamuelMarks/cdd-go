@@ -364,8 +364,10 @@ func parseTypeDeclIntoOpenAPI(d *dst.GenDecl, oa *openapi.OpenAPI) {
 						oa.Paths[path] = *pi
 					}
 				}
-			} else if schema, err := classes.ParseType(ts); err == nil && schema != nil {
-				oa.Components.Schemas[ts.Name.Name] = *schema
+			} else if ts.Name.Name != "OAuthFlow" && ts.Name.Name != "OAuthFlows" {
+				if schema, err := classes.ParseType(ts); err == nil && schema != nil {
+					oa.Components.Schemas[ts.Name.Name] = *schema
+				}
 			}
 		}
 	}

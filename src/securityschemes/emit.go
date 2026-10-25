@@ -17,20 +17,24 @@ func Emit(name string, scheme *openapi.SecurityScheme) *dst.GenDecl {
 		return nil
 	}
 
+	fields := []*dst.Field{
+		{Names: []*dst.Ident{dst.NewIdent("Type")}, Type: dst.NewIdent("string")},
+		{Names: []*dst.Ident{dst.NewIdent("Description")}, Type: dst.NewIdent("string")},
+		{Names: []*dst.Ident{dst.NewIdent("Name")}, Type: dst.NewIdent("string")},
+		{Names: []*dst.Ident{dst.NewIdent("In")}, Type: dst.NewIdent("string")},
+		{Names: []*dst.Ident{dst.NewIdent("Scheme")}, Type: dst.NewIdent("string")},
+		{Names: []*dst.Ident{dst.NewIdent("BearerFormat")}, Type: dst.NewIdent("string")},
+		{Names: []*dst.Ident{dst.NewIdent("OpenIDConnectURL")}, Type: dst.NewIdent("string")},
+		{Names: []*dst.Ident{dst.NewIdent("OAuth2MetadataURL")}, Type: dst.NewIdent("string")},
+	}
+	if scheme.Flows != nil || scheme.Type == "oauth2" {
+		fields = append(fields, &dst.Field{Names: []*dst.Ident{dst.NewIdent("Flows")}, Type: dst.NewIdent("OAuthFlows")})
+	}
+
 	cl := &dst.CompositeLit{
 		Type: &dst.StructType{
 			Fields: &dst.FieldList{
-				List: []*dst.Field{
-					{Names: []*dst.Ident{dst.NewIdent("Type")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("Description")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("Name")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("In")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("Scheme")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("BearerFormat")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("OpenIDConnectURL")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("OAuth2MetadataURL")}, Type: dst.NewIdent("string")},
-					{Names: []*dst.Ident{dst.NewIdent("Flows")}, Type: dst.NewIdent("OAuthFlows")},
-				},
+				List: fields,
 			},
 		},
 		Elts: []dst.Expr{},

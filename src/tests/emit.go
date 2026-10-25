@@ -141,7 +141,7 @@ func synthesizePropertyJSON(name string, prop *openapi.Schema) string {
 // Parameter path is the URL path, method is the HTTP verb, and op is the OpenAPI Operation.
 func resolveTestOperationMethodName(path, method string, op *openapi.Operation) string {
 	if op.OperationID != "" {
-		return "Test" + strings.ToUpper(op.OperationID[:1]) + op.OperationID[1:]
+		return "Test" + naming.ToPascalCase(op.OperationID)
 	}
 	pathCamel := naming.ToCamelCasePath(path)
 	return "Test" + strings.ToUpper(method[:1]) + method[1:] + pathCamel

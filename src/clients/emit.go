@@ -128,6 +128,11 @@ func EmitClientInterfaceWithOptions(path string, pathItem *openapi.PathItem, inc
 	decl := &dst.GenDecl{
 		Tok:   token.TYPE,
 		Specs: []dst.Spec{ts},
+		Decs: dst.GenDeclDecorations{
+			NodeDecs: dst.NodeDecs{
+				Before: dst.NewLine,
+			},
+		},
 	}
 
 	pathComment := fmt.Sprintf("// Path: %s", path)
@@ -167,7 +172,7 @@ func EmitClientOperationFuncs(path string, pathItem *openapi.PathItem) []dst.Dec
 func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 	name := method
 	if op.OperationID != "" {
-		name = strings.ToUpper(op.OperationID[:1]) + op.OperationID[1:]
+		name = naming.ToPascalCase(op.OperationID)
 	}
 
 	fType := &dst.FuncType{
@@ -204,6 +209,11 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 	f := &dst.Field{
 		Names: []*dst.Ident{dst.NewIdent(name)},
 		Type:  fType,
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Before: dst.NewLine,
+			},
+		},
 	}
 
 	f.Decs.Start.Append(fmt.Sprintf("// METHOD: %s", method))

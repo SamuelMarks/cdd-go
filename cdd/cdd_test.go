@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1086,5 +1087,111 @@ func TestSync(t *testing.T) {
 	err = Sync("nonexistent", "out.json", "invalid")
 	if err == nil {
 		t.Errorf("Expected error from Sync with invalid truth")
+	}
+}
+
+func TestRoundtripOAuth2DottedPathsSpacedHyphenatedOpIDs(t *testing.T) {
+	dir := t.TempDir()
+	oa := &openapi.OpenAPI{
+		OpenAPI: "3.0.0",
+		Info:    openapi.Info{Title: "Complex Fixture Spec", Version: "1.0.0"},
+		Paths: openapi.Paths{
+			"/2.0/repositories/{username}": openapi.PathItem{
+				Get: &openapi.Operation{
+					OperationID: "find pet by id",
+					Summary:     "Spaced operationId on dotted path",
+				},
+				Post: &openapi.Operation{
+					OperationID: "list-searchable-fields",
+					Summary:     "Hyphenated operationId",
+				},
+			},
+			"/{dataset}/{version}/records": openapi.PathItem{
+				Post: &openapi.Operation{
+					OperationID: "perform-search",
+				},
+				Get: &openapi.Operation{
+					OperationID: "list-data-sets",
+				},
+			},
+		},
+		Components: &openapi.Components{
+			SecuritySchemes: map[string]openapi.SecurityScheme{
+				"petstore_auth": {
+					Type: "oauth2",
+					Flows: &openapi.OAuthFlows{
+						Implicit: &openapi.OAuthFlow{
+							AuthorizationURL: "http://example.org/api/oauth/dialog",
+							Scopes: map[string]string{
+								"write:pets": "modify pets in your account",
+								"read:pets":  "read your pets",
+							},
+						},
+					},
+				},
+				"api_key": {
+					Type: "apiKey",
+					Name: "api_key",
+					In:   "header",
+				},
+			},
+			Schemas: map[string]openapi.Schema{
+				"repository": {
+					Type: "object",
+					Properties: map[string]openapi.Schema{
+						"slug":  {Type: "string"},
+						"owner": {Ref: "#/components/schemas/user"},
+					},
+				},
+				"user": {
+					Type: "object",
+					Properties: map[string]openapi.Schema{
+						"username": {Type: "string"},
+					},
+				},
+			},
+		},
+	}
+
+	specBytes, _ := json.Marshal(oa)
+	specPath := filepath.Join(dir, "spec.json")
+	_ = os.WriteFile(specPath, specBytes, 0644)
+
+	sdkDir := filepath.Join(dir, "sdk")
+	if err := FromOpenAPI("to_sdk", specPath, sdkDir, false, false, true, false); err != nil {
+		t.Fatalf("FromOpenAPI to_sdk failed: %v", err)
+	}
+
+	_ = os.WriteFile(filepath.Join(sdkDir, "go.mod"), []byte("module generated_sdk\n\ngo 1.25\n"), 0644)
+	cmd := exec.Command("go", "build", "./...")
+	cmd.Dir = sdkDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build ./... on generated SDK failed: %v\n%s", err, string(out))
+	}
+
+	roundtripPath := filepath.Join(dir, "roundtrip.json")
+	if err := ToOpenAPI(sdkDir, roundtripPath); err != nil {
+		t.Fatalf("ToOpenAPI failed: %v", err)
+	}
+
+	rtBytes, err := os.ReadFile(roundtripPath)
+	if err != nil {
+		t.Fatalf("failed reading roundtrip spec: %v", err)
+	}
+	var rtOA openapi.OpenAPI
+	if err := json.Unmarshal(rtBytes, &rtOA); err != nil {
+		t.Fatalf("failed unmarshaling roundtrip spec: %v", err)
+	}
+	if _, exists := rtOA.Components.Schemas["OAuthFlows"]; exists {
+		t.Errorf("did not expect OAuthFlows in roundtrip schemas")
+	}
+	if _, exists := rtOA.Components.Schemas["OAuthFlow"]; exists {
+		t.Errorf("did not expect OAuthFlow in roundtrip schemas")
+	}
+	if rtOA.Paths["/2.0/repositories/{username}"].Get == nil || rtOA.Paths["/2.0/repositories/{username}"].Get.OperationID != "findPetById" {
+		t.Errorf("expected findPetById on /2.0/repositories/{username} GET, got %+v", rtOA.Paths["/2.0/repositories/{username}"].Get)
+	}
+	if rtOA.Paths["/2.0/repositories/{username}"].Post == nil || rtOA.Paths["/2.0/repositories/{username}"].Post.OperationID != "listSearchableFields" {
+		t.Errorf("expected listSearchableFields on /2.0/repositories/{username} POST, got %+v", rtOA.Paths["/2.0/repositories/{username}"].Post)
 	}
 }

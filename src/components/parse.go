@@ -112,6 +112,8 @@ func parseTypeComponents(genDecl *dst.GenDecl, comp *openapi.Components) bool {
 		}
 		name := ts.Name.Name
 		switch {
+		case name == "OAuthFlow" || name == "OAuthFlows":
+			continue
 		case strings.HasPrefix(name, "RequestBody"):
 			f := &dst.Field{Type: ts.Type}
 			f.Decs.Start = genDecl.Decs.Start

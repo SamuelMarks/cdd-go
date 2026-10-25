@@ -97,4 +97,8 @@ func TestEmitOAuthFlowsNil(t *testing.T) {
 	if Emit(&openapi.OAuthFlows{}) != nil {
 		t.Errorf("expected nil")
 	}
+	typeDecls := EmitTypes()
+	if len(typeDecls) != 2 {
+		t.Errorf("expected 2 type decls from EmitTypes, got %d", len(typeDecls))
+	}
 }

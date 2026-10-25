@@ -53,7 +53,7 @@ func EmitTypeWithOptions(name string, schema *openapi.Schema, opts EmitOptions) 
 	}
 
 	ts := &dst.TypeSpec{
-		Name: dst.NewIdent(name),
+		Name: dst.NewIdent(naming.ToPascalCase(name)),
 	}
 
 	if schema.Description != "" {

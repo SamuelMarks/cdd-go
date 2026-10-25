@@ -112,4 +112,21 @@ func TestEmitComponentsNil(t *testing.T) {
 	if Emit(nil) != nil {
 		t.Errorf("expected nil")
 	}
+	oauthComp := &openapi.Components{
+		SecuritySchemes: map[string]openapi.SecurityScheme{
+			"petstore_auth": {
+				Type: "oauth2",
+				Flows: &openapi.OAuthFlows{
+					Implicit: &openapi.OAuthFlow{
+						AuthorizationURL: "https://example.org/oauth",
+						Scopes:           map[string]string{"read:pets": "read pets"},
+					},
+				},
+			},
+		},
+	}
+	decls := Emit(oauthComp)
+	if len(decls) != 3 {
+		t.Fatalf("expected 3 decls (OAuthFlow, OAuthFlows, SecuritySchemePetstoreAuth), got %d", len(decls))
+	}
 }

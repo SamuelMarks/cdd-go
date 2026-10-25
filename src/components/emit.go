@@ -8,6 +8,7 @@ import (
 
 	"github.com/SamuelMarks/cdd-go/src/headers"
 	"github.com/SamuelMarks/cdd-go/src/naming"
+	"github.com/SamuelMarks/cdd-go/src/oauthflows"
 	"github.com/SamuelMarks/cdd-go/src/openapi"
 	"github.com/SamuelMarks/cdd-go/src/parameters"
 	"github.com/SamuelMarks/cdd-go/src/requestbodies"
@@ -32,6 +33,16 @@ func Emit(comp *openapi.Components) []dst.Decl {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
+		needsOAuthTypes := false
+		for _, name := range keys {
+			scheme := comp.SecuritySchemes[name]
+			if scheme.Type == "oauth2" || scheme.Flows != nil {
+				needsOAuthTypes = true
+			}
+		}
+		if needsOAuthTypes {
+			decls = append(decls, oauthflows.EmitTypes()...)
+		}
 		for _, name := range keys {
 			scheme := comp.SecuritySchemes[name]
 			if decl := securityschemes.Emit(name, &scheme); decl != nil {

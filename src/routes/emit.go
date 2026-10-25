@@ -143,6 +143,11 @@ func EmitHandlerInterfaceWithOptions(path string, pathItem *openapi.PathItem, in
 	decl := &dst.GenDecl{
 		Tok:   token.TYPE,
 		Specs: []dst.Spec{ts},
+		Decs: dst.GenDeclDecorations{
+			NodeDecs: dst.NodeDecs{
+				Before: dst.NewLine,
+			},
+		},
 	}
 
 	pathComment := fmt.Sprintf("// Path: %s", path)
@@ -162,7 +167,7 @@ func EmitHandlerInterfaceWithOptions(path string, pathItem *openapi.PathItem, in
 func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 	name := method
 	if op.OperationID != "" {
-		name = strings.ToUpper(op.OperationID[:1]) + op.OperationID[1:]
+		name = naming.ToPascalCase(op.OperationID)
 	}
 
 	fType := &dst.FuncType{
@@ -185,6 +190,11 @@ func emitMethodSignature(method string, op *openapi.Operation) *dst.Field {
 	f := &dst.Field{
 		Names: []*dst.Ident{dst.NewIdent(name)},
 		Type:  fType,
+		Decs: dst.FieldDecorations{
+			NodeDecs: dst.NodeDecs{
+				Before: dst.NewLine,
+			},
+		},
 	}
 
 	f.Decs.Start.Append(fmt.Sprintf("// METHOD: %s", method))
@@ -299,7 +309,7 @@ func EmitHandlerStruct(path string, pathItem *openapi.PathItem) ([]dst.Decl, err
 	for _, mo := range openapi.PathItemOperations(pathItem) {
 		name := strings.ToUpper(mo.Method[:1]) + mo.Method[1:]
 		if mo.Operation.OperationID != "" {
-			name = strings.ToUpper(mo.Operation.OperationID[:1]) + mo.Operation.OperationID[1:]
+			name = naming.ToPascalCase(mo.Operation.OperationID)
 		}
 		addMethod(name)
 		upperVerb := strings.ToUpper(mo.Method)

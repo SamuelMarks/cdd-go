@@ -9,6 +9,49 @@ import (
 	"github.com/dave/dst"
 )
 
+// EmitTypes returns the Go AST type declarations for OAuthFlow and OAuthFlows.
+func EmitTypes() []dst.Decl {
+	flowDecl := &dst.GenDecl{
+		Tok: token.TYPE,
+		Specs: []dst.Spec{
+			&dst.TypeSpec{
+				Name: dst.NewIdent("OAuthFlow"),
+				Type: &dst.StructType{
+					Fields: &dst.FieldList{
+						List: []*dst.Field{
+							{Names: []*dst.Ident{dst.NewIdent("AuthorizationURL")}, Type: dst.NewIdent("string")},
+							{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorizationURL")}, Type: dst.NewIdent("string")},
+							{Names: []*dst.Ident{dst.NewIdent("TokenURL")}, Type: dst.NewIdent("string")},
+							{Names: []*dst.Ident{dst.NewIdent("RefreshURL")}, Type: dst.NewIdent("string")},
+							{Names: []*dst.Ident{dst.NewIdent("Scopes")}, Type: &dst.MapType{Key: dst.NewIdent("string"), Value: dst.NewIdent("string")}},
+						},
+					},
+				},
+			},
+		},
+	}
+	flowsDecl := &dst.GenDecl{
+		Tok: token.TYPE,
+		Specs: []dst.Spec{
+			&dst.TypeSpec{
+				Name: dst.NewIdent("OAuthFlows"),
+				Type: &dst.StructType{
+					Fields: &dst.FieldList{
+						List: []*dst.Field{
+							{Names: []*dst.Ident{dst.NewIdent("Implicit")}, Type: dst.NewIdent("OAuthFlow")},
+							{Names: []*dst.Ident{dst.NewIdent("Password")}, Type: dst.NewIdent("OAuthFlow")},
+							{Names: []*dst.Ident{dst.NewIdent("ClientCredentials")}, Type: dst.NewIdent("OAuthFlow")},
+							{Names: []*dst.Ident{dst.NewIdent("AuthorizationCode")}, Type: dst.NewIdent("OAuthFlow")},
+							{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorization")}, Type: dst.NewIdent("OAuthFlow")},
+						},
+					},
+				},
+			},
+		},
+	}
+	return []dst.Decl{flowDecl, flowsDecl}
+}
+
 // Emit formats an OpenAPI OAuthFlows object into a struct representation.
 func Emit(flows *openapi.OAuthFlows) *dst.CompositeLit {
 	if flows == nil {
@@ -16,17 +59,7 @@ func Emit(flows *openapi.OAuthFlows) *dst.CompositeLit {
 	}
 
 	cl := &dst.CompositeLit{
-		Type: &dst.StructType{
-			Fields: &dst.FieldList{
-				List: []*dst.Field{
-					{Names: []*dst.Ident{dst.NewIdent("Implicit")}, Type: dst.NewIdent("OAuthFlow")},
-					{Names: []*dst.Ident{dst.NewIdent("Password")}, Type: dst.NewIdent("OAuthFlow")},
-					{Names: []*dst.Ident{dst.NewIdent("ClientCredentials")}, Type: dst.NewIdent("OAuthFlow")},
-					{Names: []*dst.Ident{dst.NewIdent("AuthorizationCode")}, Type: dst.NewIdent("OAuthFlow")},
-					{Names: []*dst.Ident{dst.NewIdent("DeviceAuthorization")}, Type: dst.NewIdent("OAuthFlow")},
-				},
-			},
-		},
+		Type: dst.NewIdent("OAuthFlows"),
 		Elts: []dst.Expr{},
 	}
 

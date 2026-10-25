@@ -15,6 +15,12 @@ func TestToPascalCase(t *testing.T) {
 	if ToPascalCase("Test") != "Test" {
 		t.Errorf("expected Test")
 	}
+	if ToPascalCase("find pet by id") != "FindPetById" {
+		t.Errorf("expected FindPetById, got %s", ToPascalCase("find pet by id"))
+	}
+	if ToPascalCase("list-searchable-fields") != "ListSearchableFields" {
+		t.Errorf("expected ListSearchableFields, got %s", ToPascalCase("list-searchable-fields"))
+	}
 }
 
 func TestToCamelCasePath(t *testing.T) {
@@ -23,6 +29,12 @@ func TestToCamelCasePath(t *testing.T) {
 	}
 	if ToCamelCasePath("/users/{id}") != "UsersId" {
 		t.Errorf("expected UsersId")
+	}
+	if ToCamelCasePath("/2.0/repositories/{username}") != "2_0RepositoriesUsername" {
+		t.Errorf("expected 2_0RepositoriesUsername, got %s", ToCamelCasePath("/2.0/repositories/{username}"))
+	}
+	if ToCamelCasePath("/user-items/{item-id}") != "UserItemsItemId" {
+		t.Errorf("expected UserItemsItemId, got %s", ToCamelCasePath("/user-items/{item-id}"))
 	}
 }
 
@@ -44,6 +56,21 @@ func TestExportedName(t *testing.T) {
 	}
 	if ExportedName("username") != "Username" {
 		t.Errorf("expected Username, got %s", ExportedName("username"))
+	}
+	if ExportedName("Field1_ok") != "Field1_ok" {
+		t.Errorf("expected Field1_ok, got %s", ExportedName("Field1_ok"))
+	}
+	if ExportedName("user-name") != "UserName" {
+		t.Errorf("expected UserName, got %s", ExportedName("user-name"))
+	}
+	if ExportedName("2.0") != "Field20" {
+		t.Errorf("expected Field20, got %s", ExportedName("2.0"))
+	}
+	if ExportedName("---") != "Field" {
+		t.Errorf("expected Field, got %s", ExportedName("---"))
+	}
+	if isValidIdentName("") {
+		t.Errorf("expected false for empty ident")
 	}
 }
 
