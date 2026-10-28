@@ -89,7 +89,7 @@ jobs:
       run: |
         for f in bin/*.wasm; do
           if [ -f "$f" ]; then
-            wasm-opt -O3 "$f" -o "$f" || true
+            wasm-opt -Oz --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-mutable-globals --strip-debug --strip-dwarf --strip-producers "$f" -o "$f" || true
           fi
         done
 

@@ -49,7 +49,11 @@ run: build
 	./$(BIN_DIR)/cdd-go $(ARGS)
 
 build_wasm:
-	GOOS=wasip1 GOARCH=wasm go build -o $(BIN_DIR)/cdd-go.wasm ./cmd/cdd-go
+	mkdir -p $(BIN_DIR)
+	GOEXPERIMENT=nojsonv2 GOOS=wasip1 GOARCH=wasm go build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/cdd-go.wasm ./cmd/cdd-go
+	@if command -v wasm-opt >/dev/null 2>&1; then \
+		wasm-opt -Oz --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-mutable-globals --strip-debug --strip-dwarf --strip-producers $(BIN_DIR)/cdd-go.wasm -o $(BIN_DIR)/cdd-go.wasm || true; \
+	fi
 build_docker:
 	docker build -t cdd-go:alpine -f alpine.Dockerfile .
 	docker build -t cdd-go:debian -f debian.Dockerfile .

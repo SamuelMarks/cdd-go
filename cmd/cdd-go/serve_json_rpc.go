@@ -1,3 +1,5 @@
+//go:build !js && !wasip1 && !wasm
+
 // Package main provides the CLI entrypoint and subcommand dispatcher for cdd-go.
 package main
 

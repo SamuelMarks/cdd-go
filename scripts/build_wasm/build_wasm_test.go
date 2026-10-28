@@ -1,34 +1,41 @@
 package main
 
 import (
-	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"testing"
 )
 
 func TestBuildWasm(t *testing.T) {
-	// Backup and restore
 	oldExecCommand := execCommand
+	oldExecLookPath := execLookPath
 	oldOsExit := osExit
 	oldStdout := osStdout
 	oldStderr := osStderr
 	defer func() {
 		execCommand = oldExecCommand
+		execLookPath = oldExecLookPath
 		osExit = oldOsExit
 		osStdout = oldStdout
 		osStderr = oldStderr
 	}()
 
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
 	osStdout = nil
 	osStderr = nil
 
-	// Test success path
+	// Test success path with wasm-opt available
+	execLookPath = func(file string) (string, error) {
+		return "/usr/bin/wasm-opt", nil
+	}
 	execCommand = func(name string, arg ...string) *exec.Cmd {
-		// Just run a simple command that succeeds, like "true" or "echo"
 		return exec.Command("echo")
+	}
+	main()
+
+	// Test success path without wasm-opt available
+	execLookPath = func(file string) (string, error) {
+		return "", errors.New("not found")
 	}
 	main()
 

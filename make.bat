@@ -77,9 +77,11 @@ bin\cdd-go.exe %2 %3 %4 %5 %6 %7 %8 %9
 goto end
 
 :build_wasm
+if not exist "bin" mkdir "bin"
+set GOEXPERIMENT=nojsonv2
 set GOOS=js
 set GOARCH=wasm
-go build -o bin\cdd-go.wasm .\cmd\cdd-go
+go build -trimpath -ldflags="-s -w" -o bin\cdd-go.wasm .\cmd\cdd-go
 goto end
 
 :build_docker
