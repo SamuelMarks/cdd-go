@@ -50,6 +50,19 @@ func TestToDocsJSON(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
+	// Valid input with out as an existing directory path
+	outDir := t.TempDir()
+	if err := ToDocsJSON(inPath, outDir, false, false); err != nil {
+		t.Errorf("unexpected error when out is a directory: %v", err)
+	}
+	dirDocsBytes, err := os.ReadFile(filepath.Join(outDir, "docs.json"))
+	if err != nil {
+		t.Fatalf("expected docs.json inside outDir: %v", err)
+	}
+	if !strings.Contains(string(dirDocsBytes), "ClientPets") {
+		t.Errorf("expected ClientPets in docs.json, got %s", string(dirDocsBytes))
+	}
+
 	// Invalid output path
 	if err := ToDocsJSON(inPath, filepath.Join(tmpDir, "nonexistent_dir", "output.json"), false, false); err == nil {
 		t.Error("expected error for invalid output path")
@@ -83,6 +96,17 @@ func TestToDocsJSONCoverage(t *testing.T) {
 	os.WriteFile(emptyPath, []byte(`{"openapi": "3.0.0", "info": {"title": "Test", "version": "1.0"}}`), 0644)
 	if err := ToDocsJSON(emptyPath, "", false, false); err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+
+	// test OpenAPI 3.2.0 webhooks support
+	webhookPath := filepath.Join(tmpDir, "test_docs_webhooks.json")
+	os.WriteFile(webhookPath, []byte(`{"openapi": "3.2.0", "info": {"title": "Test", "version": "1.0"}, "webhooks": {"newPet": {"post": {"operationId": "onNewPet"}}, "deletedPet": {"delete": {"operationId": "onDeletedPet"}}}}`), 0644)
+	var whBuf bytes.Buffer
+	if err := ToDocsJSONWriter(webhookPath, &whBuf, false, false); err != nil {
+		t.Errorf("unexpected error on webhooks docs: %v", err)
+	}
+	if !strings.Contains(whBuf.String(), "OnNewPet") || !strings.Contains(whBuf.String(), "OnDeletedPet") {
+		t.Errorf("expected webhook operations in output, got %s", whBuf.String())
 	}
 
 	// test Arazzo 1.1.0 spec input

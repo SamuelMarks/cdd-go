@@ -257,3 +257,44 @@ func TestRunToDocsJSONNoOpID(t *testing.T) {
 		t.Errorf("expected default operationId 'request', got %q", result[0].Operations[0].OperationId)
 	}
 }
+
+func TestRunToDocsJSONOutputDirectoryAndWebhooks(t *testing.T) {
+	dir := t.TempDir()
+	openAPIPath := filepath.Join(dir, "openapi.json")
+	os.WriteFile(openAPIPath, []byte(`{
+  "openapi": "3.2.0",
+  "info": { "title": "Webhook API", "version": "1.0.0" },
+  "paths": {
+    "/pets": {
+      "get": { "operationId": "listPets" }
+    }
+  },
+  "webhooks": {
+    "newPet": {
+      "post": { "operationId": "newPetEvent" }
+    }
+  }
+}`), 0644)
+
+	outDir := t.TempDir()
+	if err := runToDocsJSON([]string{"-i", openAPIPath, "-o", outDir}); err != nil {
+		t.Fatalf("unexpected error writing to output directory: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outDir, "docs.json"))
+	if err != nil {
+		t.Fatalf("failed to read docs.json from output directory: %v", err)
+	}
+
+	var result []cdd.DocsJSONOutput
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("failed to unmarshal docs.json: %v", err)
+	}
+
+	if len(result) != 1 || len(result[0].Operations) != 2 {
+		t.Fatalf("expected 2 operations (1 path + 1 webhook), got %+v", result)
+	}
+	if result[0].Operations[1].OperationId != "newPetEvent" || result[0].Operations[1].Path != "newPet" {
+		t.Errorf("unexpected webhook operation: %+v", result[0].Operations[1])
+	}
+}

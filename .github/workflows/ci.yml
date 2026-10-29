@@ -24,10 +24,10 @@ jobs:
         ports:
           - 8081:8080
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v7
       with:
         go-version: '1.25'
 
@@ -81,11 +81,11 @@ jobs:
       run: make build_wasm
 
     - name: Install binaryen
-      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
       run: sudo apt-get update && sudo apt-get install -y binaryen
 
     - name: Optimize WASM
-      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
       run: |
         for f in bin/*.wasm; do
           if [ -f "$f" ]; then
@@ -100,29 +100,9 @@ jobs:
       run: docker build -t cdd-go:debian -f debian.Dockerfile .
 
     - name: Upload Artifacts (Version Tag)
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-      uses: ncipollo/release-action@v1
-      with:
-        artifacts: "bin/cdd-go,bin/cdd-go.wasm"
-        allowUpdates: true
-        replacesArtifacts: true
-
-    - name: Update latest tag
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git push origin :refs/tags/latest || true
-        git tag -fa latest -m "Update latest tag to match ${GITHUB_REF_NAME}"
-        git push origin latest
-
-    - name: Upload Artifacts (Latest Tag)
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
       uses: ncipollo/release-action@v1
       with:
         artifacts: "bin/cdd-go,bin/cdd-go.wasm"
         allowUpdates: true
         replacesArtifacts: true
-        tag: latest
-        name: latest
-        makeLatest: true

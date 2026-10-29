@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -51,10 +52,13 @@ type DocsCode struct {
 var docsDefaultStdout io.Writer = os.Stdout
 
 // ToDocsJSON generates JSON documentation with code snippets for an OpenAPI specification and writes it to out or docsDefaultStdout.
-// Parameter in is the input OpenAPI file path, out is the optional output file path, noImports omits imports, and noWrapping omits main() wrapping.
+// Parameter in is the input OpenAPI file path, out is the optional output file or directory path, noImports omits imports, and noWrapping omits main() wrapping.
 func ToDocsJSON(in string, out string, noImports bool, noWrapping bool) error {
 	var outTarget io.Writer = docsDefaultStdout
 	if out != "" {
+		if stat, err := os.Stat(out); err == nil && stat.IsDir() {
+			out = filepath.Join(out, "docs.json")
+		}
 		fileTarget, err := os.Create(out)
 		if err != nil {
 			return err
@@ -63,6 +67,53 @@ func ToDocsJSON(in string, out string, noImports bool, noWrapping bool) error {
 		outTarget = fileTarget
 	}
 	return ToDocsJSONWriter(in, outTarget, noImports, noWrapping)
+}
+
+// buildDocsOperationsForPathItem builds DocsOperation entries for all HTTP operations in a PathItem.
+// Parameter path is the OpenAPI path or webhook name, item is the PathItem, noImports omits imports, and noWrapping omits main() wrapping.
+func buildDocsOperationsForPathItem(path string, item *openapi.PathItem, noImports bool, noWrapping bool) []DocsOperation {
+	var ops []DocsOperation
+	for _, mo := range openapi.PathItemOperations(item) {
+		method := mo.Method
+		op := mo.Operation
+
+		opID := op.OperationID
+		if opID == "" {
+			opID = "request"
+		}
+		clientIface := "Client" + naming.ToCamelCasePath(path)
+		methodName := naming.ToPascalCase(opID)
+
+		var imports *string
+		if !noImports {
+			i := "import (\n\t\"context\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"os\"\n\t\"generated_sdk/client\"\n)"
+			imports = &i
+		}
+
+		var wrapperStart *string
+		var wrapperEnd *string
+		if !noWrapping {
+			ws := "func main() {"
+			wrapperStart = &ws
+			we := "}"
+			wrapperEnd = &we
+		}
+
+		snippet := fmt.Sprintf("var sdk client.%s\nreq, _ := http.NewRequestWithContext(context.Background(), %q, %q, nil)\n// OperationID: %s\nresp, err := sdk.%s(req)\nif err != nil {\n\tfmt.Fprintf(os.Stderr, \"Error: %%v\\n\", err)\n\tos.Exit(1)\n}\nfmt.Fprintf(os.Stdout, \"Response: %%v\\n\", resp)", clientIface, strings.ToUpper(method), path, opID, methodName)
+
+		ops = append(ops, DocsOperation{
+			Method:      strings.ToUpper(method),
+			Path:        path,
+			OperationId: opID,
+			Code: DocsCode{
+				Imports:      imports,
+				WrapperStart: wrapperStart,
+				WrapperEnd:   wrapperEnd,
+				Snippet:      snippet,
+			},
+		})
+	}
+	return ops
 }
 
 // ToDocsJSONWriter generates JSON documentation with code snippets for an OpenAPI specification and writes it to w.
@@ -133,46 +184,18 @@ func ToDocsJSONWriter(in string, w io.Writer, noImports bool, noWrapping bool) e
 
 	for _, path := range paths {
 		item := oa.Paths[path]
-		for _, mo := range openapi.PathItemOperations(&item) {
-			method := mo.Method
-			op := mo.Operation
+		operations = append(operations, buildDocsOperationsForPathItem(path, &item, noImports, noWrapping)...)
+	}
 
-			opID := op.OperationID
-			if opID == "" {
-				opID = "request"
-			}
-			clientIface := "Client" + naming.ToCamelCasePath(path)
-			methodName := naming.ToPascalCase(opID)
+	webhooks := make([]string, 0, len(oa.Webhooks))
+	for wh := range oa.Webhooks {
+		webhooks = append(webhooks, wh)
+	}
+	sort.Strings(webhooks)
 
-			var imports *string
-			if !noImports {
-				i := "import (\n\t\"context\"\n\t\"fmt\"\n\t\"net/http\"\n\t\"os\"\n\t\"generated_sdk/client\"\n)"
-				imports = &i
-			}
-
-			var wrapperStart *string
-			var wrapperEnd *string
-			if !noWrapping {
-				ws := "func main() {"
-				wrapperStart = &ws
-				we := "}"
-				wrapperEnd = &we
-			}
-
-			snippet := fmt.Sprintf("var sdk client.%s\nreq, _ := http.NewRequestWithContext(context.Background(), %q, %q, nil)\n// OperationID: %s\nresp, err := sdk.%s(req)\nif err != nil {\n\tfmt.Fprintf(os.Stderr, \"Error: %%v\\n\", err)\n\tos.Exit(1)\n}\nfmt.Fprintf(os.Stdout, \"Response: %%v\\n\", resp)", clientIface, strings.ToUpper(method), path, opID, methodName)
-
-			operations = append(operations, DocsOperation{
-				Method:      strings.ToUpper(method),
-				Path:        path,
-				OperationId: opID,
-				Code: DocsCode{
-					Imports:      imports,
-					WrapperStart: wrapperStart,
-					WrapperEnd:   wrapperEnd,
-					Snippet:      snippet,
-				},
-			})
-		}
+	for _, wh := range webhooks {
+		item := oa.Webhooks[wh]
+		operations = append(operations, buildDocsOperationsForPathItem(wh, &item, noImports, noWrapping)...)
 	}
 
 	if operations == nil {
