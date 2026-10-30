@@ -69,6 +69,50 @@ func ToDocsJSON(in string, out string, noImports bool, noWrapping bool) error {
 	return ToDocsJSONWriter(in, outTarget, noImports, noWrapping)
 }
 
+// buildDocsOperationParamLines builds sample Go code lines for operation parameters and request bodies.
+// Parameter itemParams is the slice of PathItem-level parameters, and op is the OpenAPI Operation.
+func buildDocsOperationParamLines(itemParams []openapi.Parameter, op *openapi.Operation) string {
+	var lines []string
+	allParams := make([]openapi.Parameter, 0, len(itemParams)+len(op.Parameters))
+	allParams = append(allParams, itemParams...)
+	allParams = append(allParams, op.Parameters...)
+	for _, p := range allParams {
+		paramName := p.Name
+		if paramName == "" && p.Ref != "" {
+			parts := strings.Split(p.Ref, "/")
+			paramName = parts[len(parts)-1]
+		}
+		if paramName == "" {
+			continue
+		}
+		fieldName := naming.ToPascalCase(paramName)
+		sampleVal := `"example"`
+		if p.Schema != nil {
+			switch p.Schema.Type {
+			case "integer":
+				sampleVal = "1"
+			case "number":
+				sampleVal = "1.0"
+			case "boolean":
+				sampleVal = "true"
+			}
+		}
+		lines = append(lines, fmt.Sprintf("// Param %s (%s): %s = %s", fieldName, p.In, paramName, sampleVal))
+	}
+	if op.RequestBody != nil {
+		bodyType := "map[string]any{}"
+		if mt, ok := op.RequestBody.Content["application/json"]; ok && mt.Schema != nil && mt.Schema.Ref != "" {
+			parts := strings.Split(mt.Schema.Ref, "/")
+			bodyType = "models." + naming.ToPascalCase(parts[len(parts)-1]) + "{}"
+		}
+		lines = append(lines, fmt.Sprintf("body := %s\n_ = body", bodyType))
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
 // buildDocsOperationsForPathItem builds DocsOperation entries for all HTTP operations in a PathItem.
 // Parameter path is the OpenAPI path or webhook name, item is the PathItem, noImports omits imports, and noWrapping omits main() wrapping.
 func buildDocsOperationsForPathItem(path string, item *openapi.PathItem, noImports bool, noWrapping bool) []DocsOperation {
@@ -99,7 +143,8 @@ func buildDocsOperationsForPathItem(path string, item *openapi.PathItem, noImpor
 			wrapperEnd = &we
 		}
 
-		snippet := fmt.Sprintf("var sdk client.%s\nreq, _ := http.NewRequestWithContext(context.Background(), %q, %q, nil)\n// OperationID: %s\nresp, err := sdk.%s(req)\nif err != nil {\n\tfmt.Fprintf(os.Stderr, \"Error: %%v\\n\", err)\n\tos.Exit(1)\n}\nfmt.Fprintf(os.Stdout, \"Response: %%v\\n\", resp)", clientIface, strings.ToUpper(method), path, opID, methodName)
+		paramLines := buildDocsOperationParamLines(item.Parameters, op)
+		snippet := fmt.Sprintf("var sdk client.%s\n%sreq, _ := http.NewRequestWithContext(context.Background(), %q, %q, nil)\n// OperationID: %s\nresp, err := sdk.%s(req)\nif err != nil {\n\tfmt.Fprintf(os.Stderr, \"Error: %%v\\n\", err)\n\tos.Exit(1)\n}\nfmt.Fprintf(os.Stdout, \"Response: %%v\\n\", resp)", clientIface, paramLines, strings.ToUpper(method), path, opID, methodName)
 
 		ops = append(ops, DocsOperation{
 			Method:      strings.ToUpper(method),

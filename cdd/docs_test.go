@@ -123,6 +123,67 @@ func TestToDocsJSONCoverage(t *testing.T) {
 	if err := ToDocsJSON(t.TempDir(), "", false, false); err == nil {
 		t.Error("expected error when passing directory to ToDocsJSON")
 	}
+
+	// test parameters (query/path/ref/empty/types) and requestBody (ref and non-ref)
+	paramsAndBodySpec := `{
+  "openapi": "3.2.0",
+  "info": {"title": "Test", "version": "1.0"},
+  "paths": {
+    "/items/{id}": {
+      "parameters": [
+        {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}},
+        {"$ref": "#/components/parameters/LimitParam"},
+        {"in": "query"}
+      ],
+      "post": {
+        "operationId": "createItem",
+        "parameters": [
+          {"name": "price", "in": "query", "schema": {"type": "number"}},
+          {"name": "active", "in": "query", "schema": {"type": "boolean"}},
+          {"name": "tag", "in": "query", "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/NewItem"}
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceItem",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"type": "object"}
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+	paramsPath := filepath.Join(tmpDir, "test_docs_params.json")
+	os.WriteFile(paramsPath, []byte(paramsAndBodySpec), 0644)
+	var paramsBuf bytes.Buffer
+	if err := ToDocsJSONWriter(paramsPath, &paramsBuf, false, false); err != nil {
+		t.Fatalf("unexpected error on params/body docs: %v", err)
+	}
+	paramsOut := paramsBuf.String()
+	for _, expected := range []string{
+		"Param Id (path): id = 1",
+		"Param LimitParam (): LimitParam = \\\"example\\\"",
+		"Param Price (query): price = 1.0",
+		"Param Active (query): active = true",
+		"Param Tag (query): tag = \\\"example\\\"",
+		"body := models.NewItem{}",
+		"body := map[string]any{}",
+	} {
+		if !strings.Contains(paramsOut, expected) {
+			t.Errorf("expected %q in output, got %s", expected, paramsOut)
+		}
+	}
 }
 
 func TestToDocsJSONEncodeErr(t *testing.T) {
