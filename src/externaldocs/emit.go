@@ -10,6 +10,7 @@ import (
 )
 
 // Emit formats an OpenAPI ExternalDocs object into an AST representation.
+// Parameter docs is the OpenAPI ExternalDocs object, and it returns the AST declaration and any error.
 func Emit(docs *openapi.ExternalDocs) (*dst.GenDecl, error) {
 	if docs == nil {
 		return nil, nil

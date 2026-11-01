@@ -9,6 +9,7 @@ import (
 )
 
 // Emit formats an OpenAPI Header object into a struct field.
+// Parameter name is the header name, header is the OpenAPI Header definition, and it returns the AST struct field.
 func Emit(name string, header *openapi.Header) *dst.Field {
 	if header == nil {
 		return nil

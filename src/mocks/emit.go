@@ -11,6 +11,7 @@ import (
 )
 
 // EmitExample generates a dst.GenDecl (variable declaration) from an OpenAPI Example.
+// Parameter name is the example identifier, ex is the OpenAPI Example object, and it returns the AST declaration and any error.
 func EmitExample(name string, ex *openapi.Example) (*dst.GenDecl, error) {
 	if ex == nil {
 		return nil, fmt.Errorf("Example is nil")

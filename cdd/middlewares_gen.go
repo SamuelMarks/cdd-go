@@ -10,6 +10,7 @@ import (
 )
 
 // GenerateMiddlewares generates the global middlewares like CORS and request validation.
+// Parameter outDir is the destination directory, and it returns any generation error.
 func GenerateMiddlewares(outDir string) error {
 	mwDir := filepath.Join(outDir, "middlewares")
 	if err := os.MkdirAll(mwDir, 0755); err != nil {

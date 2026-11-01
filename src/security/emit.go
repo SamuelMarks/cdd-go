@@ -10,6 +10,7 @@ import (
 )
 
 // Emit formats OpenAPI SecurityRequirement objects into a structured AST slice.
+// Parameter security is the slice of OpenAPI SecurityRequirements, and it returns the AST composite literal.
 func Emit(security []openapi.SecurityRequirement) *dst.CompositeLit {
 	if len(security) == 0 {
 		return nil

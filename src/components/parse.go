@@ -56,6 +56,22 @@ func Parse(file *dst.File) *openapi.Components {
 	return comp
 }
 
+// filterComponentDecs removes auto-generated fallback GoDoc lines from decs.
+// Parameter decs is the input AST decorations, name is the symbol identifier, and it returns the filtered decorations.
+func filterComponentDecs(decs dst.Decorations, name string) dst.Decorations {
+	var out dst.Decorations
+	autoType := "// " + name + " represents the " + name + " type."
+	autoVal := "// " + name + " holds the " + name + " value."
+	for _, d := range decs {
+		trimmed := strings.TrimSpace(d)
+		if trimmed == autoType || trimmed == autoVal {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 // parseVarComponents parses variable declarations (SecuritySchemes, Parameters, Headers) into comp.
 // Parameter genDecl is the VAR declaration, and comp is the target Components struct.
 func parseVarComponents(genDecl *dst.GenDecl, comp *openapi.Components) bool {
@@ -66,6 +82,7 @@ func parseVarComponents(genDecl *dst.GenDecl, comp *openapi.Components) bool {
 			continue
 		}
 		name := vs.Names[0].Name
+		cleanDecs := filterComponentDecs(genDecl.Decs.Start, name)
 		switch {
 		case strings.HasPrefix(name, "SecurityScheme"):
 			singleDecl := &dst.GenDecl{Tok: token.VAR, Specs: []dst.Spec{vs}, Decs: genDecl.Decs}
@@ -78,7 +95,7 @@ func parseVarComponents(genDecl *dst.GenDecl, comp *openapi.Components) bool {
 				Names: []*dst.Ident{dst.NewIdent(strings.TrimPrefix(name, "Param"))},
 				Type:  vs.Type,
 			}
-			f.Decs.Start = genDecl.Decs.Start
+			f.Decs.Start = cleanDecs
 			if p := parameters.Parse(f); p != nil {
 				pName := astutil.LowerCamelTrimPrefix(name, "Param")
 				p.Name = pName
@@ -90,7 +107,7 @@ func parseVarComponents(genDecl *dst.GenDecl, comp *openapi.Components) bool {
 				Names: []*dst.Ident{dst.NewIdent(strings.TrimPrefix(name, "Header"))},
 				Type:  vs.Type,
 			}
-			f.Decs.Start = genDecl.Decs.Start
+			f.Decs.Start = cleanDecs
 			if h := headers.Parse(f); h != nil {
 				hName := astutil.LowerCamelTrimPrefix(name, "Header")
 				comp.Headers[hName] = *h
@@ -111,12 +128,13 @@ func parseTypeComponents(genDecl *dst.GenDecl, comp *openapi.Components) bool {
 			continue
 		}
 		name := ts.Name.Name
+		cleanDecs := filterComponentDecs(genDecl.Decs.Start, name)
 		switch {
 		case name == "OAuthFlow" || name == "OAuthFlows":
 			continue
 		case strings.HasPrefix(name, "RequestBody"):
 			f := &dst.Field{Type: ts.Type}
-			f.Decs.Start = genDecl.Decs.Start
+			f.Decs.Start = cleanDecs
 			if rb := requestbodies.Parse(f); rb != nil {
 				rbName := astutil.LowerCamelTrimPrefix(name, "RequestBody")
 				comp.RequestBodies[rbName] = *rb
@@ -135,7 +153,9 @@ func parseTypeComponents(genDecl *dst.GenDecl, comp *openapi.Components) bool {
 				}
 			}
 		default:
-			singleDecl := &dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{ts}, Decs: genDecl.Decs}
+			singleDecs := genDecl.Decs
+			singleDecs.Start = cleanDecs
+			singleDecl := &dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{ts}, Decs: singleDecs}
 			if sn, s, err := schemas.Parse(singleDecl); err == nil && s != nil && sn != "" {
 				comp.Schemas[sn] = *s
 				found = true

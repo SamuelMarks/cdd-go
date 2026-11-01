@@ -18,6 +18,18 @@ import (
 // FromArazzo generates Go Client SDKs, CLIs (reusing the SDK), or Server E2E workflow suites from an Arazzo 1.1.0 specification.
 // Parameter subsubcommand selects the target ("to_sdk", "to_sdk_cli", "to_server"), in is the input Arazzo spec path, outDir is the destination directory, noGithubActions omits CI workflow files, noInstallablePackage omits go.mod, and tests enables E2E test suite generation.
 func FromArazzo(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests bool) error {
+	return FromArazzoWithConfig(subsubcommand, in, outDir, Config{
+		InputPath:             in,
+		OutputDir:             outDir,
+		NoGithubActions:       noGithubActions,
+		NoInstallablePackage:  noInstallablePackage,
+		CreateComposableTests: tests,
+	})
+}
+
+// FromArazzoWithConfig generates Go Client SDKs, CLIs, or Server E2E workflow suites from an Arazzo 1.1.0 specification using the full Config.
+// Parameter subsubcommand selects the target ("to_sdk", "to_sdk_cli", "to_server"), in is the input Arazzo spec path, outDir is the destination directory, and config holds module/CI/MCP options.
+func FromArazzoWithConfig(subsubcommand, in, outDir string, config Config) error {
 	if in == "" {
 		return fmt.Errorf("input file or directory is required")
 	}
@@ -38,11 +50,11 @@ func FromArazzo(subsubcommand, in, outDir string, noGithubActions, noInstallable
 
 	_ = os.MkdirAll(outDir, 0755)
 
-	if !noInstallablePackage {
-		GenerateGoMod(outDir)
+	if !config.NoInstallablePackage {
+		GenerateGoModWithConfig(outDir, config.GithubOrg, config.RepoName, config.Topology)
 	}
-	if !noGithubActions {
-		GenerateGithubActions(outDir)
+	if !config.NoGithubActions {
+		GenerateGithubActionsWithConfig(outDir, config.GithubOrg, config.RepoName, config.Topology)
 	}
 
 	// If any sourceDescription points to a local OpenAPI file relative to the Arazzo file, generate its models/clients too
@@ -54,7 +66,17 @@ func FromArazzo(subsubcommand, in, outDir string, noGithubActions, noInstallable
 				localPath = filepath.Join(specDir, sd.URL)
 			}
 			if info, statErr := os.Stat(localPath); statErr == nil && !info.IsDir() {
-				_ = FromOpenAPI(subsubcommand, localPath, outDir, true, true, tests, false)
+				_ = FromOpenAPIWithConfig(subsubcommand, localPath, outDir, Config{
+					InputPath:             localPath,
+					OutputDir:             outDir,
+					NoGithubActions:       true,
+					NoInstallablePackage:  true,
+					CreateComposableTests: config.CreateComposableTests,
+					Mcp:                   false,
+					GithubOrg:             config.GithubOrg,
+					RepoName:              config.RepoName,
+					Topology:              config.Topology,
+				})
 			}
 		}
 	}
@@ -64,7 +86,7 @@ func FromArazzo(subsubcommand, in, outDir string, noGithubActions, noInstallable
 		if err := GenerateArazzoSDK(doc, outDir); err != nil {
 			return err
 		}
-		if tests {
+		if config.CreateComposableTests {
 			if err := GenerateArazzoTests(doc, outDir); err != nil {
 				return err
 			}
@@ -76,7 +98,7 @@ func FromArazzo(subsubcommand, in, outDir string, noGithubActions, noInstallable
 		if err := GenerateArazzoCLI(doc, outDir); err != nil {
 			return err
 		}
-		if tests {
+		if config.CreateComposableTests {
 			if err := GenerateArazzoTests(doc, outDir); err != nil {
 				return err
 			}
@@ -95,7 +117,32 @@ func FromArazzo(subsubcommand, in, outDir string, noGithubActions, noInstallable
 		return fmt.Errorf("unknown subcommand for from_arazzo: %s", subsubcommand)
 	}
 
+	if config.Mcp {
+		if err := GenerateArazzoMCPTools(doc, outDir); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// GenerateArazzoMCPTools emits `mcp/mcp_tools.go` exposing Arazzo workflows as strongly-typed MCP tools.
+// Parameter doc is the parsed Arazzo document, outDir is the destination directory, and it returns any generation error.
+func GenerateArazzoMCPTools(doc *arazzo.Arazzo, outDir string) error {
+	var tools []MCPToolEntry
+	if doc != nil {
+		for _, wf := range doc.Workflows {
+			desc := wf.Summary
+			if desc == "" {
+				desc = wf.Description
+			}
+			tools = append(tools, MCPToolEntry{
+				Name:        wf.WorkflowID,
+				Description: desc,
+			})
+		}
+	}
+	return writeMCPToolsFile(outDir, tools)
 }
 
 // GenerateArazzoSDK emits the `workflows/workflows.go` SDK workflow orchestrator package from an Arazzo 1.1.0 specification.
@@ -118,7 +165,7 @@ func GenerateArazzoCLI(doc *arazzo.Arazzo, outDir string) error {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return err
 	}
-	file, err := workflows.EmitCLIWorkflows(doc)
+	file, err := workflows.EmitCLIWorkflowsWithModule(doc, ReadModulePath(outDir))
 	if err != nil {
 		return err
 	}

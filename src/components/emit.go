@@ -19,6 +19,7 @@ import (
 )
 
 // Emit formats an OpenAPI Components object into multiple struct/var representations.
+// Parameter comp is the OpenAPI Components object, and it returns the slice of AST declarations.
 func Emit(comp *openapi.Components) []dst.Decl {
 	if comp == nil {
 		return nil

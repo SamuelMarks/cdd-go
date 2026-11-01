@@ -12,6 +12,7 @@ import (
 )
 
 // ParseExample converts a dst.ValueSpec to an OpenAPI Example.
+// Parameter vs is the AST ValueSpec, and it returns the reconstructed OpenAPI Example and any error.
 func ParseExample(vs *dst.ValueSpec) (*openapi.Example, error) {
 	if vs == nil {
 		return nil, fmt.Errorf("ValueSpec is nil")
@@ -21,6 +22,10 @@ func ParseExample(vs *dst.ValueSpec) (*openapi.Example, error) {
 
 	if len(vs.Decs.Start) > 0 {
 		doc := docstrings.Parse(vs.Decs.Start)
+		autoVal := ""
+		if len(vs.Names) > 0 {
+			autoVal = vs.Names[0].Name + " holds the " + vs.Names[0].Name + " value."
+		}
 		rawLines := strings.Split(doc, "\n")
 		var textLines []string
 		for _, line := range rawLines {
@@ -29,7 +34,7 @@ func ParseExample(vs *dst.ValueSpec) (*openapi.Example, error) {
 				ex.DataValue = json.RawMessage(strings.TrimSpace(strings.TrimPrefix(trimmed, "@dataValue:")))
 			} else if strings.HasPrefix(trimmed, "@serializedValue:") {
 				ex.SerializedValue = strings.TrimSpace(strings.TrimPrefix(trimmed, "@serializedValue:"))
-			} else {
+			} else if trimmed != autoVal {
 				textLines = append(textLines, trimmed)
 			}
 		}

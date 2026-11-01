@@ -85,7 +85,7 @@ func run(args []string) error {
 		fmt.Println("  -v, --version    Show version information")
 		return nil
 	case "-v", "--version", "version":
-		fmt.Println("0.0.4")
+		fmt.Println("0.0.5")
 		return nil
 	case "mcp":
 		if len(args) > 1 && (args[1] == "-h" || args[1] == "--help" || args[1] == "help") {
@@ -129,6 +129,11 @@ func run(args []string) error {
 		fs.BoolVar(&mcp, "m", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
 		fs.BoolVar(&mcp, "mcp", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
 
+		var githubOrg, repoName, topology string
+		fs.StringVar(&githubOrg, "github-org", envOrDefault("CDD_GITHUB_ORG", envOrDefault("GITHUB_ORG_NAME", "")), "GitHub organization or user name for Go module path resolution.")
+		fs.StringVar(&repoName, "repo-name", envOrDefault("CDD_REPO_NAME", envOrDefault("REPO_NAME", "")), "Repository name override for Go module path resolution.")
+		fs.StringVar(&topology, "topology", envOrDefault("CDD_TOPOLOGY", "polyrepo"), "Repository topology (monorepo or polyrepo).")
+
 		if err := fs.Parse(flagArgs); err != nil {
 			if err == flag.ErrHelp {
 				return nil
@@ -146,7 +151,17 @@ func run(args []string) error {
 		if inputTarget == "" {
 			inputTarget = inputDir
 		}
-		return cdd.FromOpenAPI(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage, tests, mcp)
+		return cdd.FromOpenAPIWithConfig(subsubcommand, inputTarget, out, cdd.Config{
+			InputPath:             inputTarget,
+			OutputDir:             out,
+			NoGithubActions:       noGithubActions,
+			NoInstallablePackage:  noInstallablePackage,
+			CreateComposableTests: tests,
+			Mcp:                   mcp,
+			GithubOrg:             githubOrg,
+			RepoName:              repoName,
+			Topology:              topology,
+		})
 	case "to_openapi":
 		fs := flag.NewFlagSet("to_openapi", flag.ContinueOnError)
 		fs.SetOutput(stderr)
@@ -183,10 +198,17 @@ func run(args []string) error {
 		fs.StringVar(&out, "o", envOrDefault("CDD_OUTPUT", ""), "Output directory path.")
 		fs.StringVar(&out, "output", envOrDefault("CDD_OUTPUT", ""), "Output directory path.")
 
-		var noGithubActions, noInstallablePackage, tests bool
+		var noGithubActions, noInstallablePackage, tests, mcp bool
 		fs.BoolVar(&noGithubActions, "no-github-actions", envOrDefaultBool("CDD_NO_GITHUB_ACTIONS", false), "Do not generate GitHub Actions scaffolding.")
 		fs.BoolVar(&noInstallablePackage, "no-installable-package", envOrDefaultBool("CDD_NO_INSTALLABLE_PACKAGE", false), "Do not generate installable package scaffolding.")
 		fs.BoolVar(&tests, "tests", envOrDefaultBool("CDD_TESTS", false), "Generate workflow E2E tests.")
+		fs.BoolVar(&mcp, "m", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
+		fs.BoolVar(&mcp, "mcp", envOrDefaultBool("CDD_MCP", false), "Generate Model Context Protocol (MCP) server and adapter.")
+
+		var githubOrg, repoName, topology string
+		fs.StringVar(&githubOrg, "github-org", envOrDefault("CDD_GITHUB_ORG", envOrDefault("GITHUB_ORG_NAME", "")), "GitHub organization or user name for Go module path resolution.")
+		fs.StringVar(&repoName, "repo-name", envOrDefault("CDD_REPO_NAME", envOrDefault("REPO_NAME", "")), "Repository name override for Go module path resolution.")
+		fs.StringVar(&topology, "topology", envOrDefault("CDD_TOPOLOGY", "polyrepo"), "Repository topology (monorepo or polyrepo).")
 
 		if err := fs.Parse(args[2:]); err != nil {
 			if err == flag.ErrHelp {
@@ -205,7 +227,17 @@ func run(args []string) error {
 		if inputTarget == "" {
 			inputTarget = inputDir
 		}
-		return cdd.FromArazzo(subsubcommand, inputTarget, out, noGithubActions, noInstallablePackage, tests)
+		return cdd.FromArazzoWithConfig(subsubcommand, inputTarget, out, cdd.Config{
+			InputPath:             inputTarget,
+			OutputDir:             out,
+			NoGithubActions:       noGithubActions,
+			NoInstallablePackage:  noInstallablePackage,
+			CreateComposableTests: tests,
+			Mcp:                   mcp,
+			GithubOrg:             githubOrg,
+			RepoName:              repoName,
+			Topology:              topology,
+		})
 	case "to_arazzo":
 		fs := flag.NewFlagSet("to_arazzo", flag.ContinueOnError)
 		fs.SetOutput(stderr)

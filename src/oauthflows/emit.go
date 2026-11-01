@@ -53,6 +53,7 @@ func EmitTypes() []dst.Decl {
 }
 
 // Emit formats an OpenAPI OAuthFlows object into a struct representation.
+// Parameter flows is the OpenAPI OAuthFlows object, and it returns the AST composite literal.
 func Emit(flows *openapi.OAuthFlows) *dst.CompositeLit {
 	if flows == nil {
 		return nil
@@ -109,6 +110,7 @@ func Emit(flows *openapi.OAuthFlows) *dst.CompositeLit {
 }
 
 // emitFlow formats a single OpenAPI OAuthFlow object into a dst.CompositeLit.
+// Parameter flow is the OpenAPI OAuthFlow object, and it returns the AST composite literal.
 func emitFlow(flow *openapi.OAuthFlow) *dst.CompositeLit {
 	cl := &dst.CompositeLit{
 		Type: dst.NewIdent("OAuthFlow"),

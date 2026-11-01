@@ -213,4 +213,32 @@ func TestFromArazzoAndToArazzo(t *testing.T) {
 	if strings.Contains(string(wfCode), "WorkflowJSON:") || strings.Contains(string(wfCode), "StepJSON:") {
 		t.Errorf("did not expect comment-stuffed WorkflowJSON or StepJSON in generated workflows.go")
 	}
+
+	mcpDir := filepath.Join(tmpDir, "arazzo_mcp")
+	if err := FromArazzoWithConfig("to_sdk", arazzoSpecPath, mcpDir, Config{
+		InputPath: arazzoSpecPath,
+		OutputDir: mcpDir,
+		Mcp:       true,
+		GithubOrg: "acme",
+		Topology:  "monorepo",
+	}); err != nil {
+		t.Fatalf("FromArazzoWithConfig with Mcp failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(mcpDir, "mcp", "mcp_tools.go")); err != nil {
+		t.Errorf("expected mcp/mcp_tools.go to be generated: %v", err)
+	}
+
+	// Test FromArazzoWithConfig when mcp is blocked by a file
+	mcpBlockedDir := filepath.Join(tmpDir, "arazzo_mcp_blocked")
+	_ = os.MkdirAll(mcpBlockedDir, 0755)
+	_ = os.WriteFile(filepath.Join(mcpBlockedDir, "mcp"), []byte("blocker"), 0644)
+	if err := FromArazzoWithConfig("to_sdk", arazzoSpecPath, mcpBlockedDir, Config{
+		InputPath:            arazzoSpecPath,
+		OutputDir:            mcpBlockedDir,
+		NoGithubActions:      true,
+		NoInstallablePackage: true,
+		Mcp:                  true,
+	}); err == nil {
+		t.Error("expected error when mcp directory is blocked by a file")
+	}
 }

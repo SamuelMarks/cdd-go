@@ -11,6 +11,7 @@ import (
 )
 
 // Emit formats an OpenAPI Link object into an AST representation.
+// Parameter name is the link identifier, link is the OpenAPI Link definition, and it returns the AST declaration.
 func Emit(name string, link *openapi.Link) *dst.GenDecl {
 	if link == nil {
 		return nil

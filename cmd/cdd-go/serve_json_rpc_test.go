@@ -79,8 +79,8 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 
 	// 4. version
 	resp, _ = doRequest("version", "[]")
-	if string(resp.Result) != `"0.0.4"` {
-		t.Errorf("expected %q, got %s", `"0.0.4"`, string(resp.Result))
+	if string(resp.Result) != `"0.0.5"` {
+		t.Errorf("expected %q, got %s", `"0.0.5"`, string(resp.Result))
 	}
 
 	// 5. to_docs_json (invalid params)
@@ -153,7 +153,7 @@ func TestRunServeJSONRPC_Handler(t *testing.T) {
 	}
 
 	// 15. from_openapi (map params, valid file)
-	mapParams := fmt.Sprintf(`{"subcommand": "to_sdk", "input": "%s", "output": "%s/sdk_map", "no_github_actions": true, "no_installable_package": true, "tests": true}`, specFile, dir)
+	mapParams := fmt.Sprintf(`{"subcommand": "to_sdk", "input": "%s", "output": "%s/sdk_map", "no_github_actions": true, "no_installable_package": true, "tests": true, "mcp": true, "github_org": "acme", "repo_name": "petstore-sdk", "topology": "monorepo"}`, specFile, dir)
 	resp, _ = doRequest("from_openapi", mapParams)
 	if resp.Error != nil {
 		t.Errorf("expected no error for map params, got %+v", resp.Error)

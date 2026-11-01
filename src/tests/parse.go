@@ -10,6 +10,7 @@ import (
 )
 
 // ParseTest converts a dst.FuncDecl into an OpenAPI Operation representation.
+// Parameter fd is the test function AST declaration, and it returns the HTTP method, path, Operation, and any error.
 func ParseTest(fd *dst.FuncDecl) (*openapi.Operation, error) {
 	if fd == nil {
 		return nil, fmt.Errorf("FuncDecl is nil")

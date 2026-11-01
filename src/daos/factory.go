@@ -40,14 +40,25 @@ func EmitFactoryInterface(schemas map[string]openapi.Schema) *dst.GenDecl {
 }
 
 // EmitConcreteFactory generates the implementation of the Factory.
+// Parameter schemas is the map of OpenAPI schemas, and it returns the struct declaration and method declarations.
 func EmitConcreteFactory(schemas map[string]openapi.Schema) (*dst.GenDecl, []dst.Decl) {
+	dbField := &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("db")},
+		Type:  &dst.StarExpr{X: &dst.SelectorExpr{X: dst.NewIdent("gorm"), Sel: dst.NewIdent("DB")}},
+	}
+	dbField.Decs.Start.Append("// db holds the GORM database instance.")
+	ephemeralField := &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("ephemeral")},
+		Type:  dst.NewIdent("bool"),
+	}
+	ephemeralField.Decs.Start.Append("// ephemeral indicates whether an in-memory database is active.")
 	ts := &dst.TypeSpec{
 		Name: dst.NewIdent("DAOFactory"),
 		Type: &dst.StructType{
 			Fields: &dst.FieldList{
 				List: []*dst.Field{
-					{Names: []*dst.Ident{dst.NewIdent("db")}, Type: &dst.StarExpr{X: &dst.SelectorExpr{X: dst.NewIdent("gorm"), Sel: dst.NewIdent("DB")}}},
-					{Names: []*dst.Ident{dst.NewIdent("ephemeral")}, Type: dst.NewIdent("bool")},
+					dbField,
+					ephemeralField,
 				},
 			},
 		},

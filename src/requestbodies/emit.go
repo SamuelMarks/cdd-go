@@ -10,6 +10,7 @@ import (
 )
 
 // Emit formats an OpenAPI RequestBody object into a struct field AST representation.
+// Parameter rb is the OpenAPI RequestBody object, and it returns the AST struct field.
 func Emit(rb *openapi.RequestBody) *dst.Field {
 	if rb == nil {
 		return nil

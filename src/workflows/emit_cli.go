@@ -16,11 +16,20 @@ import (
 // EmitCLIWorkflows generates a Go AST File (`package main`) containing Cobra commands that wrap and reuse the generated SDK `workflows.WorkflowClient`.
 // Parameter doc is the validated Arazzo 1.1.0 specification, and it returns the constructed *dst.File and any generation error.
 func EmitCLIWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
+	return EmitCLIWorkflowsWithModule(doc, "generated_sdk")
+}
+
+// EmitCLIWorkflowsWithModule generates a Go AST File (`package main`) importing `<modulePath>/workflows`.
+// Parameter doc is the validated Arazzo 1.1.0 specification, modulePath is the Go module path, and it returns the constructed *dst.File and any generation error.
+func EmitCLIWorkflowsWithModule(doc *arazzo.Arazzo, modulePath string) (*dst.File, error) {
 	if doc == nil {
 		return nil, fmt.Errorf("arazzo document is nil")
 	}
 	if err := arazzo.Validate(doc); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(modulePath) == "" {
+		modulePath = "generated_sdk"
 	}
 
 	decls := []dst.Decl{
@@ -30,7 +39,7 @@ func EmitCLIWorkflows(doc *arazzo.Arazzo) (*dst.File, error) {
 				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
 				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"fmt"`}},
 				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"os"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/workflows"`}},
+				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: strconv.Quote(modulePath + "/workflows")}},
 				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/spf13/cobra"`}},
 			},
 		},

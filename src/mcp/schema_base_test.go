@@ -106,7 +106,7 @@ func TestSchemaBaseStructsAndRoundTrip(t *testing.T) {
 		t.Errorf("expected error for unknown content type")
 	}
 
-	impl := Implementation{Name: "cdd-go", Version: "0.0.4"}
+	impl := Implementation{Name: "cdd-go", Version: "0.0.5"}
 	b, err = json.Marshal(impl)
 	if err != nil || !strings.Contains(string(b), `"name":"cdd-go"`) {
 		t.Fatalf("expected implementation name: %v", err)

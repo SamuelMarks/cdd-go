@@ -8,6 +8,7 @@ import (
 )
 
 // Parse extracts an OpenAPI Responses object from a Go return type list.
+// Parameter results is the function return FieldList, and it returns the extracted OpenAPI Responses map.
 func Parse(results *dst.FieldList) openapi.Responses {
 	if results == nil {
 		return nil

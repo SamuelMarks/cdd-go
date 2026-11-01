@@ -32,7 +32,7 @@ func NewJSONRPCHandler() http.Handler {
 		resp := MCPResponse{JSONRPC: "2.0", ID: req.ID}
 		switch req.Method {
 		case "version":
-			resp.Result = json.RawMessage(`"0.0.4"`)
+			resp.Result = json.RawMessage(`"0.0.5"`)
 		default:
 			var params MCPToolParams
 			if err := json.Unmarshal(req.Params, &params); err != nil {

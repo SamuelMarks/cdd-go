@@ -50,6 +50,20 @@ type Config struct {
 	CreateComposableTests bool
 	// Mcp enables generating Model Context Protocol (MCP) bindings.
 	Mcp bool
+	// GithubOrg is the optional GitHub organization or user name for module resolution.
+	GithubOrg string
+	// RepoName is the optional repository name override for module resolution.
+	RepoName string
+	// Topology selects "monorepo" or "polyrepo" module path layout.
+	Topology string
+}
+
+// MCPToolEntry represents a generated Model Context Protocol (MCP) tool descriptor.
+type MCPToolEntry struct {
+	// Name is the MCP tool identifier (operationId or workflowId).
+	Name string
+	// Description is the human-readable summary of the MCP tool.
+	Description string
 }
 
 // GenerateSDK generates the SDK based on the provided configuration.
@@ -59,7 +73,62 @@ func GenerateSDK(config Config) error {
 	if in == "" {
 		in = config.InputDir
 	}
-	return FromOpenAPI("to_sdk", in, config.OutputDir, config.NoGithubActions, config.NoInstallablePackage, config.CreateComposableTests, config.Mcp)
+	return FromOpenAPIWithConfig("to_sdk", in, config.OutputDir, config)
+}
+
+// ResolveModulePath computes the Go module path from the provided GitHub organization, repository name, and repository topology ("monorepo" or "polyrepo").
+// Parameter githubOrg is the GitHub organization or user name, repoName is the optional repository name override, and topology selects "monorepo" or "polyrepo" layout.
+func ResolveModulePath(githubOrg, repoName, topology string) string {
+	org := strings.Trim(strings.TrimSpace(githubOrg), "/")
+	repo := strings.Trim(strings.TrimSpace(repoName), "/")
+	topo := strings.ToLower(strings.TrimSpace(topology))
+
+	if org == "" && repo == "" {
+		return "generated_sdk"
+	}
+
+	if org == "" {
+		mod := repo
+		if !strings.HasPrefix(repo, "github.com/") && strings.Contains(repo, "/") {
+			mod = "github.com/" + repo
+		}
+		if topo == "monorepo" && !strings.HasSuffix(mod, "/go") {
+			return mod + "/go"
+		}
+		return mod
+	}
+
+	if repo == "" {
+		if topo == "monorepo" {
+			return fmt.Sprintf("github.com/%s/%s-sdk/go", org, org)
+		}
+		return fmt.Sprintf("github.com/%s/%s-sdk-go", org, org)
+	}
+
+	mod := fmt.Sprintf("github.com/%s/%s", org, repo)
+	if topo == "monorepo" && !strings.HasSuffix(mod, "/go") {
+		return mod + "/go"
+	}
+	return mod
+}
+
+// ReadModulePath inspects go.mod in outDir and returns the declared module path, or "generated_sdk" if go.mod is absent or has no module directive.
+// Parameter outDir is the target directory containing an optional go.mod file.
+func ReadModulePath(outDir string) string {
+	b, err := os.ReadFile(filepath.Join(outDir, "go.mod"))
+	if err != nil {
+		return "generated_sdk"
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "module ") {
+			mod := strings.TrimSpace(strings.TrimPrefix(trimmed, "module "))
+			if mod != "" {
+				return mod
+			}
+		}
+	}
+	return "generated_sdk"
 }
 
 // loadAndNormalizeOpenAPI opens and parses an OpenAPI specification file.
@@ -169,37 +238,165 @@ func emitSDKCLIPackages(oa *openapi.OpenAPI, outDir string, tests bool) error {
 // FromOpenAPI generates code from an OpenAPI specification.
 // Parameter subsubcommand selects the target ("to_sdk", "to_server", "to_sdk_cli"), in is the spec path, outDir is the destination directory, noGithubActions omits CI workflow files, noInstallablePackage omits go.mod, tests enables test generation, and mcp enables MCP bindings.
 func FromOpenAPI(subsubcommand, in, outDir string, noGithubActions, noInstallablePackage, tests, mcp bool) error {
+	return FromOpenAPIWithConfig(subsubcommand, in, outDir, Config{
+		InputPath:             in,
+		OutputDir:             outDir,
+		NoGithubActions:       noGithubActions,
+		NoInstallablePackage:  noInstallablePackage,
+		CreateComposableTests: tests,
+		Mcp:                   mcp,
+	})
+}
+
+// FromOpenAPIWithConfig generates code from an OpenAPI specification using the full Config options.
+// Parameter subsubcommand selects the target ("to_sdk", "to_server", "to_sdk_cli"), in is the spec path, outDir is the destination directory, and config holds module/CI/MCP options.
+func FromOpenAPIWithConfig(subsubcommand, in, outDir string, config Config) error {
 	oa, err := loadAndNormalizeOpenAPI(in)
 	if err != nil {
 		return err
 	}
 
 	_ = os.MkdirAll(outDir, 0755)
-	if !noInstallablePackage {
-		GenerateGoMod(outDir)
+	if !config.NoInstallablePackage {
+		GenerateGoModWithConfig(outDir, config.GithubOrg, config.RepoName, config.Topology)
 	}
-	if !noGithubActions {
-		GenerateGithubActions(outDir)
+	if !config.NoGithubActions {
+		GenerateGithubActionsWithConfig(outDir, config.GithubOrg, config.RepoName, config.Topology)
 	}
 
 	switch subsubcommand {
 	case "to_sdk":
-		return emitSDKPackages(oa, outDir, tests)
+		err = emitSDKPackages(oa, outDir, config.CreateComposableTests)
 	case "to_server":
-		return emitServerPackages(oa, outDir, tests)
+		err = emitServerPackages(oa, outDir, config.CreateComposableTests)
 	case "to_sdk_cli":
-		return emitSDKCLIPackages(oa, outDir, tests)
+		err = emitSDKCLIPackages(oa, outDir, config.CreateComposableTests)
 	default:
 		return models.NewDomainError(models.ErrKindInvalidArgument, 400, fmt.Sprintf("unknown subsubcommand: %s", subsubcommand), nil)
 	}
+	if err != nil {
+		return err
+	}
+
+	if config.Mcp {
+		if err := GenerateOpenAPIMCPTools(oa, outDir); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// GenerateGoMod creates a go.mod file in the output directory if it does not already exist.
+// GenerateOpenAPIMCPTools emits `mcp/mcp_tools.go` exposing OpenAPI operations as strongly-typed MCP tools.
+// Parameter oa is the parsed OpenAPI document, outDir is the destination directory, and it returns any generation error.
+func GenerateOpenAPIMCPTools(oa *openapi.OpenAPI, outDir string) error {
+	var tools []MCPToolEntry
+	if oa != nil && len(oa.Paths) > 0 {
+		pathKeys := make([]string, 0, len(oa.Paths))
+		for p := range oa.Paths {
+			pathKeys = append(pathKeys, p)
+		}
+		sort.Strings(pathKeys)
+		for _, p := range pathKeys {
+			item := oa.Paths[p]
+			for _, mo := range openapi.PathItemOperations(&item) {
+				name := mo.Operation.OperationID
+				if name == "" {
+					name = strings.ToLower(mo.Method) + "_" + naming.SanitizePathToFilename(p)
+				}
+				desc := mo.Operation.Summary
+				if desc == "" {
+					desc = mo.Operation.Description
+				}
+				tools = append(tools, MCPToolEntry{
+					Name:        name,
+					Description: desc,
+				})
+			}
+		}
+	}
+	return writeMCPToolsFile(outDir, tools)
+}
+
+// writeMCPToolsFile writes the `mcp/mcp_tools.go` package file containing MCPTool and GetMCPTools().
+// Parameter outDir is the destination root directory, tools is the slice of MCP tool descriptors, and it returns any write error.
+func writeMCPToolsFile(outDir string, tools []MCPToolEntry) error {
+	mcpDir := filepath.Join(outDir, "mcp")
+	if err := os.MkdirAll(mcpDir, 0755); err != nil {
+		return err
+	}
+
+	nameField := &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("Name")},
+		Type:  dst.NewIdent("string"),
+		Tag:   &dst.BasicLit{Kind: token.STRING, Value: "`" + `json:"name"` + "`"},
+	}
+	nameField.Decs.Start.Append("// Name is the MCP tool identifier.")
+	descField := &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("Description")},
+		Type:  dst.NewIdent("string"),
+		Tag:   &dst.BasicLit{Kind: token.STRING, Value: "`" + `json:"description,omitempty"` + "`"},
+	}
+	descField.Decs.Start.Append("// Description is the human-readable tool description.")
+
+	toolTypeSpec := &dst.TypeSpec{
+		Name: dst.NewIdent("MCPTool"),
+		Type: &dst.StructType{Fields: &dst.FieldList{List: []*dst.Field{nameField, descField}}},
+	}
+	toolTypeDecl := &dst.GenDecl{Tok: token.TYPE, Specs: []dst.Spec{toolTypeSpec}}
+	toolTypeDecl.Decs.Start.Append("// MCPTool represents a Model Context Protocol (MCP) 1.0.0 tool definition.")
+
+	var elts []dst.Expr
+	for _, t := range tools {
+		elts = append(elts, &dst.CompositeLit{
+			Elts: []dst.Expr{
+				&dst.KeyValueExpr{Key: dst.NewIdent("Name"), Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", t.Name)}},
+				&dst.KeyValueExpr{Key: dst.NewIdent("Description"), Value: &dst.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("%q", t.Description)}},
+			},
+		})
+	}
+
+	getToolsFn := &dst.FuncDecl{
+		Name: dst.NewIdent("GetMCPTools"),
+		Type: &dst.FuncType{
+			Params:  &dst.FieldList{},
+			Results: &dst.FieldList{List: []*dst.Field{{Type: &dst.ArrayType{Elt: dst.NewIdent("MCPTool")}}}},
+		},
+		Body: &dst.BlockStmt{
+			List: []dst.Stmt{
+				&dst.ReturnStmt{
+					Results: []dst.Expr{
+						&dst.CompositeLit{
+							Type: &dst.ArrayType{Elt: dst.NewIdent("MCPTool")},
+							Elts: elts,
+						},
+					},
+				},
+			},
+		},
+	}
+	getToolsFn.Decs.Start.Append("// GetMCPTools returns the registered Model Context Protocol tools for this module.")
+
+	file := &dst.File{
+		Name:  dst.NewIdent("mcp"),
+		Decls: []dst.Decl{toolTypeDecl, getToolsFn},
+	}
+	file.Decs.Start.Append("// Package mcp provides generated Model Context Protocol (MCP) tool definitions.")
+	return WriteDstFile(filepath.Join(mcpDir, "mcp_tools.go"), file)
+}
+
+// GenerateGoMod creates a go.mod and .goreleaser.yaml file in the output directory if they do not already exist.
 // Parameter outDir is the destination directory path.
 func GenerateGoMod(outDir string) {
+	GenerateGoModWithConfig(outDir, "", "", "")
+}
+
+// GenerateGoModWithConfig creates a go.mod and .goreleaser.yaml file in the output directory using the resolved module path.
+// Parameter outDir is the destination directory, githubOrg is the GitHub org, repoName is the repo name, and topology selects "monorepo" or "polyrepo".
+func GenerateGoModWithConfig(outDir, githubOrg, repoName, topology string) {
+	modulePath := ResolveModulePath(githubOrg, repoName, topology)
 	goModPath := filepath.Join(outDir, "go.mod")
 	if _, err := os.Stat(goModPath); os.IsNotExist(err) {
-		content := `module generated_sdk
+		content := fmt.Sprintf(`module %s
 
 go 1.25.7
 
@@ -211,30 +408,79 @@ require (
 	gorm.io/driver/sqlite v1.5.7
 	gorm.io/gorm v1.25.12
 )
-`
+`, modulePath)
 		_ = os.WriteFile(goModPath, []byte(content), 0644)
+	}
+
+	goreleaserPath := filepath.Join(outDir, ".goreleaser.yaml")
+	if _, err := os.Stat(goreleaserPath); os.IsNotExist(err) {
+		goreleaserContent := `# GoReleaser configuration with GPG detached signature (gpg --armor --detach-sign)
+version: 2
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+checksum:
+  name_template: 'checksums.txt'
+signs:
+  - artifacts: checksum
+    cmd: gpg
+    output: true
+    signature: "${artifact}.asc"
+    args:
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--output"
+      - "${signature}"
+      - "--armor"
+      - "--detach-sign"
+      - "${artifact}"
+`
+		_ = os.WriteFile(goreleaserPath, []byte(goreleaserContent), 0644)
 	}
 }
 
-// GenerateGithubActions creates a basic CI GitHub Actions workflow file in the output directory.
+// GenerateGithubActions creates a CI GitHub Actions workflow file in the output directory.
 // Parameter outDir is the destination directory path.
 func GenerateGithubActions(outDir string) {
+	GenerateGithubActionsWithConfig(outDir, "", "", "")
+}
+
+// GenerateGithubActionsWithConfig creates a CI GitHub Actions workflow file supporting go test, GoReleaser GPG signing, proxy.golang.org warming, and gh-pages deployment.
+// Parameter outDir is the destination directory, githubOrg is the GitHub org, repoName is the repo name, and topology selects "monorepo" or "polyrepo".
+func GenerateGithubActionsWithConfig(outDir, githubOrg, repoName, topology string) {
+	modulePath := ResolveModulePath(githubOrg, repoName, topology)
 	ciPath := filepath.Join(outDir, ".github", "workflows", "ci.yml")
 	_ = os.MkdirAll(filepath.Dir(ciPath), 0755)
 	if _, err := os.Stat(ciPath); os.IsNotExist(err) {
-		content := `name: CI
+		content := fmt.Sprintf(`name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+      - 'go/v*'
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -243,7 +489,38 @@ jobs:
       run: go build -v ./...
     - name: Test
       run: go test -v ./...
-`
+    - name: Import GPG key
+      if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/go/v')
+      uses: crazy-max/ghaction-import-gpg@v6
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets.GPG_PASSPHRASE }}
+    - name: Run GoReleaser (gpg --armor --detach-sign)
+      if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/go/v')
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        version: '~> v2'
+        args: release --clean
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+    - name: Warm proxy.golang.org and pkg.go.dev index
+      if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/go/v')
+      run: |
+        TAG_NAME="${GITHUB_REF#refs/tags/}"
+        curl -fsSL "https://proxy.golang.org/%s/@v/${TAG_NAME##*/}.info" || true
+    - name: Generate static godoc / pkgsite documentation
+      run: |
+        mkdir -p docs_site
+        go doc -all ./... > docs_site/index.txt || true
+    - name: Deploy documentation to gh-pages
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs_site
+        publish_branch: gh-pages
+`, modulePath)
 		_ = os.WriteFile(ciPath, []byte(content), 0644)
 	}
 }
@@ -361,7 +638,8 @@ func parseTypeDeclIntoOpenAPI(d *dst.GenDecl, oa *openapi.OpenAPI) {
 						oa.Paths[path] = *pi
 					}
 				}
-			} else if ts.Name.Name != "OAuthFlow" && ts.Name.Name != "OAuthFlows" {
+			} else if ts.Name.Name != "OAuthFlow" && ts.Name.Name != "OAuthFlows" && ts.Name.Name != "MCPTool" {
+				ts.Decs.Start = append(ts.Decs.Start, d.Decs.Start...)
 				if schema, err := classes.ParseType(ts); err == nil && schema != nil {
 					oa.Components.Schemas[ts.Name.Name] = *schema
 				}
@@ -420,6 +698,7 @@ func parseVarOrConstDeclIntoOpenAPI(d *dst.GenDecl, oa *openapi.OpenAPI) {
 	}
 	for _, spec := range d.Specs {
 		if vs, ok := spec.(*dst.ValueSpec); ok {
+			vs.Decs.Start = append(vs.Decs.Start, d.Decs.Start...)
 			if ex, err := mocks.ParseExample(vs); err == nil && ex != nil {
 				oa.Components.Examples[vs.Names[0].Name] = *ex
 			}
@@ -483,7 +762,7 @@ func GenerateOpenAPI(inputPath string, outPath string) error {
 		OpenAPI: "3.2.0",
 		Info: openapi.Info{
 			Title:   "Generated API",
-			Version: "0.0.4",
+			Version: "0.0.5",
 		},
 		Paths: make(openapi.Paths),
 		Components: &openapi.Components{
@@ -617,6 +896,8 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 	}
 	sort.Strings(pathKeys)
 
+	daosImport := `"` + ReadModulePath(outDir) + `/daos"`
+
 	for _, path := range pathKeys {
 		item := oa.Paths[path]
 		decl, structDecls, err := routes.EmitRouteBundle(path, &item)
@@ -632,7 +913,7 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 						Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/gin-gonic/gin"`},
 					},
 					&dst.ImportSpec{
-						Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/daos"`},
+						Path: &dst.BasicLit{Kind: token.STRING, Value: daosImport},
 					},
 				},
 			},
@@ -653,12 +934,81 @@ func GenerateRoutes(oa *openapi.OpenAPI, outDir string) error {
 	return nil
 }
 
+// ensureFileDocCoverage populates missing GoDoc comments on package, type, field, method, variable/constant, and function declarations in file.
+// Parameter file is the AST file to annotate prior to formatting.
+func ensureFileDocCoverage(file *dst.File) {
+	if len(file.Decs.Start) == 0 {
+		file.Decs.Start.Append(fmt.Sprintf("// Package %s provides generated API code.", file.Name.Name))
+	}
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *dst.GenDecl:
+			if d.Tok == token.IMPORT {
+				d.Decs.After = dst.EmptyLine
+				continue
+			}
+			if d.Tok == token.TYPE || d.Tok == token.VAR || d.Tok == token.CONST {
+				d.Decs.Before = dst.EmptyLine
+				d.Decs.After = dst.EmptyLine
+				for _, spec := range d.Specs {
+					switch s := spec.(type) {
+					case *dst.TypeSpec:
+						d.Decs.Start = append(d.Decs.Start, s.Decs.Start...)
+						s.Decs.Start = nil
+						if len(d.Decs.Start) == 0 {
+							d.Decs.Start.Append(fmt.Sprintf("// %s represents the %s type.", s.Name.Name, s.Name.Name))
+						}
+						if st, ok := s.Type.(*dst.StructType); ok && st.Fields != nil {
+							for _, field := range st.Fields.List {
+								field.Decs.Before = dst.NewLine
+								field.Decs.After = dst.NewLine
+								if len(field.Names) > 0 && len(field.Decs.Start) == 0 && len(field.Decs.End) == 0 {
+									field.Decs.Start.Append(fmt.Sprintf("// %s field.", field.Names[0].Name))
+								}
+							}
+						} else if iface, ok := s.Type.(*dst.InterfaceType); ok && iface.Methods != nil {
+							for _, method := range iface.Methods.List {
+								method.Decs.Before = dst.NewLine
+								method.Decs.After = dst.NewLine
+								if len(method.Names) > 0 && len(method.Decs.Start) == 0 && len(method.Decs.End) == 0 {
+									method.Decs.Start.Append(fmt.Sprintf("// %s performs the %s operation.", method.Names[0].Name, method.Names[0].Name))
+								}
+							}
+						}
+					case *dst.ValueSpec:
+						if len(s.Names) > 0 {
+							if len(d.Specs) == 1 {
+								d.Decs.Start = append(d.Decs.Start, s.Decs.Start...)
+								s.Decs.Start = nil
+								if len(d.Decs.Start) == 0 {
+									d.Decs.Start.Append(fmt.Sprintf("// %s holds the %s value.", s.Names[0].Name, s.Names[0].Name))
+								}
+							} else {
+								s.Decs.Before = dst.NewLine
+								s.Decs.After = dst.NewLine
+								s.Decs.Start.Append(fmt.Sprintf("// %s holds the %s value.", s.Names[0].Name, s.Names[0].Name))
+							}
+						}
+					}
+				}
+			}
+		case *dst.FuncDecl:
+			d.Decs.Before = dst.EmptyLine
+			d.Decs.After = dst.EmptyLine
+			if len(d.Decs.Start) == 0 && d.Name != nil {
+				d.Decs.Start.Append(fmt.Sprintf("// %s executes the %s function.", d.Name.Name, d.Name.Name))
+			}
+		}
+	}
+}
+
 // WriteDstFile is a utility that correctly formats and writes a dst.File to disk.
 // Parameter path is the target file path, file is the AST file node, and it returns any write error.
 func WriteDstFile(path string, file *dst.File) error {
 	if file == nil || file.Name == nil || file.Name.Name == "" {
 		return fmt.Errorf("dst file or package name is nil")
 	}
+	ensureFileDocCoverage(file)
 	restorer := decorator.NewRestorer()
 	var buf bytes.Buffer
 	_ = restorer.Fprint(&buf, file)

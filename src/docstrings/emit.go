@@ -8,6 +8,7 @@ import (
 )
 
 // Emit formats a string into a dst.Decorations list.
+// Parameter desc is the docstring text, and it returns the formatted AST decorations.
 func Emit(desc string) dst.Decorations {
 	if desc == "" {
 		return nil

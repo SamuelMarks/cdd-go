@@ -5,10 +5,10 @@
 Go modules are distributed via source code repositories (like GitHub). To publish a new version of `cdd-go`, tag the repository with a semantic version and push it. `pkg.go.dev` will automatically index it.
 
 ```bash
-git tag v0.0.4
-git push origin v0.0.4
+git tag v0.0.5
+git push origin v0.0.5
 # Trigger indexing
-GOPROXY=https://proxy.golang.org GO111MODULE=on go list -m github.com/SamuelMarks/cdd-go@v0.0.4
+GOPROXY=https://proxy.golang.org GO111MODULE=on go list -m github.com/SamuelMarks/cdd-go@v0.0.5
 ```
 
 ## Publishing Docs

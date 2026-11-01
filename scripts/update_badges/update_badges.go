@@ -11,6 +11,7 @@ import (
 )
 
 // getColor maps a coverage percentage to a shields.io badge color name.
+// Parameter pct is the coverage percentage.
 func getColor(pct float64) string {
 	if pct >= 90 {
 		return "brightgreen"
@@ -74,6 +75,7 @@ func getDocCov() float64 {
 }
 
 // replaceReadme updates the test and documentation coverage badge URLs in content.
+// Parameter content is the raw README bytes, testCovStr and testColor format the test badge, and docCovStr and docColor format the doc badge.
 func replaceReadme(content []byte, testCovStr, testColor, docCovStr, docColor string) []byte {
 	strContent := string(content)
 

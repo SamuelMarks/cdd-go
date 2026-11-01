@@ -10,6 +10,7 @@ import (
 )
 
 // Emit formats an OpenAPI Servers slice into an AST representation.
+// Parameter servers is the slice of OpenAPI Server definitions, and it returns the AST declaration.
 func Emit(servers []openapi.Server) *dst.GenDecl {
 	if len(servers) == 0 {
 		return nil

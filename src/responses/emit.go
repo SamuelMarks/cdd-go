@@ -10,6 +10,7 @@ import (
 )
 
 // Emit formats an OpenAPI Responses object into a slice of Go return types.
+// Parameter resps is the OpenAPI Responses map, and it returns the slice of return type expressions.
 func Emit(resps openapi.Responses) []dst.Expr {
 	if resps == nil {
 		return []dst.Expr{dst.NewIdent("error")}

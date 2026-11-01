@@ -10,6 +10,7 @@ import (
 )
 
 // Emit formats an OpenAPI Tags slice into an AST representation.
+// Parameter tags is the slice of OpenAPI Tag definitions, and it returns the AST declaration.
 func Emit(tags []openapi.Tag) *dst.GenDecl {
 	if len(tags) == 0 {
 		return nil

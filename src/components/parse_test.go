@@ -148,4 +148,13 @@ func TestParseComponentsNilAndEmpty(t *testing.T) {
 	if Parse(fileWithIgnored) != nil {
 		t.Errorf("expected nil for file with only ignored decls")
 	}
+
+	filtered := filterComponentDecs(dst.Decorations{
+		"// ParamLimit holds the ParamLimit value.",
+		"// RequestBodyUser represents the RequestBodyUser type.",
+		"// Real description",
+	}, "ParamLimit")
+	if len(filtered) != 2 {
+		t.Errorf("expected 2 remaining decorations, got %d", len(filtered))
+	}
 }

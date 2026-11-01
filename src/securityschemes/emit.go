@@ -12,6 +12,7 @@ import (
 )
 
 // Emit formats an OpenAPI SecurityScheme object into a struct representation.
+// Parameter name is the security scheme identifier, scheme is the OpenAPI SecurityScheme object, and it returns the AST declaration.
 func Emit(name string, scheme *openapi.SecurityScheme) *dst.GenDecl {
 	if scheme == nil {
 		return nil

@@ -36,6 +36,7 @@ func startServer(image, name, port string) error {
 }
 
 // startPrism starts a Stoplight Prism mock server for the given OpenAPI spec path and port.
+// Parameter specPath is the OpenAPI specification file path, name is the server label, and port is the TCP port.
 func startPrism(specPath, name, port string) error {
 	fmt.Printf("Starting Prism for %s...\n", specPath)
 

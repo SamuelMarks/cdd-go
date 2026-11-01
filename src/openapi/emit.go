@@ -7,6 +7,7 @@ import (
 )
 
 // Emit serializes the OpenAPI description into the given writer as JSON.
+// Parameter w is the destination writer, oa is the OpenAPI specification, and it returns any serialization error.
 func Emit(w io.Writer, oa *OpenAPI) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")

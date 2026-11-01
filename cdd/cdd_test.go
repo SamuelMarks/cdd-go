@@ -1200,3 +1200,117 @@ func TestRoundtripOAuth2DottedPathsSpacedHyphenatedOpIDs(t *testing.T) {
 		t.Errorf("expected listSearchableFields on /2.0/repositories/{username} POST, got %+v", rtOA.Paths["/2.0/repositories/{username}"].Post)
 	}
 }
+
+func TestResolveModulePathAndMCPTools(t *testing.T) {
+	cases := []struct {
+		org, repo, topo, want string
+	}{
+		{"", "", "", "generated_sdk"},
+		{"", "my-sdk", "polyrepo", "my-sdk"},
+		{"", "my-sdk", "monorepo", "my-sdk/go"},
+		{"", "acme/my-sdk", "polyrepo", "github.com/acme/my-sdk"},
+		{"", "acme/my-sdk", "monorepo", "github.com/acme/my-sdk/go"},
+		{"", "github.com/acme/my-sdk", "monorepo", "github.com/acme/my-sdk/go"},
+		{"acme", "", "polyrepo", "github.com/acme/acme-sdk-go"},
+		{"acme", "", "monorepo", "github.com/acme/acme-sdk/go"},
+		{"acme", "custom-repo", "polyrepo", "github.com/acme/custom-repo"},
+		{"acme", "custom-repo", "monorepo", "github.com/acme/custom-repo/go"},
+		{"acme", "custom-repo/go", "monorepo", "github.com/acme/custom-repo/go"},
+	}
+	for _, tc := range cases {
+		if got := ResolveModulePath(tc.org, tc.repo, tc.topo); got != tc.want {
+			t.Errorf("ResolveModulePath(%q, %q, %q) = %q, want %q", tc.org, tc.repo, tc.topo, got, tc.want)
+		}
+	}
+
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("// comment only\n"), 0644)
+	if got := ReadModulePath(dir); got != "generated_sdk" {
+		t.Errorf("expected fallback generated_sdk when go.mod has no module line, got %q", got)
+	}
+
+	modDir := filepath.Join(dir, "monorepo_mod")
+	_ = os.MkdirAll(modDir, 0755)
+	GenerateGoModWithConfig(modDir, "acme", "", "monorepo")
+	if got := ReadModulePath(modDir); got != "github.com/acme/acme-sdk/go" {
+		t.Errorf("expected github.com/acme/acme-sdk/go, got %q", got)
+	}
+	grBytes, err := os.ReadFile(filepath.Join(modDir, ".goreleaser.yaml"))
+	if err != nil || !strings.Contains(string(grBytes), "gpg --armor --detach-sign") || !strings.Contains(string(grBytes), "signs:") {
+		t.Errorf("expected .goreleaser.yaml with signs and gpg --armor --detach-sign, got %v: %s", err, string(grBytes))
+	}
+
+	GenerateGithubActionsWithConfig(modDir, "acme", "", "monorepo")
+	ciBytes, err := os.ReadFile(filepath.Join(modDir, ".github", "workflows", "ci.yml"))
+	if err != nil || !strings.Contains(string(ciBytes), "proxy.golang.org") || !strings.Contains(string(ciBytes), "gh-pages") {
+		t.Errorf("expected ci.yml with proxy.golang.org and gh-pages, got %v: %s", err, string(ciBytes))
+	}
+
+	specPath := filepath.Join(dir, "mcp_spec.json")
+	_ = os.WriteFile(specPath, []byte(`{
+		"openapi": "3.2.0",
+		"info": {"title": "MCP API", "version": "1.0.0"},
+		"paths": {
+			"/items": {
+				"get": {"description": "Fallback description without summary"}
+			}
+		}
+	}`), 0644)
+
+	mcpOut := filepath.Join(dir, "mcp_out")
+	if err := FromOpenAPIWithConfig("to_sdk", specPath, mcpOut, Config{
+		InputPath: specPath,
+		OutputDir: mcpOut,
+		Mcp:       true,
+		GithubOrg: "acme",
+		Topology:  "polyrepo",
+	}); err != nil {
+		t.Fatalf("FromOpenAPIWithConfig with Mcp failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(mcpOut, "mcp", "mcp_tools.go")); err != nil {
+		t.Errorf("expected mcp/mcp_tools.go to exist: %v", err)
+	}
+
+	// Test FromOpenAPIWithConfig when mcp dir is blocked by a file
+	mcpBlocked := filepath.Join(dir, "mcp_blocked")
+	_ = os.MkdirAll(mcpBlocked, 0755)
+	_ = os.WriteFile(filepath.Join(mcpBlocked, "mcp"), []byte("blocker"), 0644)
+	if err := FromOpenAPIWithConfig("to_sdk", specPath, mcpBlocked, Config{
+		InputPath:            specPath,
+		OutputDir:            mcpBlocked,
+		NoGithubActions:      true,
+		NoInstallablePackage: true,
+		Mcp:                  true,
+	}); err == nil {
+		t.Error("expected error when mcp dir is blocked by a file")
+	}
+
+	// Test ensureFileDocCoverage with undocumented interface method and multi-spec TYPE GenDecl
+	undocIfaceFile := &dst.File{
+		Name: dst.NewIdent("sample"),
+		Decls: []dst.Decl{
+			&dst.GenDecl{
+				Tok: token.TYPE,
+				Specs: []dst.Spec{
+					&dst.TypeSpec{
+						Name: dst.NewIdent("MyIface"),
+						Type: &dst.InterfaceType{
+							Methods: &dst.FieldList{
+								List: []*dst.Field{
+									{Names: []*dst.Ident{dst.NewIdent("DoWork")}, Type: &dst.FuncType{Params: &dst.FieldList{}}},
+								},
+							},
+						},
+					},
+					&dst.TypeSpec{
+						Name: dst.NewIdent("SecondType"),
+						Type: dst.NewIdent("string"),
+					},
+				},
+			},
+		},
+	}
+	if err := WriteDstFile(filepath.Join(dir, "undoc_iface.go"), undocIfaceFile); err != nil {
+		t.Fatalf("WriteDstFile failed: %v", err)
+	}
+}

@@ -388,33 +388,34 @@ func GenerateServerMain(oa *openapi.OpenAPI, outDir string, database bool, seed 
 	}
 	mainFunc.Decs.Start.Append("// main is the server entrypoint.")
 
+	modPath := ReadModulePath(outDir)
 	imports := []dst.Spec{
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"flag"`}},
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"log"`}},
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"os"`}},
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/gin-gonic/gin"`}},
-		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/middlewares"`}},
+		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + modPath + `/middlewares"`}},
 	}
 
 	if oa != nil && len(oa.Paths) > 0 {
-		imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/routes"`}})
+		imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + modPath + `/routes"`}})
 	}
 
 	if idp {
-		imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/idp"`}})
+		imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + modPath + `/idp"`}})
 	}
 
 	if hasWebhooks {
-		imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/webhooks"`}})
+		imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + modPath + `/webhooks"`}})
 	}
 
 	if database {
 		imports = append(imports,
-			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/database"`}},
-			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/daos"`}},
+			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + modPath + `/database"`}},
+			&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + modPath + `/daos"`}},
 		)
 		if seed {
-			imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/seeder"`}})
+			imports = append(imports, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + modPath + `/seeder"`}})
 		}
 	}
 

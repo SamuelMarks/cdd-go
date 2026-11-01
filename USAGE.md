@@ -12,6 +12,9 @@ cdd-go --version
 # Generate a Client SDK from an OpenAPI spec (with tests, mocks, and MCP adapters)
 cdd-go from_openapi to_sdk -i spec.json -o ./client --tests --mcp
 
+# Generate a Client SDK with custom GitHub Org and Monorepo/Polyrepo module resolution
+cdd-go from_openapi to_sdk -i spec.json -o ./client --github-org my-org --repo-name my-sdk --topology monorepo
+
 # Generate a Cobra CLI Tool from an OpenAPI spec
 cdd-go from_openapi to_sdk_cli -i spec.json -o ./cli --tests --mcp
 

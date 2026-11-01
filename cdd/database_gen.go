@@ -35,7 +35,7 @@ func GenerateDatabase(oa *openapi.OpenAPI, outDir string) error {
 		&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/postgres"`}},
 	}
 	if len(schemas) > 0 {
-		importSpecs = append(importSpecs, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}})
+		importSpecs = append(importSpecs, &dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + ReadModulePath(outDir) + `/models"`}})
 	}
 
 	decls := []dst.Decl{

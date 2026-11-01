@@ -54,8 +54,8 @@ func TestServeJSONRPC(t *testing.T) {
 	reqVer := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"version"}`))
 	rrVer := httptest.NewRecorder()
 	capturedHandler.ServeHTTP(rrVer, reqVer)
-	if !strings.Contains(rrVer.Body.String(), `"0.0.4"`) {
-		t.Errorf("Expected version 0.0.4, got %s", rrVer.Body.String())
+	if !strings.Contains(rrVer.Body.String(), `"0.0.5"`) {
+		t.Errorf("Expected version 0.0.5, got %s", rrVer.Body.String())
 	}
 
 	reqBadParams := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"jsonrpc":"2.0","id":2,"method":"cdd_generate_sdk","params":123}`))

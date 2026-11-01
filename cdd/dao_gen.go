@@ -44,6 +44,8 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 	}
 	sort.Strings(schemaNames)
 
+	modelsImport := `"` + ReadModulePath(outDir) + `/models"`
+
 	for _, name := range schemaNames {
 		s := schemas[name]
 
@@ -58,7 +60,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 			Decls: []dst.Decl{
 				&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
-					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: modelsImport}},
 				}},
 				bundle.InterfaceDecl,
 			},
@@ -73,7 +75,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 			Decls: append([]dst.Decl{
 				&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
-					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: modelsImport}},
 				}},
 				bundle.StubDecl,
 			}, bundle.StubMethods...),
@@ -89,7 +91,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 				&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"context"`}},
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
-					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: modelsImport}},
 				}},
 				bundle.ConcreteDecl,
 			}, bundle.ConcreteMethods...),
@@ -139,7 +141,7 @@ func GenerateDAOs(oa *openapi.OpenAPI, outDir string) error {
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"testing"`}},
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
 					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/driver/sqlite"`}},
-					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+					&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: modelsImport}},
 				}},
 			}, factoryTestMethods...), daoTestMethods...),
 		}

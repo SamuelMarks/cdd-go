@@ -23,6 +23,7 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 
 	if len(ts.Decs.Start) > 0 {
 		rawDoc := docstrings.Parse(ts.Decs.Start)
+		autoType := ts.Name.Name + " represents the " + ts.Name.Name + " type."
 		var descLines []string
 		for _, line := range strings.Split(rawDoc, "\n") {
 			trimmed := strings.TrimSpace(line)
@@ -30,7 +31,7 @@ func ParseType(ts *dst.TypeSpec) (*openapi.Schema, error) {
 				schema.Discriminator = parseDiscriminatorDirective(strings.TrimPrefix(trimmed, "@discriminator "))
 			} else if strings.HasPrefix(trimmed, "@xml ") {
 				schema.XML = parseXMLDirective(strings.TrimPrefix(trimmed, "@xml "))
-			} else if trimmed != "" {
+			} else if trimmed != "" && trimmed != autoType {
 				descLines = append(descLines, trimmed)
 			}
 		}
@@ -109,7 +110,10 @@ func parseStructFields(st *dst.StructType) (map[string]openapi.Schema, error) {
 		propSchema.XML = xmlObj
 
 		if len(field.Decs.Start) > 0 {
-			propSchema.Description = strings.ReplaceAll(docstrings.Parse(field.Decs.Start), "\n", " ")
+			desc := strings.ReplaceAll(docstrings.Parse(field.Decs.Start), "\n", " ")
+			if desc != field.Names[0].Name+" field." {
+				propSchema.Description = desc
+			}
 		}
 
 		props[propName] = *propSchema

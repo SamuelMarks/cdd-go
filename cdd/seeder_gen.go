@@ -31,7 +31,7 @@ func GenerateSeeder(oa *openapi.OpenAPI, outDir string) error {
 			&dst.GenDecl{Tok: token.IMPORT, Specs: []dst.Spec{
 				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"gorm.io/gorm"`}},
 				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"github.com/brianvoe/gofakeit/v6"`}},
-				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"generated_sdk/models"`}},
+				&dst.ImportSpec{Path: &dst.BasicLit{Kind: token.STRING, Value: `"` + ReadModulePath(outDir) + `/models"`}},
 			}},
 		}, decls...),
 	}

@@ -37,6 +37,14 @@ type RPCFromOpenAPIParams struct {
 	NoInstallablePackage bool `json:"no_installable_package"`
 	// Tests enables generating test suites and mocks.
 	Tests bool `json:"tests"`
+	// Mcp enables generating Model Context Protocol (MCP) bindings.
+	Mcp bool `json:"mcp"`
+	// GithubOrg specifies the GitHub organization or user name for module resolution.
+	GithubOrg string `json:"github_org"`
+	// RepoName specifies the repository name override for module resolution.
+	RepoName string `json:"repo_name"`
+	// Topology specifies "monorepo" or "polyrepo" layout.
+	Topology string `json:"topology"`
 }
 
 // httpListenAndServe is an injectable function variable wrapping http.ListenAndServe.
@@ -63,7 +71,7 @@ func newJSONRPCHandler() http.Handler {
 
 		switch req.Method {
 		case "version":
-			result = json.RawMessage(`"0.0.4"`)
+			result = json.RawMessage(`"0.0.5"`)
 		case "to_docs_json":
 			var params []string
 			if err := json.Unmarshal(req.Params, &params); err == nil {
@@ -149,6 +157,18 @@ func newJSONRPCHandler() http.Handler {
 				}
 				if mapParams.Tests {
 					args = append(args, "--tests")
+				}
+				if mapParams.Mcp {
+					args = append(args, "--mcp")
+				}
+				if mapParams.GithubOrg != "" {
+					args = append(args, "--github-org", mapParams.GithubOrg)
+				}
+				if mapParams.RepoName != "" {
+					args = append(args, "--repo-name", mapParams.RepoName)
+				}
+				if mapParams.Topology != "" {
+					args = append(args, "--topology", mapParams.Topology)
 				}
 				err := run(args)
 				if err != nil {

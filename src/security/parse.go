@@ -10,6 +10,7 @@ import (
 )
 
 // Parse extracts an OpenAPI SecurityRequirement slice from an AST representation.
+// Parameter expr is the AST expression, and it returns the extracted slice of OpenAPI SecurityRequirements.
 func Parse(expr dst.Expr) []openapi.SecurityRequirement {
 	if expr == nil {
 		return nil

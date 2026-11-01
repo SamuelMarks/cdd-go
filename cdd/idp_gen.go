@@ -10,6 +10,7 @@ import (
 )
 
 // GenerateIdP generates a generic Integrated Identity Provider for testing environments.
+// Parameter outDir is the destination directory, and it returns any generation error.
 func GenerateIdP(outDir string) error {
 	idpDir := filepath.Join(outDir, "idp")
 	if err := os.MkdirAll(idpDir, 0755); err != nil {

@@ -26,6 +26,9 @@ func TestEmitAndParseCLIWorkflows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EmitCLIWorkflows failed: %v", err)
 	}
+	if _, err := EmitCLIWorkflowsWithModule(doc, ""); err != nil {
+		t.Fatalf("EmitCLIWorkflowsWithModule with empty modulePath failed: %v", err)
+	}
 
 	wfs, info, err := ParseCLIWorkflows(file)
 	if err != nil {

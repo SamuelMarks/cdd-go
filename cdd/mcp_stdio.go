@@ -76,7 +76,7 @@ func ServeMCP(in io.Reader, out io.Writer, errW io.Writer) error {
 				}{},
 			}
 			initRes.ServerInfo.Name = "cdd-generator-mcp"
-			initRes.ServerInfo.Version = "0.0.4"
+			initRes.ServerInfo.Version = "0.0.5"
 			resultRaw, _ = json.Marshal(initRes)
 		case "tools/list":
 			inputSchema := mcp.ToolInputSchema{
